@@ -4,15 +4,16 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 /// Configure this to your backend origin
- const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
-// const String kApiBase = "http://localhost:8000"; // iOS simulator / desktop / web
+//const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
+const String kApiBase =
+    "http://localhost:8000"; // iOS simulator / desktop / web
 // const String kApiBase = "https://api.yourdomain.com"; // production (HTTPS)
 
 class ApiClient {
   final Dio dio;
   final CookieJar cookieJar;
   String? _accessToken; // keep in memory; don't persist unless you must
-  String? _tenantSlug;  // e.g., "default", sent via X-Tenant-Id
+  String? _tenantSlug; // e.g., "default", sent via X-Tenant-Id
 
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
@@ -62,7 +63,8 @@ class ApiClient {
     return dio.post<T>(path, data: data, options: options);
   }
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters, Options? options}) {
+  Future<Response<T>> get<T>(String path,
+      {Map<String, dynamic>? queryParameters, Options? options}) {
     return dio.get<T>(path, queryParameters: queryParameters, options: options);
   }
 
@@ -105,7 +107,8 @@ class _TokenRefreshInterceptor extends Interceptor {
         // retry the original request with flag
         final opts = Options(
           method: requestOptions.method,
-          headers: Map<String, dynamic>.from(requestOptions.headers)..['X-Retry'] = '1',
+          headers: Map<String, dynamic>.from(requestOptions.headers)
+            ..['X-Retry'] = '1',
           extra: {...requestOptions.extra, 'retried': true},
           responseType: requestOptions.responseType,
           contentType: requestOptions.contentType,
@@ -138,7 +141,9 @@ class _TokenRefreshInterceptor extends Interceptor {
     final data = res.data as Map;
     final newAccess = data['access'] as String?;
     if (newAccess == null) {
-      throw DioException(requestOptions: res.requestOptions, message: 'No access token in refresh');
+      throw DioException(
+          requestOptions: res.requestOptions,
+          message: 'No access token in refresh');
     }
     client.setAccessToken(newAccess);
   }
