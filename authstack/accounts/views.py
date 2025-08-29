@@ -7,7 +7,13 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .serializers import MeSerializer, CookieTokenObtainPairSerializer
-from .permissions import HasAnyRole, DjangoPermissionRequired, ReadOnlyOrPerm
+from .permissions import (
+    HasAnyRole,
+    DjangoPermissionRequired,
+    ReadOnlyOrPerm,
+    IsTenantMember,
+    TenantMatchesToken,
+)
 
 REFRESH_COOKIE_NAME = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
 REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/api/token/refresh/")
@@ -40,6 +46,10 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             set_refresh_cookie(res, refresh)
         return res
 
+    def get_serializer_context(self):
+        # Ensure serializer has access to request for tenant-aware claims
+        return {"request": self.request, "view": self}
+
 
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
@@ -69,7 +79,7 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsTenantMember, TenantMatchesToken]
 
     def get(self, request):
         return Response(MeSerializer(request.user).data)

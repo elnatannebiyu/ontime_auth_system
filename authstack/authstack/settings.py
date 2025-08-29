@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "drf_yasg",
 
     "accounts",
+    "tenants",
 ]
 
 MIDDLEWARE = [
@@ -27,6 +28,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "common.tenancy.TenantResolverMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

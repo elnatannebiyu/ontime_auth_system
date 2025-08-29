@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import Membership
 
 class MeSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
@@ -28,3 +29,26 @@ class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["perms"] = sorted(list(user.get_all_permissions()))
         token["username"] = user.username
         return token
+
+    def validate(self, attrs):
+        """Override to inject tenant context into token claims before signing."""
+        data = super().validate(attrs)
+
+        request = self.context.get("request")
+        tenant = getattr(request, "tenant", None) if request is not None else None
+        if tenant is not None and hasattr(self, "user") and self.user is not None:
+            # Rebuild tokens so we can include tenant claims before stringifying
+            refresh = self.get_token(self.user)
+
+            # Add tenant-aware claims to access token
+            access = refresh.access_token
+            access["tenant_id"] = tenant.slug
+            # per-tenant roles via Membership
+            member = Membership.objects.filter(user=self.user, tenant=tenant).first()
+            tenant_roles = []
+            if member:
+                tenant_roles = list(member.roles.values_list("name", flat=True))
+            access["tenant_roles"] = tenant_roles
+
+            data = {"refresh": str(refresh), "access": str(access)}
+        return data

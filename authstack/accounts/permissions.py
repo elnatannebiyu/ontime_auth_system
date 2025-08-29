@@ -1,5 +1,6 @@
 from typing import Iterable
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from .models import Membership
 
 class HasAnyRole(BasePermission):
     """Allow only users who have at least one of the required roles (Django groups)."""
@@ -30,3 +31,29 @@ class ReadOnlyOrPerm(DjangoPermissionRequired):
         if request.method in SAFE_METHODS:
             return bool(request.user and request.user.is_authenticated)
         return super().has_permission(request, view)
+
+
+class IsTenantMember(BasePermission):
+    """Require that the authenticated user is a member of request.tenant."""
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        tenant = getattr(request, "tenant", None)
+        if not user or not user.is_authenticated or not tenant:
+            return False
+        return Membership.objects.filter(user=user, tenant=tenant).exists()
+
+
+class TenantMatchesToken(BasePermission):
+    """Access token must include tenant_id matching request.tenant.slug.
+
+    We only trust server-side resolution (request.tenant) + token claim agreement.
+    """
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        tenant = getattr(request, "tenant", None)
+        if not user or not user.is_authenticated or not tenant:
+            return False
+        claim_tenant = getattr(request.auth, "payload", {}).get("tenant_id") if hasattr(request, "auth") else None
+        return claim_tenant == getattr(tenant, "slug", None)
