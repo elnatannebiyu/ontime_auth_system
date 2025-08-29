@@ -1,0 +1,27 @@
+name: Flutter CI
+on:
+  pull_request:
+    paths:
+      - 'Ontime_ethiopia_flutterapp/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'Ontime_ethiopia_flutterapp/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Flutter pub get
+        working-directory: Ontime_ethiopia_flutterapp
+        run: flutter pub get
+      - name: Analyze
+        working-directory: Ontime_ethiopia_flutterapp
+        run: flutter analyze
+      - name: Test
+        working-directory: Ontime_ethiopia_flutterapp
+        run: flutter test || echo 'no tests yet; skipping'

@@ -1,0 +1,5 @@
+// Copy to lib/config.dart and adjust values
+class AppConfig {
+  static const String apiBaseUrl = 'http://localhost:8000';
+  static const bool enableLogging = true;
+}

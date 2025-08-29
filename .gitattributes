@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+# Treat common image and binary formats as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.aac binary
+*.mp4 binary
+
+# Dart/Flutter generated archives
+*.symbols binary
+
+# Ensure shell scripts are normalized
+*.sh text eol=lf
