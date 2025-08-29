@@ -4,14 +4,15 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 /// Configure this to your backend origin
-const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
-// const String kApiBase = "http://localhost:8000"; // iOS simulator
+// const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
+const String kApiBase = "http://localhost:8000"; // iOS simulator / desktop / web
 // const String kApiBase = "https://api.yourdomain.com"; // production (HTTPS)
 
 class ApiClient {
   final Dio dio;
   final CookieJar cookieJar;
   String? _accessToken; // keep in memory; don't persist unless you must
+  String? _tenantSlug;  // e.g., "default", sent via X-Tenant-Id
 
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
@@ -33,6 +34,9 @@ class ApiClient {
       if (_accessToken != null) {
         options.headers['Authorization'] = 'Bearer $_accessToken';
       }
+      if (_tenantSlug != null && _tenantSlug!.isNotEmpty) {
+        options.headers['X-Tenant-Id'] = _tenantSlug;
+      }
       return handler.next(options);
     }));
 
@@ -47,6 +51,12 @@ class ApiClient {
   String? getAccessToken() {
     return _accessToken;
   }
+
+  void setTenant(String? tenantSlug) {
+    _tenantSlug = tenantSlug;
+  }
+
+  String? get tenant => _tenantSlug;
 
   Future<Response<T>> post<T>(String path, {data, Options? options}) {
     return dio.post<T>(path, data: data, options: options);

@@ -4,6 +4,11 @@ import 'api_client.dart';
 class AuthRepository {
   final _client = ApiClient();
 
+  // Call this once (e.g., on tenant selection screen) before login and subsequent API calls
+  void setTenant(String tenantSlug) {
+    _client.setTenant(tenantSlug);
+  }
+
   Future<void> login(String username, String password) async {
     final res = await _client.post('/token/', data: {
       'username': username,
