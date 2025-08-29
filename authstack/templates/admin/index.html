@@ -1,0 +1,17 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+  {{ block.super }}
+  <div class="dashboard-module" style="margin-top: 20px">
+    <h2>API Shortcuts</h2>
+    <div class="module">
+      <ul>
+        <li><a href="/swagger/" target="_blank">Swagger UI</a></li>
+        <li><a href="/api/token/" target="_blank">Token (username/password)</a></li>
+        <li><a href="/api/token/tenant/" target="_blank">Tenant Token (requires X-Tenant-Id)</a></li>
+        <li><a href="/api/token/refresh/" target="_blank">Token Refresh</a></li>
+        <li><a href="/api/register/" target="_blank">Register</a></li>
+        <li><a href="/api/me/" target="_blank">Me (JWT required)</a></li>
+      </ul>
+    </div>

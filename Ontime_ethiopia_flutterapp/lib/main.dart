@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'auth_repository.dart';
+import 'auth/tenant_auth_client.dart';
+import 'auth/login_page.dart';
+import 'auth/register_page.dart';
+import 'home/home_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,13 +14,30 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Initialize enterprise auth client and token store
+    final api = AuthApi();
+    final tokenStore = InMemoryTokenStore();
+    const tenantId = 'default'; // TODO: make this selectable
+
     return MaterialApp(
       title: 'Ontime Ethiopia - JWT Auth',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const AuthScreen(),
+      // Make the new login page the entry point
+      initialRoute: '/login',
+      routes: {
+        '/login': (_) =>
+            LoginPage(api: api, tokenStore: tokenStore, tenantId: tenantId),
+        '/register': (_) =>
+            RegisterPage(api: api, tokenStore: tokenStore, tenantId: tenantId),
+        // New enterprise home screen
+        '/home': (_) =>
+            HomePage(api: api, tokenStore: tokenStore, tenantId: tenantId),
+        // Optional: expose the demo directly if needed
+        '/demo': (_) => const AuthScreen(),
+      },
     );
   }
 }

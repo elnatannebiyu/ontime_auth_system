@@ -5,11 +5,21 @@ from .models import Membership
 
 class MeSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
+    tenant_roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "roles", "permissions"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "roles",          # global groups
+            "tenant_roles",   # per-tenant roles from Membership
+            "permissions",
+        ]
 
     def get_roles(self, obj):
         return list(obj.groups.values_list("name", flat=True))
@@ -17,6 +27,17 @@ class MeSerializer(serializers.ModelSerializer):
     def get_permissions(self, obj):
         # Effective permissions, including those from groups
         return sorted(list(obj.get_all_permissions()))
+
+    def get_tenant_roles(self, obj):
+        # Resolve per-tenant roles for the current request. If no tenant, return [].
+        request = self.context.get("request") if hasattr(self, "context") else None
+        tenant = getattr(request, "tenant", None) if request is not None else None
+        if not tenant:
+            return []
+        member = Membership.objects.filter(user=obj, tenant=tenant).first()
+        if not member:
+            return []
+        return list(member.roles.values_list("name", flat=True))
 
 class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Inject roles/perms into **access** token for UI hints."""

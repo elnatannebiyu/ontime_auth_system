@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:flutter/foundation.dart';
 
-/// Configure this to your backend origin
-//const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
-const String kApiBase =
-    "http://localhost:8000"; // iOS simulator / desktop / web
-// const String kApiBase = "https://api.yourdomain.com"; // production (HTTPS)
+/// Configure backend origin per platform
+/// - Android emulator cannot reach host via localhost; use 10.0.2.2
+/// - iOS simulator / desktop can use localhost
+final String kApiBase =
+    Platform.isAndroid ? "http://10.0.2.2:8000" : "http://localhost:8000";
+// For production, switch to your HTTPS origin
+// final String kApiBase = "https://api.yourdomain.com";
 
 class ApiClient {
   final Dio dio;
@@ -29,6 +33,25 @@ class ApiClient {
         )),
         cookieJar = CookieJar() {
     dio.interceptors.add(CookieManager(cookieJar));
+
+    // Dev logging: print requests/responses/errors to console
+    if (kDebugMode) {
+      dio.interceptors.add(LogInterceptor(
+        request: true,
+        requestBody: true,
+        requestHeader: false,
+        responseBody: true,
+        responseHeader: false,
+        error: true,
+        logPrint: (obj) {
+          // Redact auth header if present
+          final text = obj.toString().replaceAll(
+              RegExp(r'Authorization: Bearer [^\n]+'),
+              'Authorization: Bearer <redacted>');
+          debugPrint(text);
+        },
+      ));
+    }
 
     // Attach Authorization header if we have an access token
     dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
