@@ -1,12 +1,13 @@
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.auth.models import Group
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from .serializers import MeSerializer, CookieTokenObtainPairSerializer
+from .serializers import MeSerializer, CookieTokenObtainPairSerializer, RegistrationSerializer
 from .permissions import (
     HasAnyRole,
     DjangoPermissionRequired,
@@ -115,3 +116,38 @@ class UserWriteView(APIView):
     def post(self, request):
         # Example write that requires the perm
         return Response({"ok": True, "action": "Would write something"})
+
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ser = RegistrationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        user = ser.create_user()
+
+        # Create membership in this tenant
+        from .models import Membership
+        membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
+
+        # Assign default role 'Viewer' if it exists
+        viewer = Group.objects.filter(name="Viewer").first()
+        if viewer is not None:
+            membership.roles.add(viewer)
+
+        # Build JWTs similar to CookieTokenObtainPairSerializer behavior
+        token_ser = CookieTokenObtainPairSerializer()
+        refresh = token_ser.get_token(user)
+        access = refresh.access_token
+        access["tenant_id"] = tenant.slug
+        member_roles = list(membership.roles.values_list("name", flat=True))
+        access["tenant_roles"] = member_roles
+
+        resp = Response({"access": str(access)}, status=status.HTTP_201_CREATED)
+        set_refresh_cookie(resp, str(refresh))
+        return resp

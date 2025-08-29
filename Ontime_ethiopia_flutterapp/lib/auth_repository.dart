@@ -9,6 +9,19 @@ class AuthRepository {
     _client.setTenant(tenantSlug);
   }
 
+  Future<void> register(String email, String password) async {
+    final res = await _client.post('/register/', data: {
+      'email': email,
+      'password': password,
+    });
+    final map = res.data as Map;
+    final access = map['access'] as String?;
+    if (access == null) {
+      throw DioException(requestOptions: res.requestOptions, message: 'No access in response');
+    }
+    _client.setAccessToken(access);
+  }
+
   Future<void> login(String username, String password) async {
     final res = await _client.post('/token/', data: {
       'username': username,

@@ -37,6 +37,13 @@ class _AuthScreenState extends State<AuthScreen> {
   Map<String, dynamic>? _userInfo;
 
   @override
+  void initState() {
+    super.initState();
+    // Ensure all API calls include tenant header
+    repo.setTenant('default');
+  }
+
+  @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
@@ -45,7 +52,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _login() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-      setState(() => _status = 'Please enter username and password');
+      setState(() => _status = 'Please enter email and password');
       return;
     }
 
@@ -63,6 +70,32 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       setState(() {
         _status = 'Login failed: $e';
+        _loading = false;
+        _userInfo = null;
+      });
+    }
+  }
+
+  Future<void> _register() async {
+    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
+      setState(() => _status = 'Please enter email and password');
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      await repo.register(_usernameController.text, _passwordController.text);
+      final me = await repo.me();
+      setState(() {
+        _userInfo = me;
+        _status =
+            'Registered & logged in as: ${me['username']}\nRoles: ${me['roles']}';
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _status = 'Registration failed: $e';
         _loading = false;
         _userInfo = null;
       });
@@ -126,7 +159,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     TextField(
                       controller: _usernameController,
                       decoration: const InputDecoration(
-                        labelText: 'Username',
+                        labelText: 'Email',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.person),
                       ),
@@ -158,6 +191,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   onPressed: _loading || _userInfo != null ? null : _login,
                   icon: const Icon(Icons.login),
                   label: const Text('Login'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _loading || _userInfo != null ? null : _register,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Register'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed:

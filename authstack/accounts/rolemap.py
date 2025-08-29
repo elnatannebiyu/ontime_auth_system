@@ -10,4 +10,7 @@ ROLE_DEFS = {
     "Reviewer": {
         "permissions": ["view_*"],
     },
+    "Viewer": {
+        "permissions": ["view_*"],
+    },
 }

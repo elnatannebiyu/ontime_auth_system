@@ -52,3 +52,19 @@ class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
 
             data = {"refresh": str(refresh), "access": str(access)}
         return data
+
+
+class RegistrationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def create_user(self):
+        email = self.validated_data["email"].lower()
+        password = self.validated_data["password"]
+        user = User.objects.create_user(username=email, email=email, password=password)
+        return user

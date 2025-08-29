@@ -6,12 +6,14 @@ from .views import (
     MeView,
     AdminOnlyView,
     UserWriteView,
+    RegisterView,
 )
 
 urlpatterns = [
     path("token/", CookieTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
     path("logout/", LogoutView.as_view(), name="logout"),
+    path("register/", RegisterView.as_view(), name="register"),
 
     path("me/", MeView.as_view(), name="me"),
     path("admin-only/", AdminOnlyView.as_view(), name="admin_only"),

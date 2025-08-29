@@ -4,8 +4,8 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 /// Configure this to your backend origin
-// const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
-const String kApiBase = "http://localhost:8000"; // iOS simulator / desktop / web
+ const String kApiBase = "http://10.0.2.2:8000"; // Android emulator -> host
+// const String kApiBase = "http://localhost:8000"; // iOS simulator / desktop / web
 // const String kApiBase = "https://api.yourdomain.com"; // production (HTTPS)
 
 class ApiClient {
