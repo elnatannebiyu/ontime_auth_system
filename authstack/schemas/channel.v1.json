@@ -1,0 +1,157 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ontime.example/schemas/channel.v1.json",
+  "title": "Ontime Channel v1",
+  "type": "object",
+  "required": ["schema", "uid", "id", "tenant", "display", "availability"],
+  "properties": {
+    "schema": {"const": "channel.v1"},
+    "uid": {"type": "string", "format": "uuid"},
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "tenant": {"type": "string"},
+
+    "display": {
+      "type": "object",
+      "required": ["default_locale", "name"],
+      "properties": {
+        "default_locale": {"type": "string", "enum": ["am", "en"]},
+        "name": {
+          "type": "object",
+          "properties": {
+            "am": {"type": "string"},
+            "en": {"type": "string"}
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["locale", "value"],
+            "properties": {
+              "locale": {"type": "string"},
+              "value": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {"type": "string", "enum": ["logo", "poster", "banner"]},
+          "url": {"type": "string", "format": "uri"},
+          "path": {"type": "string"},
+          "width": {"type": "number"},
+          "height": {"type": "number"},
+          "source": {"type": "string"}
+        },
+        "required": ["kind"],
+        "oneOf": [
+          {"required": ["url"]},
+          {"required": ["path"]}
+        ],
+        "additionalProperties": false
+      }
+    },
+
+    "categorization": {
+      "type": "object",
+      "properties": {
+        "genres": {"type": "array", "items": {"type": "string"}},
+        "language": {"type": "string"},
+        "country": {"type": "string", "minLength": 2, "maxLength": 2},
+        "tags": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+
+    "availability": {
+      "type": "object",
+      "required": ["is_active"],
+      "properties": {
+        "is_active": {"type": "boolean"},
+        "regions_allow": {"type": "array", "items": {"type": "string"}},
+        "regions_deny": {"type": "array", "items": {"type": "string"}},
+        "platforms": {"type": "array", "items": {"type": "string", "enum": ["mobile", "web", "tv"]}},
+        "drm_required": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+
+    "lineup": {
+      "type": "object",
+      "properties": {
+        "sort_order": {"type": "number"},
+        "featured": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"type": "string", "enum": ["satellite", "manual", "hls", "dash", "ott"]},
+          "name": {"type": "string"},
+          "url": {"type": "string"},
+          "frequency_mhz": {"type": "number"},
+          "symbol_rate_ksps": {"type": "number"},
+          "polarization": {"type": "string", "enum": ["H", "V", "L", "R"]},
+          "status": {"type": "string", "enum": ["observed", "current", "deprecated"]},
+          "confidence": {"type": "number"},
+          "discovered_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "note": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["when", "source_type"],
+        "properties": {
+          "when": {"type": "string", "format": "date-time"},
+          "source_type": {"type": "string"},
+          "source_id": {"type": "string"},
+          "fields": {"type": "array", "items": {"type": "string"}},
+          "raw": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "rights": {
+      "type": "object",
+      "properties": {
+        "start_at": {"type": ["string", "null"], "format": "date-time"},
+        "end_at": {"type": ["string", "null"], "format": "date-time"},
+        "notes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+
+    "audit": {
+      "type": "object",
+      "properties": {
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "last_verified_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

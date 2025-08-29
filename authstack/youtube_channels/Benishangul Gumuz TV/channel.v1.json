@@ -1,0 +1,65 @@
+{
+  "schema": "channel.v1",
+  "uid": "268a3499-01fb-425d-91a6-883e9ef8492f",
+  "id": "benishangul-gumuz-tv",
+  "tenant": "ontime",
+  "display": {
+    "default_locale": "am",
+    "name": {
+      "am": "ቤንሻንጉል ጉሙዠ ቲቪ",
+      "en": "Benishangul Gumuz TV"
+    },
+    "aliases": []
+  },
+  "images": [
+    {
+      "kind": "logo",
+      "source": "folder",
+      "path": "icon.jpg"
+    }
+  ],
+  "categorization": {
+    "genres": [
+      "general"
+    ],
+    "language": "am",
+    "country": "ET",
+    "tags": []
+  },
+  "availability": {
+    "is_active": true,
+    "regions_allow": [
+      "ET"
+    ],
+    "regions_deny": [],
+    "platforms": [
+      "mobile",
+      "web"
+    ],
+    "drm_required": false
+  },
+  "lineup": {
+    "sort_order": 100,
+    "featured": false
+  },
+  "sources": [
+    {
+      "id": "src_manual_20250829",
+      "type": "manual",
+      "note": "Exported from v2 metadata by export_channels_v1.py",
+      "status": "current",
+      "confidence": 0.7,
+      "discovered_at": "2025-08-29T18:52:37.745272Z"
+    }
+  ],
+  "rights": {
+    "start_at": null,
+    "end_at": null,
+    "notes": null
+  },
+  "audit": {
+    "created_at": "2025-08-29T18:52:37.745275Z",
+    "updated_at": "2025-08-29T18:52:37.745276Z",
+    "last_verified_at": null
+  }
+}

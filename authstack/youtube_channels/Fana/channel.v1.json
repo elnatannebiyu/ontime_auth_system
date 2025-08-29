@@ -1,0 +1,65 @@
+{
+  "schema": "channel.v1",
+  "uid": "3511b99f-e73f-4467-9c3d-e577fd14664b",
+  "id": "fana",
+  "tenant": "ontime",
+  "display": {
+    "default_locale": "am",
+    "name": {
+      "am": "ፋና",
+      "en": "Fana"
+    },
+    "aliases": []
+  },
+  "images": [
+    {
+      "kind": "logo",
+      "source": "folder",
+      "path": "icon.jpg"
+    }
+  ],
+  "categorization": {
+    "genres": [
+      "general"
+    ],
+    "language": "am",
+    "country": "ET",
+    "tags": []
+  },
+  "availability": {
+    "is_active": true,
+    "regions_allow": [
+      "ET"
+    ],
+    "regions_deny": [],
+    "platforms": [
+      "mobile",
+      "web"
+    ],
+    "drm_required": false
+  },
+  "lineup": {
+    "sort_order": 100,
+    "featured": false
+  },
+  "sources": [
+    {
+      "id": "src_manual_20250829",
+      "type": "manual",
+      "note": "Exported from v2 metadata by export_channels_v1.py",
+      "status": "current",
+      "confidence": 0.7,
+      "discovered_at": "2025-08-29T18:52:37.748615Z"
+    }
+  ],
+  "rights": {
+    "start_at": null,
+    "end_at": null,
+    "notes": null
+  },
+  "audit": {
+    "created_at": "2025-08-29T18:52:37.748617Z",
+    "updated_at": "2025-08-29T18:52:37.748619Z",
+    "last_verified_at": null
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "tenant": "ontime",
+  "id": "ela-tv",
+  "display": {
+    "default_locale": "am",
+    "name": {
+      "am": null,
+      "en": "Ela TV"
+    }
+  },
+  "availability": {
+    "is_active": true
+  },
+  "lineup": {
+    "sort_order": 100,
+    "featured": false
+  }
+}

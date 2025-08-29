@@ -1,0 +1,1956 @@
+{
+  "schema": "channels.seed.v1",
+  "count": 30,
+  "items": [
+    {
+      "schema": "channel.v1",
+      "uid": "088da6e1-5aca-59ec-9b83-34c1b9dba19a",
+      "id": "amn",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "AMN",
+          "en": "AMN"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.741753Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.741759Z",
+        "updated_at": "2025-08-29T18:52:37.741761Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "f65f4c8b-9b01-5154-96c9-e135b606b08f",
+      "id": "abbay-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ዓባይ TV",
+          "en": "Abbay TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.742276Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.742279Z",
+        "updated_at": "2025-08-29T18:52:37.742281Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "3e7b5ce6-e0f3-57a8-a495-1e2b7434a328",
+      "id": "abol",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "Abol",
+          "en": "Abol"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.742697Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.742702Z",
+        "updated_at": "2025-08-29T18:52:37.742703Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "e4fffb94-2ae4-53a2-81d8-71975d2519f4",
+      "id": "addis-walta",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "አዲስ ዋልታ",
+          "en": "Addis Walta"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.743116Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.743119Z",
+        "updated_at": "2025-08-29T18:52:37.743120Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "0a101fca-c7a9-505d-83e1-44008770624c",
+      "id": "amico",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "አሚኮ",
+          "en": "Amico"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.743640Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.743643Z",
+        "updated_at": "2025-08-29T18:52:37.743644Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "f3d71741-14c8-57ad-bed6-09adb2cf7731",
+      "id": "arts",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "Arts",
+          "en": "Arts"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.744066Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.744068Z",
+        "updated_at": "2025-08-29T18:52:37.744070Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "1209c05c-6f37-54ea-9c36-0ea07bfdaf8a",
+      "id": "asham-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "አሻም",
+          "en": "Asham TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.744563Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.744567Z",
+        "updated_at": "2025-08-29T18:52:37.744569Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "cc00e7d8-1c02-5bbd-a3f6-27a75cff12a1",
+      "id": "balageru",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ባላገሩ",
+          "en": "Balageru"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.744946Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.744949Z",
+        "updated_at": "2025-08-29T18:52:37.744950Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "32aae7e9-de1b-5703-94d6-0162777f2078",
+      "id": "benishangul-gumuz-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ቤንሻንጉል ጉሙዠ ቲቪ",
+          "en": "Benishangul Gumuz TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.745272Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.745275Z",
+        "updated_at": "2025-08-29T18:52:37.745276Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "b279b7cd-5c16-5394-803e-da967c80e9e4",
+      "id": "bisrat-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ብስራት ቲቪ",
+          "en": "Bisrat TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.745607Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.745609Z",
+        "updated_at": "2025-08-29T18:52:37.745610Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "5d7df24c-4f9d-50a9-911b-531b04b57d08",
+      "id": "dw",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "DW",
+          "en": "DW"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.746259Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.746264Z",
+        "updated_at": "2025-08-29T18:52:37.746266Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "d99a0a0e-2e3f-558a-9d36-926c8e337f09",
+      "id": "ebc",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "EBC",
+          "en": "EBC"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.746750Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.746757Z",
+        "updated_at": "2025-08-29T18:52:37.746759Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "3492500d-89c9-5ba0-a2b2-f7a89d292362",
+      "id": "ebs",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "EBS",
+          "en": "EBS"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.747098Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.747101Z",
+        "updated_at": "2025-08-29T18:52:37.747102Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "ee84ca81-bff1-5af9-8545-573c502ee827",
+      "id": "esat-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ESAT TV",
+          "en": "ESAT TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.747488Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.747493Z",
+        "updated_at": "2025-08-29T18:52:37.747494Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "7ac5235d-31bb-58d6-a68c-d3b07f84512c",
+      "id": "etv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ETV",
+          "en": "ETV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.747881Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.747884Z",
+        "updated_at": "2025-08-29T18:52:37.747886Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "ccab682f-a8aa-54f0-b146-425452974376",
+      "id": "ethiopia-kids",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "የኢትዮጵያ ልጆች",
+          "en": "Ethiopia Kids"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.748252Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.748255Z",
+        "updated_at": "2025-08-29T18:52:37.748257Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "da23e0a9-4c70-544c-8e50-d249fcd1fbbc",
+      "id": "fana",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ፋና",
+          "en": "Fana"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.748615Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.748617Z",
+        "updated_at": "2025-08-29T18:52:37.748619Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "b0d65ebe-032c-57c6-933b-258ee81a71ec",
+      "id": "gamo-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "GAMO TV",
+          "en": "GAMO TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.748974Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.748977Z",
+        "updated_at": "2025-08-29T18:52:37.748978Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "8489694a-5bf2-5107-ade0-08d2e228490c",
+      "id": "hagerie-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ሀገሬ ቴቪ",
+          "en": "Hagerie TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.749380Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.749383Z",
+        "updated_at": "2025-08-29T18:52:37.749384Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "422692f6-a6b8-5aad-b765-de6e9ec85136",
+      "id": "kana",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ቃና",
+          "en": "Kana"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.749739Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.749741Z",
+        "updated_at": "2025-08-29T18:52:37.749742Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "bc6ff874-a76a-5969-ae52-7775c2c58315",
+      "id": "mahibere-kidusan",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ማህበረ ቅድሳን",
+          "en": "Mahibere Kidusan"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.750356Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.750358Z",
+        "updated_at": "2025-08-29T18:52:37.750360Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "a02b268f-fbe7-5750-a768-5eb1645047b9",
+      "id": "nbc",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "NBC",
+          "en": "NBC"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.750718Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.750720Z",
+        "updated_at": "2025-08-29T18:52:37.750722Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "6d7e7c61-8e17-5dff-8fe8-97e5de2e9667",
+      "id": "nahu",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ናሁ",
+          "en": "Nahu"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.751186Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.751188Z",
+        "updated_at": "2025-08-29T18:52:37.751189Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "d9921e8d-c8e3-53ee-af38-e4af955cf097",
+      "id": "obn",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "OBN",
+          "en": "OBN"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.752107Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.752110Z",
+        "updated_at": "2025-08-29T18:52:37.752111Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "633cf5f3-310c-52b7-a275-dccb9c29e193",
+      "id": "snt",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "SNT",
+          "en": "SNT"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.752481Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.752483Z",
+        "updated_at": "2025-08-29T18:52:37.752485Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "6db4d6e9-f66b-5675-897d-125ac683b3c4",
+      "id": "south-radio-and-television",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "ደቡብ ራዲዮና ቴሌቭዥን ድርጅት",
+          "en": "South Radio and Television"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.752795Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.752797Z",
+        "updated_at": "2025-08-29T18:52:37.752798Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "51e811bb-df9b-53c6-a8f4-899ec700bc63",
+      "id": "tbs",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "TBS",
+          "en": "TBS"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.753120Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.753122Z",
+        "updated_at": "2025-08-29T18:52:37.753123Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "7fba2afd-dad1-5810-b3c3-945c766b788e",
+      "id": "tigrai-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "TIGRAI TV",
+          "en": "TIGRAI TV"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.753462Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.753464Z",
+        "updated_at": "2025-08-29T18:52:37.753466Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "88b0124a-2db0-5701-bb4a-d64793d60cf1",
+      "id": "walaita-tv",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "Walaita tv",
+          "en": "Walaita tv"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.753719Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.753721Z",
+        "updated_at": "2025-08-29T18:52:37.753722Z",
+        "last_verified_at": null
+      }
+    },
+    {
+      "schema": "channel.v1",
+      "uid": "d294720e-927b-5df9-a9eb-4236af95fdca",
+      "id": "ya",
+      "tenant": "ontime",
+      "display": {
+        "default_locale": "am",
+        "name": {
+          "am": "YA",
+          "en": "YA"
+        },
+        "aliases": []
+      },
+      "images": [
+        {
+          "kind": "logo",
+          "source": "folder",
+          "path": "icon.jpg"
+        }
+      ],
+      "categorization": {
+        "genres": [
+          "general"
+        ],
+        "language": "am",
+        "country": "ET",
+        "tags": []
+      },
+      "availability": {
+        "is_active": true,
+        "regions_allow": [
+          "ET"
+        ],
+        "regions_deny": [],
+        "platforms": [
+          "mobile",
+          "web"
+        ],
+        "drm_required": false
+      },
+      "lineup": {
+        "sort_order": 100,
+        "featured": false
+      },
+      "sources": [
+        {
+          "id": "src_manual_20250829",
+          "type": "manual",
+          "note": "Exported from v2 metadata by export_channels_v1.py",
+          "status": "current",
+          "confidence": 0.7,
+          "discovered_at": "2025-08-29T18:52:37.753972Z"
+        }
+      ],
+      "rights": {
+        "start_at": null,
+        "end_at": null,
+        "notes": null
+      },
+      "audit": {
+        "created_at": "2025-08-29T18:52:37.753974Z",
+        "updated_at": "2025-08-29T18:52:37.753976Z",
+        "last_verified_at": null
+      }
+    }
+  ]
+}

@@ -1,7 +1,10 @@
 import axios from "axios";
 
+const apiBase = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api`;
+const TENANT_ID: string = (import.meta as any).env?.VITE_TENANT_ID || "ontime";
+
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: apiBase,
   withCredentials: true,
 });
 
@@ -10,9 +13,11 @@ export const setAccessToken = (t: string | null) => { accessToken = t; };
 export const getAccessToken = () => accessToken;
 
 api.interceptors.request.use((config) => {
+  config.headers = config.headers || {};
+  // Always send tenant header (required by backend middleware)
+  (config.headers as any)["X-Tenant-Id"] = TENANT_ID;
   if (accessToken) {
-    config.headers = config.headers || {};
-    config.headers["Authorization"] = `Bearer ${accessToken}`;
+    (config.headers as any)["Authorization"] = `Bearer ${accessToken}`;
   }
   return config;
 });
@@ -42,7 +47,10 @@ api.interceptors.response.use(
       orig._retry = true;
       try {
         const t = await refresh();
+        orig.headers = orig.headers || {};
         orig.headers["Authorization"] = `Bearer ${t}`;
+        // Ensure tenant header remains present on retried request
+        orig.headers["X-Tenant-Id"] = TENANT_ID;
         return api(orig);
       } catch {
         // Refresh failed, don't retry

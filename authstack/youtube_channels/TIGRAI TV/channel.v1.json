@@ -1,0 +1,65 @@
+{
+  "schema": "channel.v1",
+  "uid": "bcdd9191-c903-4e3c-b742-e1968a758fdc",
+  "id": "tigrai-tv",
+  "tenant": "ontime",
+  "display": {
+    "default_locale": "am",
+    "name": {
+      "am": "TIGRAI TV",
+      "en": "TIGRAI TV"
+    },
+    "aliases": []
+  },
+  "images": [
+    {
+      "kind": "logo",
+      "source": "folder",
+      "path": "icon.jpg"
+    }
+  ],
+  "categorization": {
+    "genres": [
+      "general"
+    ],
+    "language": "am",
+    "country": "ET",
+    "tags": []
+  },
+  "availability": {
+    "is_active": true,
+    "regions_allow": [
+      "ET"
+    ],
+    "regions_deny": [],
+    "platforms": [
+      "mobile",
+      "web"
+    ],
+    "drm_required": false
+  },
+  "lineup": {
+    "sort_order": 100,
+    "featured": false
+  },
+  "sources": [
+    {
+      "id": "src_manual_20250829",
+      "type": "manual",
+      "note": "Exported from v2 metadata by export_channels_v1.py",
+      "status": "current",
+      "confidence": 0.7,
+      "discovered_at": "2025-08-29T18:52:37.753462Z"
+    }
+  ],
+  "rights": {
+    "start_at": null,
+    "end_at": null,
+    "notes": null
+  },
+  "audit": {
+    "created_at": "2025-08-29T18:52:37.753464Z",
+    "updated_at": "2025-08-29T18:52:37.753466Z",
+    "last_verified_at": null
+  }
+}

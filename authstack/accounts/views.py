@@ -15,6 +15,8 @@ from .permissions import (
     IsTenantMember,
     TenantMatchesToken,
 )
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 
 REFRESH_COOKIE_NAME = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
 REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/api/token/refresh/")
@@ -40,6 +42,21 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CookieTokenObtainPairSerializer
 
+    # Swagger header parameter for tenancy
+    PARAM_TENANT = openapi.Parameter(
+        name="X-Tenant-Id",
+        in_=openapi.IN_HEADER,
+        description="Tenant slug (e.g., ontime)",
+        type=openapi.TYPE_STRING,
+        required=True,
+        default="ontime",
+    )
+
+    @swagger_auto_schema(
+        manual_parameters=[PARAM_TENANT],
+        operation_id="token_create",
+        tags=["Auth"],
+    )
     def post(self, request, *args, **kwargs):
         res = super().post(request, *args, **kwargs)
         if res.status_code == 200 and "refresh" in res.data:
@@ -54,6 +71,14 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
+    # Swagger header parameter for tenancy (required by middleware)
+    PARAM_TENANT = CookieTokenObtainPairView.PARAM_TENANT
+
+    @swagger_auto_schema(
+        manual_parameters=[PARAM_TENANT],
+        operation_id="token_refresh_create",
+        tags=["Auth"],
+    )
     def post(self, request, *args, **kwargs):
         refresh = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
         if not refresh:
@@ -73,6 +98,11 @@ class CookieTokenRefreshView(TokenRefreshView):
 
 
 class LogoutView(APIView):
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="logout_create",
+        tags=["Auth"],
+    )
     def post(self, request):
         res = Response({"detail": "Logged out."}, status=status.HTTP_200_OK)
         clear_refresh_cookie(res)
@@ -80,9 +110,79 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
-    permission_classes = [IsTenantMember, TenantMatchesToken]
+    # Keep IsAuthenticated at the permission layer; perform tenant validations here to provide clearer messages
+    permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="me_retrieve",
+        tags=["Auth"],
+        responses={
+            200: MeSerializer,
+            400: "Unknown tenant. Provide X-Tenant-Id header (e.g., ontime).",
+            401: "Authentication credentials were not provided.",
+            403: "Token missing tenant_id, tenant mismatch, or not a member of this tenant.",
+        },
+    )
     def get(self, request):
+        # 1) Tenant must be resolved by middleware (via header or host)
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response(
+                {
+                    "detail": "Unknown tenant.",
+                    "hint": "Send header X-Tenant-Id: ontime when calling /api/* endpoints on localhost.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 2) Extract tenant_id from JWT claims (added during token creation)
+        token_claims = {}
+        # request.auth in SimpleJWT is a token object; try common access patterns safely
+        try:
+            if hasattr(request, "auth") and request.auth is not None:
+                if hasattr(request.auth, "payload"):
+                    token_claims = dict(getattr(request.auth, "payload") or {})
+                elif isinstance(request.auth, dict):
+                    token_claims = request.auth
+        except Exception:  # noqa: BLE001
+            token_claims = {}
+
+        token_tenant = token_claims.get("tenant_id")
+        if not token_tenant:
+            return Response(
+                {
+                    "detail": "Token missing tenant context (tenant_id).",
+                    "hint": "Obtain the token by calling POST /api/token/ WITH header X-Tenant-Id: ontime, then retry.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 3) Token tenant must match resolved tenant
+        if str(token_tenant) != str(getattr(tenant, "slug", tenant)):
+            return Response(
+                {
+                    "detail": "Tenant mismatch between request and token.",
+                    "expected": str(getattr(tenant, "slug", tenant)),
+                    "got": str(token_tenant),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 4) Ensure user is a member of this tenant
+        from .models import Membership
+
+        is_member = Membership.objects.filter(user=request.user, tenant=tenant).exists()
+        if not is_member:
+            return Response(
+                {
+                    "detail": "Not a member of this tenant.",
+                    "tenant": str(getattr(tenant, "slug", tenant)),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 5) Success
         return Response(MeSerializer(request.user, context={"request": request}).data)
 
 
@@ -97,6 +197,11 @@ class AdminOnlyView(APIView):
         p.required_roles = ("Administrator",)
         return [p]
 
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="admin_only_retrieve",
+        tags=["Auth"],
+    )
     def get(self, request):
         return Response({"ok": True, "msg": "Hello, Administrator!"})
 
@@ -109,10 +214,20 @@ class UserWriteView(APIView):
         p.required_perm = "auth.change_user"
         return [p]
 
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="users_list",
+        tags=["Auth"],
+    )
     def get(self, request):
         users = list(User.objects.values("id", "username", "email")[:25])
         return Response({"results": users})
 
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="users_create",
+        tags=["Auth"],
+    )
     def post(self, request):
         # Example write that requires the perm
         return Response({"ok": True, "action": "Would write something"})
@@ -121,6 +236,11 @@ class UserWriteView(APIView):
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(
+        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        operation_id="register_create",
+        tags=["Auth"],
+    )
     def post(self, request):
         tenant = getattr(request, "tenant", None)
         if tenant is None:
