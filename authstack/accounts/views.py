@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .serializers import MeSerializer, CookieTokenObtainPairSerializer
@@ -30,6 +30,7 @@ def clear_refresh_cookie(response: Response):
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [AllowAny]
     serializer_class = CookieTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
@@ -41,6 +42,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
 
 class CookieTokenRefreshView(TokenRefreshView):
+    permission_classes = [AllowAny]
     def post(self, request, *args, **kwargs):
         refresh = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
         if not refresh:
