@@ -9,11 +9,11 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 
-class ChannelViewSet(viewsets.ModelViewSet):
+class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Channel.objects.all()
     serializer_class = ChannelSerializer
-    # Read-only for any authenticated user; write requires model permissions
-    permission_classes = [permissions.IsAuthenticated, permissions.DjangoModelPermissions]
+    # Read-only for any authenticated user. Mutations are guarded inside actions with explicit checks.
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["id_slug", "name_en", "name_am"]
     ordering_fields = ["sort_order", "id_slug", "updated_at"]
@@ -77,7 +77,7 @@ class ChannelViewSet(viewsets.ModelViewSet):
         is_active = self.request.query_params.get("is_active", "true")
         if is_active in {"true", "false", "1", "0"}:
             qs = qs.filter(is_active=is_active in {"true", "1"})
-        tenant = self.request.query_params.get("tenant") or "ontime"
+        tenant = self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
         qs = qs.filter(tenant=tenant)
         return qs
 
