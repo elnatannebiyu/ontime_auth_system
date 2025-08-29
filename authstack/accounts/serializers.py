@@ -14,7 +14,8 @@ class MeSerializer(serializers.ModelSerializer):
         return list(obj.groups.values_list("name", flat=True))
 
     def get_permissions(self, obj):
-        return list(obj.user_permissions.values_list("codename", flat=True))
+        # Effective permissions, including those from groups
+        return sorted(list(obj.get_all_permissions()))
 
 class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Inject roles/perms into **access** token for UI hints."""
@@ -23,6 +24,7 @@ class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         # Add claims for UI (never trust these on backend)
         token["roles"] = list(user.groups.values_list("name", flat=True))
-        token["perms"] = list(user.user_permissions.values_list("codename", flat=True))
+        # Effective permissions, including group-derived ones
+        token["perms"] = sorted(list(user.get_all_permissions()))
         token["username"] = user.username
         return token

@@ -30,7 +30,7 @@ jobs:
         working-directory: authstack
         run: |
           pytest -q --disable-warnings --maxfail=1 || python - <<'PY'
-from pathlib import Path
-print('pytest not configured yet; skipping with success')
-Path('.').touch()
-PY
+          from pathlib import Path
+          print('pytest not configured yet; skipping with success')
+          Path('.').touch()
+          PY

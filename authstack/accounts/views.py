@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .serializers import MeSerializer, CookieTokenObtainPairSerializer
 from .permissions import HasAnyRole, DjangoPermissionRequired, ReadOnlyOrPerm
 
@@ -41,14 +42,21 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
-        data = request.data.copy()
-        data["refresh"] = request.COOKIES.get(REFRESH_COOKIE_NAME)
-        request._full_data = data
-        res = super().post(request, *args, **kwargs)
-        if res.status_code == 200 and "refresh" in res.data:
-            new_refresh = res.data.pop("refresh")
-            set_refresh_cookie(res, new_refresh)
-        return res
+        refresh = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
+        if not refresh:
+            return Response({"detail": "No refresh token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ser = TokenRefreshSerializer(data={"refresh": refresh})
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        resp = Response(data, status=status.HTTP_200_OK)
+        new_refresh = data.get("refresh")
+        if new_refresh:
+            # move refresh to httpOnly cookie and omit from JSON
+            set_refresh_cookie(resp, new_refresh)
+            resp.data.pop("refresh", None)
+        return resp
 
 
 class LogoutView(APIView):
