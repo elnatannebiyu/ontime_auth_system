@@ -73,10 +73,14 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Optional filters
-        is_active = self.request.query_params.get("is_active", "true")
-        if is_active in {"true", "false", "1", "0"}:
-            qs = qs.filter(is_active=is_active in {"true", "1"})
+        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        user = self.request.user
+        if user.is_staff or user.has_perm("onchannels.change_channel"):
+            is_active = self.request.query_params.get("is_active", "true")
+            if is_active in {"true", "false", "1", "0"}:
+                qs = qs.filter(is_active=is_active in {"true", "1"})
+        else:
+            qs = qs.filter(is_active=True)
         tenant = self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
         qs = qs.filter(tenant=tenant)
         return qs
@@ -439,10 +443,14 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Default to active playlists unless explicitly overridden
-        is_active = self.request.query_params.get("is_active", "true")
-        if is_active in {"true", "false", "1", "0"}:
-            qs = qs.filter(is_active=is_active in {"true", "1"})
+        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        user = self.request.user
+        if user.is_staff or user.has_perm("onchannels.change_channel"):
+            is_active = self.request.query_params.get("is_active", "true")
+            if is_active in {"true", "false", "1", "0"}:
+                qs = qs.filter(is_active=is_active in {"true", "1"})
+        else:
+            qs = qs.filter(is_active=True)
         # Tenant filter (from header resolution middleware populates header)
         tenant = self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
         qs = qs.filter(channel__tenant=tenant)
@@ -475,10 +483,14 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Default to active
-        is_active = self.request.query_params.get("is_active", "true")
-        if is_active in {"true", "false", "1", "0"}:
-            qs = qs.filter(is_active=is_active in {"true", "1"})
+        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        user = self.request.user
+        if user.is_staff or user.has_perm("onchannels.change_channel"):
+            is_active = self.request.query_params.get("is_active", "true")
+            if is_active in {"true", "false", "1", "0"}:
+                qs = qs.filter(is_active=is_active in {"true", "1"})
+        else:
+            qs = qs.filter(is_active=True)
         tenant = self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
         qs = qs.filter(channel__tenant=tenant)
         # Optional filters

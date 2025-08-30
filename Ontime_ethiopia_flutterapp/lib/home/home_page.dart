@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../auth/tenant_auth_client.dart';
+import '../channels/channels_page.dart';
 
 class HomePage extends StatefulWidget {
   final AuthApi api;
@@ -76,6 +77,22 @@ class _HomePageState extends State<HomePage> {
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: _loading
+                ? null
+                : () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ChannelsPage(tenantId: 'ontime'),
+                      ),
+                    );
+                    // On return from Channels, ensure Home API is back on default tenant
+                    widget.api.setTenant(widget.tenantId);
+                  },
+            icon: const Icon(Icons.video_library),
+            label: const Text('Channels'),
           ),
           const SizedBox(width: 8),
           TextButton.icon(
