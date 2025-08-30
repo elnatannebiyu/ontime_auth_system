@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api_client.dart';
+import '../core/widgets/brand_title.dart';
 
 class ChannelsPage extends StatefulWidget {
   final String tenantId;
@@ -16,6 +17,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
   List<dynamic> _channels = const [];
   final Map<String, List<dynamic>> _playlistsByChannel = {};
   final Map<String, List<dynamic>> _videosByPlaylist = {};
+  final Set<String> _expandedChannels = <String>{};
 
   @override
   void initState() {
@@ -63,6 +65,12 @@ class _ChannelsPageState extends State<ChannelsPage> {
       setState(() {
         _channels = all;
       });
+      // After channels reload, for any channels currently expanded,
+      // force-clear and re-fetch their playlists so UI shows fresh data
+      for (final slug in _expandedChannels) {
+        _playlistsByChannel.remove(slug);
+        await _ensurePlaylists(slug);
+      }
     } catch (e) {
       setState(() {
         _error = 'Failed to load channels';
@@ -129,7 +137,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Channels'),
+        title: const BrandTitle(section: 'Channels'),
         actions: [
           IconButton(
             onPressed: _loading ? null : () => _loadChannels(clearCaches: true),
@@ -141,77 +149,101 @@ class _ChannelsPageState extends State<ChannelsPage> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : ListView.builder(
-                  itemCount: _channels.length,
-                  itemBuilder: (context, index) {
-                    final ch = _channels[index] as Map<String, dynamic>;
-                    final slug = (ch['id_slug'] ?? '').toString();
-                    final title = (ch['name_en'] ?? ch['name_am'] ?? slug).toString();
-                    final isActive = ch['is_active'] == true;
-                    return ExpansionTile(
-                      key: PageStorageKey('ch:$slug'),
-                      title: Text(title),
-                      subtitle: Text(slug + (isActive ? '' : ' (inactive)')),
-                      children: [
-                        FutureBuilder(
-                          future: _ensurePlaylists(slug),
-                          builder: (context, snapshot) {
-                            final playlists = _playlistsByChannel[slug];
-                            if (playlists == null) {
-                              return const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: LinearProgressIndicator(),
-                              );
-                            }
-                            if (playlists.isEmpty) {
-                              return const ListTile(title: Text('No playlists'));
-                            }
-                            return Column(
-                              children: playlists.map((pl) {
-                                final p = pl as Map<String, dynamic>;
-                                final pid = (p['id'] ?? '').toString();
-                                final ptitle = (p['title'] ?? pid).toString();
-                                return ExpansionTile(
-                                  key: PageStorageKey('pl:$pid'),
-                                  title: Text(ptitle),
-                                  children: [
-                                    FutureBuilder(
-                                      future: _ensureVideos(pid),
-                                      builder: (context, snapshot) {
-                                        final vids = _videosByPlaylist[pid];
-                                        if (vids == null) {
-                                          return const Padding(
-                                            padding: EdgeInsets.all(12),
-                                            child: LinearProgressIndicator(),
-                                          );
-                                        }
-                                        if (vids.isEmpty) {
-                                          return const ListTile(title: Text('No videos'));
-                                        }
-                                        return Column(
-                                          children: vids.map((v) {
-                                            final vv = v as Map<String, dynamic>;
-                                            final vid = (vv['video_id'] ?? '').toString();
-                                            final vtitle = (vv['title'] ?? vid).toString();
-                                            return ListTile(
-                                              dense: true,
-                                              leading: const Icon(Icons.play_circle_fill),
-                                              title: Text(vtitle),
-                                              subtitle: Text(vid),
-                                            );
-                                          }).toList(),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            );
+              : RefreshIndicator(
+                  onRefresh: () => _loadChannels(clearCaches: true),
+                  child: ListView.builder(
+                      itemCount: _channels.length,
+                      itemBuilder: (context, index) {
+                        final ch = _channels[index] as Map<String, dynamic>;
+                        final slug = (ch['id_slug'] ?? '').toString();
+                        final title = (ch['name_en'] ?? ch['name_am'] ?? slug).toString();
+                        final isActive = ch['is_active'] == true;
+                        return ExpansionTile(
+                          key: PageStorageKey('ch:$slug'),
+                          title: Text(title),
+                          subtitle: Text(slug + (isActive ? '' : ' (inactive)')),
+                          initiallyExpanded: _expandedChannels.contains(slug),
+                          onExpansionChanged: (expanded) {
+                            setState(() {
+                              if (expanded) {
+                                _expandedChannels.add(slug);
+                              } else {
+                                _expandedChannels.remove(slug);
+                              }
+                            });
                           },
-                        ),
-                      ],
-                    );
-                  },
+                          trailing: IconButton(
+                            tooltip: 'Refresh playlists',
+                            icon: const Icon(Icons.refresh),
+                            onPressed: () async {
+                              setState(() {
+                                _playlistsByChannel.remove(slug);
+                                _videosByPlaylist.clear(); // clear dependent videos cache
+                              });
+                              await _ensurePlaylists(slug);
+                            },
+                          ),
+                          children: [
+                            FutureBuilder(
+                              future: _ensurePlaylists(slug),
+                              builder: (context, snapshot) {
+                                final playlists = _playlistsByChannel[slug];
+                                if (playlists == null) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: LinearProgressIndicator(),
+                                  );
+                                }
+                                if (playlists.isEmpty) {
+                                  return const ListTile(title: Text('No playlists'));
+                                }
+                                return Column(
+                                  children: playlists.map((pl) {
+                                    final p = pl as Map<String, dynamic>;
+                                    final pid = (p['id'] ?? '').toString();
+                                    final ptitle = (p['title'] ?? pid).toString();
+                                    return ExpansionTile(
+                                      key: PageStorageKey('pl:$pid'),
+                                      title: Text(ptitle),
+                                      children: [
+                                        FutureBuilder(
+                                          future: _ensureVideos(pid),
+                                          builder: (context, snapshot) {
+                                            final vids = _videosByPlaylist[pid];
+                                            if (vids == null) {
+                                              return const Padding(
+                                                padding: EdgeInsets.all(12),
+                                                child: LinearProgressIndicator(),
+                                              );
+                                            }
+                                            if (vids.isEmpty) {
+                                              return const ListTile(title: Text('No videos'));
+                                            }
+                                            return Column(
+                                              children: vids.map((v) {
+                                                final vv = v as Map<String, dynamic>;
+                                                final vid = (vv['video_id'] ?? '').toString();
+                                                final vtitle = (vv['title'] ?? vid).toString();
+                                                return ListTile(
+                                                  dense: true,
+                                                  leading: const Icon(Icons.play_circle_fill),
+                                                  title: Text(vtitle),
+                                                  subtitle: Text(vid),
+                                                );
+                                              }).toList(),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                  ),
                 ),
     );
   }

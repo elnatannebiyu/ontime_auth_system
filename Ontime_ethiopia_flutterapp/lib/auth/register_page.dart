@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
+import '../api_client.dart';
+import '../core/widgets/auth_layout.dart';
+import '../core/widgets/social_auth_buttons.dart';
+import '../core/widgets/version_badge.dart';
+import '../core/services/social_auth.dart';
+import '../core/utils/phone_input_formatter.dart';
+import '../core/theme/theme_controller.dart';
 
 class RegisterPage extends StatefulWidget {
   final AuthApi api;
   final TokenStore tokenStore;
   final String tenantId;
+  final ThemeController themeController;
 
   const RegisterPage({
     super.key,
     required this.api,
     required this.tokenStore,
     required this.tenantId,
+    required this.themeController,
   });
 
   @override
@@ -27,6 +36,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscure2 = true;
   bool _loading = false;
   String? _error;
+  bool _remember = true;
 
   @override
   void dispose() {
@@ -51,7 +61,11 @@ class _RegisterPageState extends State<RegisterPage> {
         email: _email.text.trim(),
         password: _password.text,
       );
-      await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+      if (_remember) {
+        await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+      } else {
+        ApiClient().setAccessToken(tokens.access);
+      }
       // Post-register guard: ensure membership/access to tenant
       try {
         await widget.api.me();
@@ -72,7 +86,7 @@ class _RegisterPageState extends State<RegisterPage> {
       final data = e.response?.data;
       String message = e.message ?? 'Registration failed';
       if (data is Map && data['email'] != null) {
-        message = (data['email'] as List?)?.join(', ') ?? '$message';
+        message = (data['email'] as List?)?.join(', ') ?? message;
       } else if (data is Map && data['detail'] != null) {
         message = '${data['detail']}';
       }
@@ -87,129 +101,181 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+      body: AuthLayout(
+        title: 'Create account',
+        subtitle: 'Join with your email and a strong password',
+        actions: [
+          IconButton(
+            tooltip: 'Toggle dark mode',
+            icon: Icon(
+              widget.themeController.themeMode == ThemeMode.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+            ),
+            onPressed: widget.themeController.toggleTheme,
+          ),
+        ],
+        footer: Center(
+          child: TextButton(
+            onPressed: () {
+              Navigator.of(context).pushReplacementNamed('/login');
+            },
+            child: const Text('Already have an account? Sign in'),
+          ),
+        ),
+        bottom: const VersionBadge(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Social sign-in buttons
+            SocialAuthButtons(
+              onGoogle: () async {
+                final service = const SocialAuthService();
+                try {
+                  await service.signInWithGoogle();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google sign-in coming soon')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Google sign-in error: $e')),
+                  );
+                }
+              },
+              onApple: () async {
+                final service = const SocialAuthService();
+                try {
+                  await service.signInWithApple();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Apple sign-in coming soon')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Apple sign-in error: $e')),
+                  );
+                }
+              },
+              showApple: Theme.of(context).platform == TargetPlatform.iOS,
+            ),
+            const SizedBox(height: 8),
+            if (_error != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(.25)),
+                ),
+                child: Text(_error!,
+                    style: const TextStyle(color: Colors.red)),
+              ),
+            Form(
+              key: _formKey,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Create account',
-                      style:
-                          TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Text('Join with your email and a strong password',
-                      style: TextStyle(color: Colors.grey[700])),
-                  const SizedBox(height: 24),
-                  if (_error != null)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withOpacity(.25)),
-                      ),
-                      child: Text(_error!,
-                          style: const TextStyle(color: Colors.red)),
+                  TextFormField(
+                    controller: _email,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.mail_outline),
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
                     ),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _email,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            final val = v?.trim() ?? '';
-                            if (val.isEmpty) return 'Enter email';
-                            final emailRe = RegExp(r'^.+@.+\..+$');
-                            if (!emailRe.hasMatch(val))
-                              return 'Enter a valid email';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _password,
-                          obscureText: _obscure1,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscure1
-                                  ? Icons.visibility
-                                  : Icons.visibility_off),
-                              onPressed: () =>
-                                  setState(() => _obscure1 = !_obscure1),
-                            ),
-                          ),
-                          validator: (v) {
-                            final val = v ?? '';
-                            if (val.isEmpty) return 'Enter password';
-                            if (val.length < 8)
-                              return 'Use at least 8 characters';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _confirm,
-                          obscureText: _obscure2,
-                          onFieldSubmitted: (_) => _register(),
-                          decoration: InputDecoration(
-                            labelText: 'Confirm password',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscure2
-                                  ? Icons.visibility
-                                  : Icons.visibility_off),
-                              onPressed: () =>
-                                  setState(() => _obscure2 = !_obscure2),
-                            ),
-                          ),
-                          validator: (v) => (v ?? '') != _password.text
-                              ? 'Passwords do not match'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: FilledButton(
-                            onPressed: _loading ? null : _register,
-                            child: _loading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2))
-                                : const Text('Create account'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context)
-                                .pushReplacementNamed('/login');
-                          },
-                          child: const Text('Already have an account? Sign in'),
-                        ),
-                      ],
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Enter email';
+                      final emailRe = RegExp(r'^.+@.+\..+$');
+                      if (!emailRe.hasMatch(val)) return 'Enter a valid email';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Optional phone number (not required)
+                  TextFormField(
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [SimplePhoneInputFormatter(defaultDialCode: '+251')],
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.phone_outlined),
+                      labelText: 'Phone (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: _obscure1,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      labelText: 'Password',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscure1 = !_obscure1),
+                      ),
+                    ),
+                    validator: (v) {
+                      final val = v ?? '';
+                      if (val.isEmpty) return 'Enter password';
+                      if (val.length < 8) return 'Use at least 8 characters';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _confirm,
+                    obscureText: _obscure2,
+                    onFieldSubmitted: (_) => _register(),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.lock_reset),
+                      labelText: 'Confirm password',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscure2 = !_obscure2),
+                      ),
+                    ),
+                    validator: (v) => (v ?? '') != _password.text
+                        ? 'Passwords do not match'
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _remember,
+                        onChanged: (v) => setState(() => _remember = v ?? true),
+                      ),
+                      const Text('Remember me'),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('Need help?'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: _loading ? null : _register,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Create account'),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+            // Helper removed for ultra-minimal
+          ],
         ),
       ),
     );

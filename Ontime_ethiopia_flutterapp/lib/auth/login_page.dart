@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
+import '../api_client.dart';
+import '../core/widgets/auth_layout.dart';
+import '../core/widgets/social_auth_buttons.dart';
+import '../core/theme/theme_controller.dart';
+import '../core/widgets/version_badge.dart';
+import '../core/services/social_auth.dart';
 
 class LoginPage extends StatefulWidget {
   final AuthApi api;
   final TokenStore tokenStore;
   final String tenantId;
+  final ThemeController themeController;
 
   const LoginPage({
     super.key,
     required this.api,
     required this.tokenStore,
     required this.tenantId,
+    required this.themeController,
   });
 
   @override
@@ -25,6 +33,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscure = true;
   bool _loading = false;
   String? _error;
+  final bool _remember = true; // deprecated in minimal UI (kept for potential future use)
 
   @override
   void dispose() {
@@ -48,7 +57,12 @@ class _LoginPageState extends State<LoginPage> {
         username: _username.text.trim(),
         password: _password.text,
       );
-      await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+      if (_remember) {
+        await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+      } else {
+        // Session-only: set in ApiClient but do not persist
+        ApiClient().setAccessToken(tokens.access);
+      }
       // Post-login guard: ensure user has access to current tenant
       try {
         await widget.api.me();
@@ -84,84 +98,123 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+      body: AuthLayout(
+        title: 'Welcome back',
+        subtitle: 'Sign in to continue',
+        actions: [
+          IconButton(
+            tooltip: 'Toggle dark mode',
+            onPressed: widget.themeController.toggleTheme,
+            icon: const Icon(Icons.brightness_6_outlined),
+          ),
+        ],
+        footer: Center(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pushReplacementNamed('/register'),
+            child: const Text('Create an account'),
+          ),
+        ),
+        bottom: const VersionBadge(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Social sign-in buttons
+            SocialAuthButtons(
+              onGoogle: () async {
+                final service = const SocialAuthService();
+                try {
+                  await service.signInWithGoogle();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google sign-in coming soon')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Google sign-in error: $e')),
+                  );
+                }
+              },
+              onApple: () async {
+                final service = const SocialAuthService();
+                try {
+                  await service.signInWithApple();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Apple sign-in coming soon')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Apple sign-in error: $e')),
+                  );
+                }
+              },
+              showApple: Theme.of(context).platform == TargetPlatform.iOS,
+            ),
+            const SizedBox(height: 8),
+
+            if (_error != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(.25)),
+                ),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+            // Minimal email/password form
+            Form(
+              key: _formKey,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Sign in', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Text('Use your account to continue', style: TextStyle(color: Colors.grey[700])),
-                  const SizedBox(height: 24),
-                  if (_error != null)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withOpacity(.25)),
-                      ),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  TextFormField(
+                    controller: _username,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.alternate_email),
+                      labelText: 'Email or username',
+                      border: OutlineInputBorder(),
                     ),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _username,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Email or username',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your email/username' : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _password,
-                          obscureText: _obscure,
-                          onFieldSubmitted: (_) => _login(),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                              onPressed: () => setState(() => _obscure = !_obscure),
-                            ),
-                          ),
-                          validator: (v) => (v == null || v.isEmpty) ? 'Enter password' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: FilledButton(
-                            onPressed: _loading ? null : _login,
-                            child: _loading
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Text('Sign in'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pushReplacementNamed('/register');
-                          },
-                          child: const Text('Create an account'),
-                        ),
-                      ],
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your email/username' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: _obscure,
+                    onFieldSubmitted: (_) => _login(),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      labelText: 'Password',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Enter password' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: _loading ? null : _login,
+                      child: _loading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Sign in'),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+
+            // Phone OTP entry point disabled (coming soon)
+            TextButton(
+              onPressed: null,
+              child: const Text('Use phone (coming soon)'),
+            ),
+          ],
         ),
       ),
     );

@@ -2,9 +2,14 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.models import Group
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .serializers import MeSerializer, CookieTokenObtainPairSerializer, RegistrationSerializer
@@ -38,7 +43,17 @@ def clear_refresh_cookie(response: Response):
     response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
 
 
-class CookieTokenObtainPairView(TokenObtainPairView):
+class LoginThrottle(AnonRateThrottle):
+    rate = '5/minute'
+    scope = 'login'
+
+class RegisterThrottle(AnonRateThrottle):
+    rate = '3/hour'
+    scope = 'register'
+
+@method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='dispatch')
+class TokenObtainPairWithCookieView(TokenObtainPairView):
+    throttle_classes = [LoginThrottle]
     permission_classes = [AllowAny]
     serializer_class = CookieTokenObtainPairSerializer
 
@@ -72,7 +87,14 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
     # Swagger header parameter for tenancy (required by middleware)
-    PARAM_TENANT = CookieTokenObtainPairView.PARAM_TENANT
+    PARAM_TENANT = openapi.Parameter(
+        name="X-Tenant-Id",
+        in_=openapi.IN_HEADER,
+        description="Tenant slug (e.g., ontime)",
+        type=openapi.TYPE_STRING,
+        required=True,
+        default="ontime",
+    )
 
     @swagger_auto_schema(
         manual_parameters=[PARAM_TENANT],
@@ -99,7 +121,7 @@ class CookieTokenRefreshView(TokenRefreshView):
 
 class LogoutView(APIView):
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="logout_create",
         tags=["Auth"],
     )
@@ -114,7 +136,7 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="me_retrieve",
         tags=["Auth"],
         responses={
@@ -198,7 +220,7 @@ class AdminOnlyView(APIView):
         return [p]
 
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="admin_only_retrieve",
         tags=["Auth"],
     )
@@ -215,7 +237,7 @@ class UserWriteView(APIView):
         return [p]
 
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="users_list",
         tags=["Auth"],
     )
@@ -224,7 +246,7 @@ class UserWriteView(APIView):
         return Response({"results": users})
 
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="users_create",
         tags=["Auth"],
     )
@@ -233,11 +255,13 @@ class UserWriteView(APIView):
         return Response({"ok": True, "action": "Would write something"})
 
 
+@method_decorator(ratelimit(key='ip', rate='3/h', method='POST'), name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterThrottle]
 
     @swagger_auto_schema(
-        manual_parameters=[CookieTokenObtainPairView.PARAM_TENANT],
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="register_create",
         tags=["Auth"],
     )

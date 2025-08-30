@@ -89,6 +89,11 @@ class AuthApi {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
+  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    final res = await _client.put('/me/', data: data);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   Future<void> logout() async {
     await _client.post('/logout/');
     _client.setAccessToken(null);

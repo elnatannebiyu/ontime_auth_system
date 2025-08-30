@@ -4,40 +4,189 @@ import 'auth/tenant_auth_client.dart';
 import 'auth/login_page.dart';
 import 'auth/register_page.dart';
 import 'home/home_page.dart';
+import 'core/theme/theme_controller.dart';
+import 'core/theme/app_theme.dart';
+import 'api_client.dart';
+import 'auth/secure_token_store.dart';
+import 'about/about_page.dart';
+import 'profile/profile_page.dart';
+import 'core/localization/l10n.dart';
+import 'settings/settings_page.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize enterprise auth client and token store
+  final api = AuthApi();
+  final tokenStore = SecureTokenStore();
+  const tenantId = 'default'; // TODO: make this selectable
+  final themeController = ThemeController();
+  final localizationController = LocalizationController();
+  // Attempt to restore persisted token early
+  final existingToken = await tokenStore.getAccess();
+  if (existingToken != null && existingToken.isNotEmpty) {
+    // ApiClient is a singleton; set token directly
+    ApiClient().setAccessToken(existingToken);
+  }
+
+  await Future.wait([
+    themeController.load(),
+    localizationController.load(),
+  ]);
+  runApp(MyApp(
+    api: api,
+    tokenStore: tokenStore,
+    tenantId: tenantId,
+    themeController: themeController,
+    localizationController: localizationController,
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final AuthApi? api;
+  final TokenStore? tokenStore;
+  final String? tenantId;
+  final ThemeController? themeController;
+  final LocalizationController? localizationController;
+
+  const MyApp({
+    super.key,
+    this.api,
+    this.tokenStore,
+    this.tenantId,
+    this.themeController,
+    this.localizationController,
+  });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AuthApi api;
+  late final TokenStore tokenStore;
+  late final String tenantId;
+  late final ThemeController themeController;
+  late final LocalizationController localizationController;
+
+  @override
+  void initState() {
+    super.initState();
+    api = widget.api ?? AuthApi();
+    tokenStore = widget.tokenStore ?? SecureTokenStore();
+    tenantId = widget.tenantId ?? 'default';
+    themeController = widget.themeController ?? ThemeController();
+    localizationController = widget.localizationController ?? LocalizationController();
+    // Start async loads if we created them here
+    themeController.load();
+    localizationController.load();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Initialize enterprise auth client and token store
-    final api = AuthApi();
-    final tokenStore = InMemoryTokenStore();
-    const tenantId = 'default'; // TODO: make this selectable
-
-    return MaterialApp(
-      title: 'Ontime Ethiopia - JWT Auth',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      // Make the new login page the entry point
-      initialRoute: '/login',
-      routes: {
-        '/login': (_) =>
-            LoginPage(api: api, tokenStore: tokenStore, tenantId: tenantId),
-        '/register': (_) =>
-            RegisterPage(api: api, tokenStore: tokenStore, tenantId: tenantId),
-        // New enterprise home screen
-        '/home': (_) =>
-            HomePage(api: api, tokenStore: tokenStore, tenantId: tenantId),
-        // Optional: expose the demo directly if needed
-        '/demo': (_) => const AuthScreen(),
+    return AnimatedBuilder(
+      animation: Listenable.merge([themeController, localizationController]),
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Ontime Ethiopia - JWT Auth',
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: themeController.themeMode,
+          // Splash gate decides destination based on stored token
+          initialRoute: '/',
+          routes: {
+            '/': (_) => SplashGate(api: api, tokenStore: tokenStore, tenantId: tenantId),
+            '/login': (_) => LoginPage(
+                  api: api,
+                  tokenStore: tokenStore,
+                  tenantId: tenantId,
+                  themeController: themeController,
+                ),
+            '/register': (_) => RegisterPage(
+                  api: api,
+                  tokenStore: tokenStore,
+                  tenantId: tenantId,
+                  themeController: themeController,
+                ),
+            // New enterprise home screen
+            '/home': (_) => HomePage(
+                  api: api,
+                  tokenStore: tokenStore,
+                  tenantId: tenantId,
+                  localizationController: localizationController,
+                ),
+            // Optional: expose the demo directly if needed
+            '/demo': (_) => const AuthScreen(),
+            // Settings route
+            '/settings': (_) => SettingsPage(
+                  themeController: themeController,
+                  localizationController: localizationController,
+                ),
+            '/about': (_) => const AboutPage(),
+            '/profile': (_) => const ProfilePage(),
+          },
+        );
       },
+    );
+  }
+}
+
+class SplashGate extends StatefulWidget {
+  final AuthApi api;
+  final TokenStore tokenStore;
+  final String tenantId;
+  const SplashGate({super.key, required this.api, required this.tokenStore, required this.tenantId});
+
+  @override
+  State<SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<SplashGate> {
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      widget.api.setTenant(widget.tenantId);
+      // If token exists, validate it; otherwise go to login
+      final access = await widget.tokenStore.getAccess();
+      if (access == null || access.isEmpty) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/login');
+        return;
+      }
+      // Validate token by calling me()
+      await widget.api.me();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/home');
+    } catch (e) {
+      // Clear and go to login on any failure
+      await widget.tokenStore.clear();
+      ApiClient().setAccessToken(null);
+      if (!mounted) return;
+      setState(() => _error = 'Session expired. Please sign in again.');
+      await Future.delayed(const Duration(milliseconds: 300));
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(_error ?? 'Loading...', style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .validators import validate_email_domain, sanitize_input
 from .models import Membership
 
 class MeSerializer(serializers.ModelSerializer):
@@ -76,10 +78,18 @@ class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class RegistrationSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, write_only=True)
-
+    email = serializers.EmailField(validators=[validate_email_domain])
+    password = serializers.CharField(write_only=True, min_length=8)
+    
+    def validate_password(self, value):
+        """Validate password strength"""
+        validate_password(value)
+        return value
+    
     def validate_email(self, value):
+        """Additional email validation and sanitization"""
+        value = value.lower().strip()
+        validate_email_domain(value)
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value
