@@ -6,13 +6,14 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from .serializers import MeSerializer, CookieTokenObtainPairSerializer, RegistrationSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation
+from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer
 from .permissions import (
     HasAnyRole,
     DjangoPermissionRequired,
@@ -53,9 +54,10 @@ class RegisterThrottle(AnonRateThrottle):
 
 @method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='dispatch')
 class TokenObtainPairWithCookieView(TokenObtainPairView):
+    """Login endpoint that returns JWT tokens and sets refresh token in httpOnly cookie"""
     throttle_classes = [LoginThrottle]
     permission_classes = [AllowAny]
-    serializer_class = CookieTokenObtainPairSerializer
+    serializer_class = CustomTokenObtainPairSerializer
 
     # Swagger header parameter for tenancy
     PARAM_TENANT = openapi.Parameter(
@@ -102,21 +104,43 @@ class CookieTokenRefreshView(TokenRefreshView):
         tags=["Auth"],
     )
     def post(self, request, *args, **kwargs):
-        refresh = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
-        if not refresh:
-            return Response({"detail": "No refresh token."}, status=status.HTTP_400_BAD_REQUEST)
-
-        ser = TokenRefreshSerializer(data={"refresh": refresh})
-        ser.is_valid(raise_exception=True)
-        data = ser.validated_data
-
-        resp = Response(data, status=status.HTTP_200_OK)
-        new_refresh = data.get("refresh")
-        if new_refresh:
-            # move refresh to httpOnly cookie and omit from JSON
-            set_refresh_cookie(resp, new_refresh)
-            resp.data.pop("refresh", None)
-        return resp
+        # Get refresh token from cookie
+        refresh_token = request.COOKIES.get('refresh_token')
+        
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh token not found in cookies"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            # Use token rotation
+            rotator = RefreshTokenRotation()
+            new_tokens = rotator.rotate_refresh_token(refresh_token, request)
+            
+            # Prepare response
+            response = Response({
+                'access': new_tokens['access'],
+                'refresh': new_tokens['refresh']
+            }, status=status.HTTP_200_OK)
+            
+            # Set new refresh token in cookie
+            response.set_cookie(
+                'refresh_token',
+                new_tokens['refresh'],
+                max_age=60 * 60 * 24 * 7,  # 7 days
+                httponly=True,
+                secure=settings.DEBUG is False,
+                samesite='Strict'
+            )
+            
+            return response
+            
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 
 class LogoutView(APIView):
