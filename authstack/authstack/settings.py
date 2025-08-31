@@ -36,12 +36,12 @@ MIDDLEWARE = [
     # Placed before TenantResolverMiddleware so our debug logs display the normalized header
     "common.tenancy.AuthorizationHeaderNormalizerMiddleware",
     "common.tenancy.TenantResolverMiddleware",
+    "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation early
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",  # Brute force protection
-    "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation
 ]
 
 ROOT_URLCONF = "authstack.urls"

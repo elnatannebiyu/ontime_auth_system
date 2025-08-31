@@ -10,9 +10,10 @@ from rest_framework.throttling import AnonRateThrottle
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation
+from .models import UserSession
 from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer
 from .permissions import (
     HasAnyRole,
@@ -150,6 +151,50 @@ class LogoutView(APIView):
         tags=["Auth"],
     )
     def post(self, request):
+        """Logout current session:
+        - Revoke the current UserSession (is_active=False) using session_id claim in access token
+          with a fallback to refresh cookie JTI
+        - Clear the refresh token cookie
+        """
+        # Attempt to revoke by session_id from access token
+        try:
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                token_str = auth_header.split(' ')[1]
+                at = AccessToken(token_str)
+                sid = at.get('session_id')
+                if sid:
+                    try:
+                        session = UserSession.objects.get(id=sid, user=request.user)
+                        session.revoke('user_logout')
+                    except UserSession.DoesNotExist:
+                        pass
+        except Exception:
+            # Ignore token parsing errors and continue to cookie fallback
+            pass
+
+        # Fallback: try by refresh cookie JTI
+        try:
+            refresh_cookie = request.COOKIES.get(REFRESH_COOKIE_NAME)
+            if refresh_cookie:
+                rt = RefreshToken(refresh_cookie)
+                sid = rt.get('session_id')
+                jti = rt.get('jti')
+                if sid:
+                    try:
+                        session = UserSession.objects.get(id=sid, user=request.user)
+                        session.revoke('user_logout')
+                    except UserSession.DoesNotExist:
+                        pass
+                elif jti:
+                    try:
+                        session = UserSession.objects.get(refresh_token_jti=jti, user=request.user)
+                        session.revoke('user_logout')
+                    except UserSession.DoesNotExist:
+                        pass
+        except Exception:
+            pass
+
         res = Response({"detail": "Logged out."}, status=status.HTTP_200_OK)
         clear_refresh_cookie(res)
         return res

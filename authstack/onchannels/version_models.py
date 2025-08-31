@@ -121,8 +121,8 @@ class FeatureFlag(models.Model):
     enabled_for_staff = models.BooleanField(default=True)
     
     # Version control
-    min_ios_version = models.CharField(max_length=20, blank=True)
-    min_android_version = models.CharField(max_length=20, blank=True)
+    min_ios_version = models.CharField(max_length=20, blank=True, default="")
+    min_android_version = models.CharField(max_length=20, blank=True, default="")
     
     # Rollout percentage (0-100)
     rollout_percentage = models.IntegerField(default=100)

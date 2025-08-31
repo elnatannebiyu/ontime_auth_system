@@ -5,8 +5,10 @@ from .models import UserSession, LoginAttempt, Membership
 @admin.register(UserSession)
 class UserSessionAdmin(admin.ModelAdmin):
     """Admin for managing user sessions"""
-    list_display = ('user', 'device_type', 'ip_address', 'is_active', 'created_at', 
-                    'last_activity', 'expires_at')
+    list_display = (
+        'user', 'device_type', 'os_name', 'os_version', 'ip_address',
+        'is_active', 'created_at', 'last_activity', 'expires_at'
+    )
     list_filter = ('is_active', 'device_type', 'created_at')
     search_fields = ('user__username', 'user__email', 'ip_address', 'device_id')
     readonly_fields = ('id', 'device_id', 'refresh_token_jti', 'created_at')

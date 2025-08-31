@@ -1,8 +1,10 @@
-from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from django.utils import timezone
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
 from .models import UserSession
 
 
@@ -18,8 +20,18 @@ class SessionListView(APIView):
             expires_at__gt=timezone.now()
         ).order_by('-last_activity')
         
-        # Get current session JTI from request
-        current_jti = getattr(request, 'refresh_jti', None)
+        # Get current session identifiers from the access token
+        current_access_jti = None
+        current_session_id = None
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            try:
+                token_str = auth_header.split(' ')[1]
+                token = AccessToken(token_str)
+                current_access_jti = token.get('jti')
+                current_session_id = token.get('session_id')
+            except (TokenError, IndexError):
+                pass
         
         session_data = []
         for session in sessions:
@@ -31,14 +43,14 @@ class SessionListView(APIView):
                 'device_info': {
                     'device_name': session.device_name,
                     'device_type': session.device_type,
-                    'os_name': 'Unknown',  # Parse from user_agent if needed
-                    'os_version': '',
+                    'os_name': session.os_name or 'Unknown',
+                    'os_version': session.os_version or '',
                 },
                 'ip_address': session.ip_address,
                 'location': session.location,
                 'created_at': session.created_at.isoformat(),
                 'last_activity': session.last_activity.isoformat(),
-                'is_current': session.refresh_token_jti == current_jti,
+                'is_current': (str(session.id) == str(current_session_id)) if current_session_id else (session.access_token_jti == current_access_jti),
             }
             session_data.append(session_info)
         
@@ -59,8 +71,18 @@ class SessionDetailView(APIView):
                 user=request.user,
                 is_active=True
             )
-            
-            current_jti = getattr(request, 'refresh_jti', None)
+            # Extract current token details
+            current_access_jti = None
+            current_session_id = None
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                try:
+                    token_str = auth_header.split(' ')[1]
+                    token = AccessToken(token_str)
+                    current_access_jti = token.get('jti')
+                    current_session_id = token.get('session_id')
+                except (TokenError, IndexError):
+                    pass
             
             return Response({
                 'id': str(session.id),
@@ -73,7 +95,7 @@ class SessionDetailView(APIView):
                 'created_at': session.created_at.isoformat(),
                 'last_activity': session.last_activity.isoformat(),
                 'expires_at': session.expires_at.isoformat(),
-                'is_current': session.refresh_token_jti == current_jti,
+                'is_current': (str(session.id) == str(current_session_id)) if current_session_id else (session.access_token_jti == current_access_jti),
             })
         except UserSession.DoesNotExist:
             return Response(
@@ -116,12 +138,26 @@ class RevokeAllSessionsView(APIView):
     
     def post(self, request):
         current_jti = getattr(request, 'refresh_jti', None)
+        # Also try to get current session_id from access token
+        current_session_id = None
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            try:
+                token_str = auth_header.split(' ')[1]
+                token = AccessToken(token_str)
+                current_session_id = token.get('session_id')
+            except (TokenError, IndexError):
+                pass
         
         # Revoke all sessions except current
         sessions = UserSession.objects.filter(
             user=request.user,
             is_active=True
-        ).exclude(refresh_token_jti=current_jti)
+        )
+        if current_session_id:
+            sessions = sessions.exclude(id=current_session_id)
+        elif current_jti:
+            sessions = sessions.exclude(refresh_token_jti=current_jti)
         
         count = sessions.count()
         for session in sessions:

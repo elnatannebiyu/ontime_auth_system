@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../auth/tenant_auth_client.dart';
 import '../channels/channels_page.dart';
 import '../core/localization/l10n.dart';
@@ -34,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _me;
   bool _loading = true;
   String? _error;
+  bool _offline = false;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -65,6 +67,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _loading = true;
       _error = null;
+      _offline = false;
     });
     try {
       widget.api.setTenant(widget.tenantId);
@@ -73,9 +76,15 @@ class _HomePageState extends State<HomePage> {
         _me = me;
       });
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load profile';
-      });
+      if (e is DioException && e.type == DioExceptionType.connectionError) {
+        setState(() {
+          _offline = true;
+        });
+      } else {
+        setState(() {
+          _error = 'Failed to load profile';
+        });
+      }
     } finally {
       setState(() {
         _loading = false;
@@ -127,39 +136,59 @@ class _HomePageState extends State<HomePage> {
                   return <PopupMenuEntry<_HomeMenuAction>>[
                     PopupMenuItem(
                       value: _HomeMenuAction.profile,
-                      child: ListTile(
-                        leading: const Icon(Icons.account_circle_outlined),
-                        title: Text(_t('profile')),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
+                      height: kMinInteractiveDimension,
+                      child: SizedBox(
+                        height: kMinInteractiveDimension,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.account_circle_outlined),
+                            const SizedBox(width: 12),
+                            Text(_t('profile')),
+                          ],
+                        ),
                       ),
                     ),
                     PopupMenuItem(
                       value: _HomeMenuAction.settings,
-                      child: ListTile(
-                        leading: const Icon(Icons.settings_outlined),
-                        title: Text(_t('settings')),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
+                      height: kMinInteractiveDimension,
+                      child: SizedBox(
+                        height: kMinInteractiveDimension,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.settings_outlined),
+                            const SizedBox(width: 12),
+                            Text(_t('settings')),
+                          ],
+                        ),
                       ),
                     ),
                     PopupMenuItem(
                       value: _HomeMenuAction.about,
-                      child: ListTile(
-                        leading: const Icon(Icons.info_outline),
-                        title: Text(_t('about')),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
+                      height: kMinInteractiveDimension,
+                      child: SizedBox(
+                        height: kMinInteractiveDimension,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline),
+                            const SizedBox(width: 12),
+                            Text(_t('about')),
+                          ],
+                        ),
                       ),
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
                       value: _HomeMenuAction.switchLanguage,
-                      child: ListTile(
-                        leading: const Icon(Icons.translate),
-                        title: Text('${_t('switch_language')} ($switchTo)'),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
+                      height: kMinInteractiveDimension,
+                      child: SizedBox(
+                        height: kMinInteractiveDimension,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.translate),
+                            const SizedBox(width: 12),
+                            Text('${_t('switch_language')} ($switchTo)'),
+                          ],
+                        ),
                       ),
                     ),
                   ];
@@ -183,21 +212,28 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          body: TabBarView(
-            children: [
-              // For You tab
-              _buildForYou(context),
-              // Other tabs placeholder UI for now
-              _buildPlaceholderTab(context, _t('trending')),
-              _buildPlaceholderTab(context, _t('sports')),
-              _buildPlaceholderTab(context, _t('kids')),
-            ],
+          body: SafeArea(
+            child: TabBarView(
+              children: [
+                // For You tab
+                _buildForYou(context),
+                // Other tabs placeholder UI for now
+                _buildPlaceholderTab(context, _t('trending')),
+                _buildPlaceholderTab(context, _t('sports')),
+                _buildPlaceholderTab(context, _t('kids')),
+              ],
+            ),
           ),
           // Mini-player (extracted widget)
           bottomSheet: _showMini
-              ? MiniPlayerBar(
-                  nowPlayingLabel: _t('now_playing'),
-                  onClose: () => setState(() => _showMini = false),
+              ? Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: MiniPlayerBar(
+                    nowPlayingLabel: _t('now_playing'),
+                    onClose: () => setState(() => _showMini = false),
+                  ),
                 )
               : null,
         ),
@@ -216,15 +252,29 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.all(16),
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Text(_error!, style: const TextStyle(color: Colors.red))
-                    : _me == null
-                        ? const Text('No data')
-                        : SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_offline)
+                          Card(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            child: ListTile(
+                              leading: const Icon(Icons.wifi_off),
+                              title: const Text('You are offline'),
+                              subtitle: const Text(
+                                  'Some actions may not work until you reconnect.'),
+                            ),
+                          )
+                        else if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Text(_error!,
+                                style: const TextStyle(color: Colors.red)),
+                          ),
                                 // Hero carousel (extracted)
                                 HeroCarousel(
                                   liveLabel: _t('live'),
@@ -268,9 +318,9 @@ class _HomePageState extends State<HomePage> {
                                 const SizedBox(
                                     height:
                                         70), // space for mini-player above FAB notch
-                              ],
-                            ),
-                          ),
+                      ],
+                    ),
+                  ),
           ),
         ),
       ),

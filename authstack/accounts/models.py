@@ -15,6 +15,8 @@ class UserSession(models.Model):
     device_id = models.CharField(max_length=255, db_index=True)
     device_name = models.CharField(max_length=255, blank=True)
     device_type = models.CharField(max_length=50, blank=True)  # mobile, desktop, tablet
+    os_name = models.CharField(max_length=50, blank=True)
+    os_version = models.CharField(max_length=50, blank=True)
     
     # Session metadata
     ip_address = models.GenericIPAddressField()

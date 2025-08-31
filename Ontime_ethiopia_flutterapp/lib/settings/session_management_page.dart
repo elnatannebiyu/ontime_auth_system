@@ -82,7 +82,12 @@ class _SessionManagementPageState extends State<SessionManagementPage> {
 
   Widget _buildSessionTile(Map<String, dynamic> session) {
     final isCurrentSession = session['is_current'] == true;
-    final deviceInfo = session['device_info'] ?? {};
+    final Map<String, dynamic> deviceInfo = Map<String, dynamic>.from(session['device_info'] ?? {});
+    // Fallbacks for older payloads or partial data
+    final String deviceName = (deviceInfo['device_name'] ?? session['device_name'] ?? 'Unknown Device').toString();
+    final String deviceType = (deviceInfo['device_type'] ?? session['device_type'] ?? 'unknown').toString();
+    final String osName = (deviceInfo['os_name'] ?? '').toString();
+    final String osVersion = (deviceInfo['os_version'] ?? '').toString();
     final lastActive = session['last_activity'];
 
     return Card(
@@ -91,17 +96,18 @@ class _SessionManagementPageState extends State<SessionManagementPage> {
         leading: CircleAvatar(
           backgroundColor: isCurrentSession ? Colors.green : Colors.grey,
           child: Icon(
-            _getDeviceIcon(deviceInfo['device_type']),
+            _getDeviceIcon(deviceType),
             color: Colors.white,
           ),
         ),
         title: Text(
-          '${deviceInfo['device_name'] ?? 'Unknown Device'}',
+          deviceName,
           style: TextStyle(
             fontWeight: isCurrentSession ? FontWeight.bold : FontWeight.normal,
           ),
         ),
         subtitle: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isCurrentSession)
@@ -109,11 +115,12 @@ class _SessionManagementPageState extends State<SessionManagementPage> {
                 'Current Session',
                 style: TextStyle(color: Colors.green, fontWeight: FontWeight.w500),
               ),
-            Text('${deviceInfo['os_name'] ?? ''} ${deviceInfo['os_version'] ?? ''}'),
+            Text('${osName.isNotEmpty ? osName : 'OS'} ${osVersion}'),
             Text('Last active: ${_formatDate(lastActive)}'),
-            Text('IP: ${session['ip_address'] ?? 'Unknown'}'),
+            Text('IP: ${(session['ip_address'] ?? 'Unknown').toString()}'),
           ],
         ),
+        isThreeLine: true,
         trailing: !isCurrentSession
             ? IconButton(
                 icon: const Icon(Icons.logout, color: Colors.red),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/localization/l10n.dart';
 import '../core/widgets/brand_title.dart';
@@ -114,6 +115,32 @@ class SettingsPage extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, '/session-security'),
           ),
           const Divider(height: 32),
+          if (kDebugMode) ...[
+            Text('Developer',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.bug_report),
+              title: const Text('Dev: Dynamic Login Form'),
+              subtitle: const Text('/dev/forms/login'),
+              trailing: const Icon(Icons.chevron_right),
+              isThreeLine: true,
+              onTap: () => Navigator.of(context).pushNamed('/dev/forms/login'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bug_report),
+              title: const Text('Dev: Dynamic Register Form'),
+              subtitle: const Text('/dev/forms/register'),
+              trailing: const Icon(Icons.chevron_right),
+              isThreeLine: true,
+              onTap: () => Navigator.of(context).pushNamed('/dev/forms/register'),
+            ),
+            const Divider(height: 32),
+          ],
+          
           Text('About', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           ListTile(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import '../../api_client.dart';
 import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
@@ -73,8 +74,24 @@ class SimpleSessionManager {
         _apiClient.setAccessToken(newAccessToken);
       }
     } catch (e) {
-      // If refresh fails, logout
-      await logout();
+      // Do not logout on refresh failure. Handle common cases gracefully.
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionError) {
+          // Likely offline; keep session and try again later.
+          return;
+        }
+        final status = e.response?.statusCode;
+        if (status == 401) {
+          final data = e.response?.data;
+          final detail =
+              (data is Map && data['detail'] is String) ? data['detail'] as String : '';
+          if (detail.contains('Refresh token not found')) {
+            // Likely missing cookie due to offline/network; do not logout.
+            return;
+          }
+        }
+      }
+      // For other unexpected errors, rethrow to surface in logs/metrics
       rethrow;
     }
   }

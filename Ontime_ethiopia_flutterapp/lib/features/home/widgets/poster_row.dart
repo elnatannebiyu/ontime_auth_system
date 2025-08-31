@@ -9,7 +9,8 @@ class PosterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = tall ? const Size(120, 180) : const Size(140, 90);
     return SizedBox(
-      height: size.height + 8,
+      // Poster height + spacing + approx. one-line title height + small padding
+      height: size.height + 32,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: count,

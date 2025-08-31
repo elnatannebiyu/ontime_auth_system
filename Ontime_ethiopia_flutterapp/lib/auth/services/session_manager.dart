@@ -114,8 +114,23 @@ class SessionManager {
 
       _sessionController.add(_currentSession);
     } catch (e) {
-      // If refresh fails, logout user
-      await logout();
+      // Do not logout on refresh failure. Handle common cases gracefully and continue.
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionError) {
+          // Likely offline; keep session and try again later.
+          return;
+        }
+        if (e.response?.statusCode == 401) {
+          final data = e.response?.data;
+          final detail =
+              (data is Map && data['detail'] is String) ? data['detail'] as String : '';
+          if (detail.contains('Refresh token not found')) {
+            // Likely due to missing cookie while offline; keep session.
+            return;
+          }
+        }
+      }
+      // For other unexpected errors, rethrow after wrapping
       throw _handleError(e);
     }
   }
@@ -192,7 +207,7 @@ class SessionManager {
         // Check if token needs refresh
         final isExpired = await SessionStorage.isTokenExpired();
         if (isExpired) {
-          await refreshToken;
+          await this.refreshToken();
         }
 
         // Start refresh timer

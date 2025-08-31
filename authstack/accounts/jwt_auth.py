@@ -66,20 +66,32 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             refresh_token['tenant_id'] = tenant_id
             refresh_token.access_token['tenant_id'] = tenant_id
             
-            # Create session
-            session = UserSession.objects.create(
+            # Get access token JTI
+            access_token_jti = refresh_token.access_token.payload.get('jti', '')
+            
+            # Try to find existing session for this device and update it, or create new
+            session, created = UserSession.objects.update_or_create(
                 user=self.user,
                 device_id=device_id,
-                device_name=request.META.get('HTTP_X_DEVICE_NAME', ''),
-                device_type=request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
-                ip_address=request.META.get('REMOTE_ADDR', ''),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-                refresh_token_jti=jti,
-                expires_at=timezone.now() + timedelta(days=7)
+                defaults={
+                    'device_name': request.META.get('HTTP_X_DEVICE_NAME', ''),
+                    'device_type': request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
+                    'os_name': request.META.get('HTTP_X_OS_NAME', ''),
+                    'os_version': request.META.get('HTTP_X_OS_VERSION', ''),
+                    'ip_address': request.META.get('REMOTE_ADDR', ''),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                    'refresh_token_jti': jti,
+                    'access_token_jti': access_token_jti,
+                    'expires_at': timezone.now() + timedelta(days=7),
+                    'is_active': True,  # Reactivate if it was revoked
+                    'last_activity': timezone.now()
+                }
             )
             
             # Store session ID in token
             refresh_token['session_id'] = str(session.id)
+            # Also embed session_id into the access token for middleware checks
+            refresh_token.access_token['session_id'] = str(session.id)
             data['refresh'] = str(refresh_token)
             data['access'] = str(refresh_token.access_token)
         
@@ -169,8 +181,12 @@ class RefreshTokenRotation:
                         new_token['tenant_id'] = tenant_id
                         new_token.access_token['tenant_id'] = tenant_id
                     
-                    # Update session with new JTI
+                    # Ensure access token also carries session_id
+                    new_token.access_token['session_id'] = str(session.id)
+                    
+                    # Update session with new JTIs
                     session.refresh_token_jti = new_token['jti']
+                    session.access_token_jti = new_token.access_token['jti']
                     session.last_activity = timezone.now()
                     session.save()
                     

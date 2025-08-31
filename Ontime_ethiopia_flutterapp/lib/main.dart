@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'dart:io';
 import 'auth_repository.dart';
 import 'auth/tenant_auth_client.dart';
 import 'auth/login_page.dart';
@@ -15,6 +17,7 @@ import 'settings/settings_page.dart';
 import 'settings/session_management_page.dart';
 import 'settings/session_security_page.dart';
 import 'auth/services/simple_session_manager.dart';
+import 'features/forms/pages/dynamic_form_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,6 +78,9 @@ class _MyAppState extends State<MyApp> {
   late final String tenantId;
   late final ThemeController themeController;
   late final LocalizationController localizationController;
+  static final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<ScaffoldMessengerState> _smKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -88,6 +94,27 @@ class _MyAppState extends State<MyApp> {
     // Start async loads if we created them here
     themeController.load();
     localizationController.load();
+
+    // Register global force-logout handler so interceptor can redirect to login
+    ApiClient().setForceLogoutHandler(() async {
+      await tokenStore.clear();
+      ApiClient().setAccessToken(null);
+      _smKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please sign in again.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      _navKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+    });
+
+    // Register notifier for offline/info messages from ApiClient
+    ApiClient().setNotifier((message) {
+      _smKey.currentState?.showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+    });
   }
 
   @override
@@ -100,6 +127,8 @@ class _MyAppState extends State<MyApp> {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: themeController.themeMode,
+          navigatorKey: _navKey,
+          scaffoldMessengerKey: _smKey,
           // Splash gate decides destination based on stored token
           initialRoute: '/',
           routes: {
@@ -135,6 +164,9 @@ class _MyAppState extends State<MyApp> {
             '/session-security': (_) => const SessionSecurityPage(),
             '/about': (_) => const AboutPage(),
             '/profile': (_) => const ProfilePage(),
+            // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
+            '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
+            '/dev/forms/register': (_) => const DynamicFormPage(action: 'register'),
           },
         );
       },
@@ -180,7 +212,22 @@ class _SplashGateState extends State<SplashGate> {
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
-      // Clear and go to login on any failure
+      // If offline or network error, keep tokens and go to home with an offline message
+      if (e is DioException &&
+          (e.type == DioExceptionType.connectionError || e.error is SocketException)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You appear to be offline. Some actions may not work.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
+        return;
+      }
+
+      // For other failures, show message and go to login (tokens may be invalid)
       await widget.tokenStore.clear();
       ApiClient().setAccessToken(null);
       if (!mounted) return;
