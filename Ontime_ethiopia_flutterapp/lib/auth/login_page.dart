@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
-import 'secure_token_store.dart';
 import '../core/widgets/auth_layout.dart';
 import '../core/widgets/social_auth_buttons.dart';
 import '../core/theme/theme_controller.dart';
@@ -29,12 +28,13 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _username = TextEditingController(); // email-as-username supported by backend
+  final _username =
+      TextEditingController(); // email-as-username supported by backend
   final _password = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   String? _error;
-  final bool _remember = true; // deprecated in minimal UI (kept for potential future use)
+// deprecated in minimal UI (kept for potential future use)
 
   @override
   void dispose() {
@@ -52,22 +52,24 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final sessionManager = SimpleSessionManager();
-      
+
       // Login through session manager
       await sessionManager.login(
         email: _username.text.trim(),
         password: _password.text,
         tenantId: widget.tenantId,
       );
-      
+
       // Verify login by checking user info
       await widget.api.me();
-      
+
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
     } on DioException catch (e) {
       final data = e.response?.data;
-      final detail = (data is Map && data['detail'] != null) ? '${data['detail']}' : e.message;
+      final detail = (data is Map && data['detail'] != null)
+          ? '${data['detail']}'
+          : e.message;
       setState(() {
         _error = detail ?? 'Login failed';
       });
@@ -95,7 +97,8 @@ class _LoginPageState extends State<LoginPage> {
         ],
         footer: Center(
           child: TextButton(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/register'),
+            onPressed: () =>
+                Navigator.of(context).pushReplacementNamed('/register'),
             child: const Text('Create an account'),
           ),
         ),
@@ -161,7 +164,9 @@ class _LoginPageState extends State<LoginPage> {
                       labelText: 'Email or username',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your email/username' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Enter your email/username'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -173,11 +178,13 @@ class _LoginPageState extends State<LoginPage> {
                       labelText: 'Password',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                        icon: Icon(
+                            _obscure ? Icons.visibility : Icons.visibility_off),
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Enter password' : null,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter password' : null,
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -186,7 +193,10 @@ class _LoginPageState extends State<LoginPage> {
                     child: FilledButton(
                       onPressed: _loading ? null : _login,
                       child: _loading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
                           : const Text('Sign in'),
                     ),
                   ),

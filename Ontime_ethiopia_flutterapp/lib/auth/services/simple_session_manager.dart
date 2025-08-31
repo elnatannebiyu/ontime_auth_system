@@ -1,26 +1,26 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
 import '../../api_client.dart';
 import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
 
 /// Simple session manager that works with existing auth infrastructure
 class SimpleSessionManager {
-  static final SimpleSessionManager _instance = SimpleSessionManager._internal();
+  static final SimpleSessionManager _instance =
+      SimpleSessionManager._internal();
   factory SimpleSessionManager() => _instance;
   SimpleSessionManager._internal();
-  
+
   final ApiClient _apiClient = ApiClient();
   final AuthApi _authApi = AuthApi();
   final SecureTokenStore _tokenStore = SecureTokenStore();
-  
+
   Timer? _refreshTimer;
   bool _isLoggedIn = false;
   final _sessionController = StreamController<bool>.broadcast();
-  
+
   Stream<bool> get sessionStream => _sessionController.stream;
   bool get isLoggedIn => _isLoggedIn;
-  
+
   /// Initialize session manager
   Future<void> initialize() async {
     // Check if we have an existing token
@@ -32,7 +32,7 @@ class SimpleSessionManager {
       _startRefreshTimer();
     }
   }
-  
+
   /// Login using existing auth API
   Future<void> login({
     required String email,
@@ -46,11 +46,11 @@ class SimpleSessionManager {
         username: email,
         password: password,
       );
-      
+
       // Store tokens
       await _tokenStore.setTokens(tokens.access, tokens.refresh);
       _apiClient.setAccessToken(tokens.access);
-      
+
       _isLoggedIn = true;
       _sessionController.add(true);
       _startRefreshTimer();
@@ -60,13 +60,14 @@ class SimpleSessionManager {
       rethrow;
     }
   }
-  
+
   /// Refresh token
   Future<void> refreshToken() async {
     try {
       final response = await _apiClient.post('/token/refresh/');
-      final newAccessToken = response.data['access'] ?? response.data['access_token'];
-      
+      final newAccessToken =
+          response.data['access'] ?? response.data['access_token'];
+
       if (newAccessToken != null) {
         await _tokenStore.setTokens(newAccessToken, null);
         _apiClient.setAccessToken(newAccessToken);
@@ -77,7 +78,7 @@ class SimpleSessionManager {
       rethrow;
     }
   }
-  
+
   /// Logout
   Future<void> logout() async {
     try {
@@ -92,7 +93,7 @@ class SimpleSessionManager {
       _stopRefreshTimer();
     }
   }
-  
+
   /// Start refresh timer
   void _startRefreshTimer() {
     _stopRefreshTimer();
@@ -105,13 +106,13 @@ class SimpleSessionManager {
       }
     });
   }
-  
+
   /// Stop refresh timer
   void _stopRefreshTimer() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
   }
-  
+
   /// Dispose resources
   void dispose() {
     _stopRefreshTimer();
