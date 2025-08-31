@@ -96,7 +96,24 @@ class SettingsPage extends StatelessWidget {
               );
             },
           ),
+          const Divider(height: 32),
+          Text('Security', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.devices),
+            title: const Text('Active Sessions'),
+            subtitle: const Text('View and manage your active sessions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/session-management'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.security),
+            title: const Text('Session Security'),
+            subtitle: const Text('Configure security settings'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/session-security'),
+          ),
+          const Divider(height: 32),
           Text('About', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           ListTile(

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
-import '../api_client.dart';
+import 'secure_token_store.dart';
 import '../core/widgets/auth_layout.dart';
 import '../core/widgets/social_auth_buttons.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
+import 'services/simple_session_manager.dart';
 
 class LoginPage extends StatefulWidget {
   final AuthApi api;
@@ -50,36 +51,20 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final tenant = widget.tenantId;
-      widget.api.setTenant(tenant);
-      final tokens = await widget.api.login(
-        tenantId: tenant,
-        username: _username.text.trim(),
+      final sessionManager = SimpleSessionManager();
+      
+      // Login through session manager
+      await sessionManager.login(
+        email: _username.text.trim(),
         password: _password.text,
+        tenantId: widget.tenantId,
       );
-      if (_remember) {
-        await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
-      } else {
-        // Session-only: set in ApiClient but do not persist
-        ApiClient().setAccessToken(tokens.access);
-      }
-      // Post-login guard: ensure user has access to current tenant
-      try {
-        await widget.api.me();
-        if (!mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
-      } on DioException catch (e) {
-        // Clear tokens and show backend detail
-        await widget.tokenStore.clear();
-        final data = e.response?.data;
-        final detail = (data is Map && data['detail'] != null)
-            ? '${data['detail']}'
-            : e.message;
-        setState(() {
-          _error = detail ?? 'You do not have access to this tenant.';
-        });
-        return;
-      }
+      
+      // Verify login by checking user info
+      await widget.api.me();
+      
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
     } on DioException catch (e) {
       final data = e.response?.data;
       final detail = (data is Map && data['detail'] != null) ? '${data['detail']}' : e.message;

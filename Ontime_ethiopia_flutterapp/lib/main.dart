@@ -12,15 +12,23 @@ import 'about/about_page.dart';
 import 'profile/profile_page.dart';
 import 'core/localization/l10n.dart';
 import 'settings/settings_page.dart';
+import 'settings/session_management_page.dart';
+import 'settings/session_security_page.dart';
+import 'auth/services/simple_session_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize enterprise auth client and token store
   final api = AuthApi();
   final tokenStore = SecureTokenStore();
-  const tenantId = 'default'; // TODO: make this selectable
+  const tenantId = 'ontime'; // TODO: make this selectable
   final themeController = ThemeController();
   final localizationController = LocalizationController();
+
+  // Initialize session manager
+  final sessionManager = SimpleSessionManager();
+  await sessionManager.initialize();
+
   // Attempt to restore persisted token early
   final existingToken = await tokenStore.getAccess();
   if (existingToken != null && existingToken.isNotEmpty) {
@@ -75,7 +83,8 @@ class _MyAppState extends State<MyApp> {
     tokenStore = widget.tokenStore ?? SecureTokenStore();
     tenantId = widget.tenantId ?? 'default';
     themeController = widget.themeController ?? ThemeController();
-    localizationController = widget.localizationController ?? LocalizationController();
+    localizationController =
+        widget.localizationController ?? LocalizationController();
     // Start async loads if we created them here
     themeController.load();
     localizationController.load();
@@ -94,7 +103,8 @@ class _MyAppState extends State<MyApp> {
           // Splash gate decides destination based on stored token
           initialRoute: '/',
           routes: {
-            '/': (_) => SplashGate(api: api, tokenStore: tokenStore, tenantId: tenantId),
+            '/': (_) => SplashGate(
+                api: api, tokenStore: tokenStore, tenantId: tenantId),
             '/login': (_) => LoginPage(
                   api: api,
                   tokenStore: tokenStore,
@@ -121,6 +131,8 @@ class _MyAppState extends State<MyApp> {
                   themeController: themeController,
                   localizationController: localizationController,
                 ),
+            '/session-management': (_) => const SessionManagementPage(),
+            '/session-security': (_) => const SessionSecurityPage(),
             '/about': (_) => const AboutPage(),
             '/profile': (_) => const ProfilePage(),
           },
@@ -134,7 +146,11 @@ class SplashGate extends StatefulWidget {
   final AuthApi api;
   final TokenStore tokenStore;
   final String tenantId;
-  const SplashGate({super.key, required this.api, required this.tokenStore, required this.tenantId});
+  const SplashGate(
+      {super.key,
+      required this.api,
+      required this.tokenStore,
+      required this.tenantId});
 
   @override
   State<SplashGate> createState() => _SplashGateState();
@@ -183,7 +199,8 @@ class _SplashGateState extends State<SplashGate> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text(_error ?? 'Loading...', style: Theme.of(context).textTheme.bodyMedium),
+            Text(_error ?? 'Loading...',
+                style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       ),

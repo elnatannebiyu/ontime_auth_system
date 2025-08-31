@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 from .models import Channel, Playlist, Video
 from .forms import ChannelAdminForm, PlaylistAdminForm
+from .version_models import AppVersion, FeatureFlag
 import json
 import shutil
 import base64
@@ -661,3 +662,52 @@ class VideoAdmin(admin.ModelAdmin):
     playlist_is_active.boolean = True  # type: ignore[attr-defined]
     playlist_is_active.admin_order_field = "playlist__is_active"  # type: ignore[attr-defined]
     playlist_is_active.short_description = "Playlist active"  # type: ignore[attr-defined]
+
+
+# Version and Feature Flag Admin
+@admin.register(AppVersion)
+class AppVersionAdmin(admin.ModelAdmin):
+    list_display = ['platform', 'version', 'status', 'update_type', 'released_at']
+    list_filter = ['platform', 'status', 'update_type']
+    search_fields = ['version', 'update_title']
+    ordering = ['platform', '-released_at']
+    
+    fieldsets = (
+        ('Version Info', {
+            'fields': ('platform', 'version', 'build_number', 'version_code')
+        }),
+        ('Status', {
+            'fields': ('status', 'update_type', 'min_supported_version')
+        }),
+        ('Update Messages', {
+            'fields': ('update_title', 'update_message', 'force_update_message')
+        }),
+        ('Store Links', {
+            'fields': ('ios_store_url', 'android_store_url')
+        }),
+        ('Release Info', {
+            'fields': ('features', 'changelog', 'released_at', 'deprecated_at', 'end_of_support_at')
+        }),
+    )
+
+
+@admin.register(FeatureFlag)
+class FeatureFlagAdmin(admin.ModelAdmin):
+    list_display = ['name', 'enabled', 'rollout_percentage', 'enabled_for_staff']
+    list_filter = ['enabled', 'enabled_for_staff']
+    search_fields = ['name', 'description']
+    
+    fieldsets = (
+        ('Feature Info', {
+            'fields': ('name', 'description')
+        }),
+        ('Availability', {
+            'fields': ('enabled', 'enabled_for_staff', 'rollout_percentage')
+        }),
+        ('Version Requirements', {
+            'fields': ('min_ios_version', 'min_android_version')
+        }),
+        ('User Targeting', {
+            'fields': ('enabled_users', 'disabled_users')
+        }),
+    )

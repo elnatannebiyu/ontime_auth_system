@@ -3,6 +3,7 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 
 class UserSession(models.Model):
@@ -22,6 +23,7 @@ class UserSession(models.Model):
     
     # Token tracking
     refresh_token_jti = models.CharField(max_length=255, unique=True, db_index=True)
+    access_token_jti = models.CharField(max_length=255, blank=True, db_index=True)  # Track current access token
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -85,3 +87,44 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id}@{self.tenant_id}"
+
+
+class SocialAccount(models.Model):
+    """Store social auth provider data"""
+    
+    PROVIDER_CHOICES = [
+        ('google', 'Google'),
+        ('apple', 'Apple'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='social_accounts')
+    
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
+    provider_id = models.CharField(max_length=255, db_index=True)
+    
+    # OAuth data
+    access_token = models.TextField(blank=True)
+    refresh_token = models.TextField(blank=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    
+    # Profile data
+    email = models.EmailField(blank=True)
+    name = models.CharField(max_length=255, blank=True)
+    picture_url = models.URLField(blank=True)
+    extra_data = models.JSONField(default=dict)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'social_accounts'
+        unique_together = [['provider', 'provider_id']]
+        indexes = [
+            models.Index(fields=['provider', 'provider_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.provider}"
