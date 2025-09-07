@@ -223,7 +223,7 @@ class _SelectField extends StatelessWidget {
   Widget build(BuildContext context) {
     final options = field.options ?? const [];
     return DropdownButtonFormField<dynamic>(
-      value: value,
+      initialValue: value,
       items: [
         for (final opt in options)
           DropdownMenuItem(

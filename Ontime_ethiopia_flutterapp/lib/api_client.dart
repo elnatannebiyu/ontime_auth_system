@@ -1,9 +1,14 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
 import 'dart:io' show SocketException, Platform;
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'auth/services/device_info_service.dart';
 
 /// Configure backend origin per platform with environment overrides
@@ -11,7 +16,8 @@ import 'auth/services/device_info_service.dart';
 /// 1) Dart-define LAN_API_BASE (e.g., http://192.168.1.50:8000)
 /// 2) ANDROID_NET_MODE (emulator | device_local | auto)
 /// 3) Platform defaults
-const String _envLanBase = String.fromEnvironment('LAN_API_BASE', defaultValue: '');
+const String _envLanBase =
+    String.fromEnvironment('LAN_API_BASE', defaultValue: '');
 const String _envAndroidMode =
     String.fromEnvironment('ANDROID_NET_MODE', defaultValue: 'auto');
 
@@ -44,11 +50,15 @@ String kApiBase = _resolveApiBase();
 
 class ApiClient {
   final Dio dio;
-  final CookieJar cookieJar;
-  String? _accessToken; // keep in memory; don't persist unless you must
+  CookieJar cookieJar;
+  final FlutterSecureStorage _secure = const FlutterSecureStorage();
+  bool _initialized = false;
+  String? _accessToken; // in-memory; persisted securely for restore
   String? _tenantSlug; // e.g., "default", sent via X-Tenant-Id
   void Function()? _onForceLogout; // optional app-level handler
-  void Function(String message)? _onNotify; // optional UI notifier (e.g., snackbar)
+  void Function(String message)?
+      _onNotify; // optional UI notifier (e.g., snackbar)
+  Completer<void>? _refreshing; // single-flight guard for refresh
 
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
@@ -96,6 +106,23 @@ class ApiClient {
     // Attach Authorization, tenant, and device headers
     dio.interceptors.add(InterceptorsWrapper(onRequest:
         (RequestOptions options, RequestInterceptorHandler handler) async {
+      // Lazy init ensures persisted cookies and stored access token are loaded
+      if (!_initialized) {
+        await ensureInitialized();
+      }
+      // Preflight: if token is present and near expiry, attempt refresh
+      // BUT skip when hitting auth endpoints themselves to avoid recursion
+      try {
+        final path = options.path; // may be relative like '/token/refresh/'
+        final lower = path.toLowerCase();
+        final isAuthEndpoint =
+            lower.contains('/token/refresh/') || lower.contains('/token/');
+        if (!isAuthEndpoint) {
+          await ensureFreshAccess(skew: const Duration(seconds: 60));
+        }
+      } catch (_) {
+        // ignore here; normal 401 flow/interceptor will handle failures
+      }
       if (_accessToken != null) {
         options.headers['Authorization'] = 'Bearer $_accessToken';
       }
@@ -117,6 +144,11 @@ class ApiClient {
 
   void setAccessToken(String? token) {
     _accessToken = token;
+    if (token == null || token.isEmpty) {
+      _secure.delete(key: 'access_token');
+    } else {
+      _secure.write(key: 'access_token', value: token);
+    }
   }
 
   String? getAccessToken() {
@@ -148,12 +180,20 @@ class ApiClient {
   }
 
   void _forceLogout() async {
+    debugPrint('[ApiClient] Forcing logout: clearing access token and cookies');
     _accessToken = null;
     try {
       await cookieJar.deleteAll();
+      await _secure.delete(key: 'access_token');
     } catch (_) {}
     final cb = _onForceLogout;
-    if (cb != null) cb();
+    if (cb != null) {
+      debugPrint(
+          '[ApiClient] Invoking force-logout callback (navigation to /login)');
+      cb();
+    } else {
+      debugPrint('[ApiClient] No force-logout callback registered');
+    }
   }
 
   void _notify(String message) {
@@ -177,11 +217,168 @@ class ApiClient {
   Future<Response<T>> delete<T>(String path, {data, Options? options}) {
     return dio.delete<T>(path, data: data, options: options);
   }
+
+  // ---- Initialization & token management ----
+  Future<void> ensureInitialized() async {
+    if (_initialized) return;
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final cookiesDir = '${dir.path}/cookies';
+      final newJar = PersistCookieJar(storage: FileStorage(cookiesDir));
+      // Swap cookie manager to use persistent jar
+      _swapCookieJar(newJar);
+      // Restore access token from secure storage
+      final stored = await _secure.read(key: 'access_token');
+      if (stored != null && stored.isNotEmpty) {
+        _accessToken = stored;
+      }
+    } catch (e) {
+      // Fallback keeps memory cookie jar; app still works but won’t persist
+    } finally {
+      _initialized = true;
+    }
+  }
+
+  void _swapCookieJar(CookieJar newJar) {
+    cookieJar = newJar;
+    // Remove existing CookieManager(s)
+    dio.interceptors.removeWhere((i) => i is CookieManager);
+    dio.interceptors.add(CookieManager(cookieJar));
+  }
+
+  Future<void> ensureFreshAccess(
+      {Duration skew = const Duration(seconds: 60)}) async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) return;
+    // If there is no refresh cookie, skip refresh attempts
+    if (!await _hasRefreshCookie()) return;
+    try {
+      final exp = JwtDecoder.getExpirationDate(token);
+      final now = DateTime.now();
+      if (exp.isBefore(now.add(skew))) {
+        await _refreshAccess();
+      }
+    } catch (_) {
+      // If token can't be decoded, attempt refresh once
+      try {
+        await _refreshAccess();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _refreshAccess() async {
+    // Ensure only one refresh in-flight across the whole app
+    if (_refreshing != null) {
+      await _refreshing!.future;
+      return;
+    }
+    _refreshing = Completer<void>();
+    try {
+      // Cookie (HttpOnly) with refresh token is stored in cookieJar and
+      // will be attached automatically to this request by CookieManager.
+      try {
+        // Log what we are about to send to refresh endpoint
+        final refreshUri = Uri.parse('${dio.options.baseUrl}/token/refresh/');
+        final cookies = await cookieJar.loadForRequest(refreshUri);
+        // Extract refresh_token cookies and dedupe if needed
+        final refreshCookies = cookies
+            .where((c) => c.name.toLowerCase() == 'refresh_token')
+            .toList();
+        if (_accessToken == null && refreshCookies.isEmpty) {
+          debugPrint(
+              '[ApiClient] No access token and no refresh cookie. Forcing logout.');
+          _forceLogout();
+          throw DioException(
+              requestOptions: RequestOptions(path: '/token/refresh/'),
+              message: 'No credentials to refresh');
+        }
+        if (refreshCookies.length > 1) {
+          // Choose the most recent by expires; if all null, take the last
+          refreshCookies.sort((a, b) {
+            final ae = a.expires;
+            final be = b.expires;
+            if (ae == null && be == null) return 0;
+            if (ae == null) return 1;
+            if (be == null) return -1;
+            return be.compareTo(ae); // descending, most recent first
+          });
+          final winner = refreshCookies.first;
+          debugPrint(
+              '[ApiClient] Deduced multiple refresh_token cookies -> keeping one with path=${winner.path ?? '/'} domain=${winner.domain ?? '<default>'} expires=${winner.expires?.toIso8601String() ?? '<session>'}');
+          // CookieJar doesn't delete by name; clear cookies for this URI then re-add the winner
+          await cookieJar.delete(refreshUri);
+          await cookieJar.saveFromResponse(refreshUri, [winner]);
+        }
+        // Reload to reflect any dedupe performed
+        final cookiesAfter = await cookieJar.loadForRequest(refreshUri);
+        if (kDebugMode) {
+          final cookieDetails = cookiesAfter
+              .map((c) =>
+                  '${c.name}=${c.value.length > 12 ? '${c.value.substring(0, 12)}…' : c.value} (path=${c.path ?? '/'}; domain=${c.domain ?? '<default>'}; exp=${c.expires?.toIso8601String() ?? '<session>'})')
+              .join('; ');
+          final cookieSummary = cookiesAfter
+              .map((c) =>
+                  '${c.name}=${c.value.length > 12 ? '${c.value.substring(0, 12)}…' : c.value}')
+              .join('; ');
+          debugPrint('[ApiClient] Preparing refresh POST with headers: '
+              'X-Tenant-Id=${_tenantSlug ?? '<none>'}, '
+              'Authorization=${_accessToken != null ? 'Bearer ${_accessToken!.length > 12 ? '${_accessToken!.substring(0, 12)}…' : _accessToken!}' : '<none>'}');
+          debugPrint(
+              '[ApiClient] Cookies for /token/refresh/: ${cookiesAfter.isEmpty ? '<none>' : cookieSummary}');
+          debugPrint(
+              '[ApiClient] Cookie details: ${cookiesAfter.isEmpty ? '<none>' : cookieDetails}');
+        }
+        final res = await dio.post('/token/refresh/');
+        final data = res.data as Map;
+        final newAccess = data['access'] as String?;
+        if (newAccess == null) {
+          throw DioException(
+              requestOptions: res.requestOptions,
+              message: 'No access token in refresh');
+        }
+        debugPrint(
+            '[ApiClient] Refresh succeeded; setting new access token (len=${newAccess.length})');
+        setAccessToken(newAccess);
+      } on DioException catch (e) {
+        // If the refresh endpoint itself returned 401 due to invalid session/refresh
+        if (e.response?.statusCode == 401) {
+          debugPrint(
+              '[ApiClient] Refresh 401 in preflight _refreshAccess(); triggering force logout');
+          final data = e.response?.data;
+          final detail = (data is Map && data['detail'] is String)
+              ? data['detail'] as String
+              : '';
+          if (detail.contains('Session not found or inactive') ||
+              detail.contains('Session has expired') ||
+              detail.contains('Token is invalid or expired') ||
+              detail.contains('token_not_valid') ||
+              detail.contains('Refresh token not found')) {
+            _forceLogout();
+          }
+        }
+        rethrow;
+      }
+    } finally {
+      _refreshing!.complete();
+      _refreshing = null;
+    }
+  }
+
+  Future<bool> _hasRefreshCookie() async {
+    try {
+      final uri = Uri.parse('${dio.options.baseUrl}/token/refresh/');
+      final cookies = await cookieJar.loadForRequest(uri);
+      for (final c in cookies) {
+        final name = c.name.toLowerCase();
+        if (name.contains('refresh')) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
 }
 
 class _TokenRefreshInterceptor extends Interceptor {
   final ApiClient client;
-  Completer<void>? _refreshing;
 
   _TokenRefreshInterceptor(this.client);
 
@@ -190,9 +387,9 @@ class _TokenRefreshInterceptor extends Interceptor {
     final response = err.response;
     final requestOptions = err.requestOptions;
 
-    // Surface offline message for connection-level errors
-    if (err.type == DioExceptionType.connectionError || err.error is SocketException) {
-      client._notify('You appear to be offline. Some actions may not work.');
+    // Suppress offline message for connection-level errors
+    if (err.type == DioExceptionType.connectionError ||
+        err.error is SocketException) {
       return handler.next(err);
     }
 
@@ -212,15 +409,12 @@ class _TokenRefreshInterceptor extends Interceptor {
         return handler.reject(err);
       }
       try {
-        // ensure single refresh in-flight
-        if (_refreshing == null) {
-          _refreshing = Completer<void>();
-          await _refreshAccess();
-          _refreshing!.complete();
-          _refreshing = null;
-        } else {
-          await _refreshing!.future;
+        // If we obviously don't have a refresh cookie, don't attempt refresh
+        if (!await client._hasRefreshCookie()) {
+          return handler.reject(err);
         }
+        // rely on ApiClient's global single-flight guard
+        await client._refreshAccess();
 
         // retry the original request with flag
         final opts = Options(
@@ -243,16 +437,16 @@ class _TokenRefreshInterceptor extends Interceptor {
         );
         return handler.resolve(newResponse);
       } catch (e) {
-        // Refresh failed. If likely offline or missing refresh, notify user instead of forcing logout.
+        // Refresh failed. Suppress user-facing offline notifications.
         if (e is DioException) {
-          if (e.type == DioExceptionType.connectionError || e.error is SocketException) {
-            client._notify('You appear to be offline. Please reconnect and try again.');
+          if (e.type == DioExceptionType.connectionError ||
+              e.error is SocketException) {
+            // no-op: avoid SnackBar
           } else if (e.response?.statusCode == 401) {
-            final data = e.response?.data;
-            final detail = (data is Map && data['detail'] is String) ? data['detail'] as String : '';
-            if (detail.contains('Refresh token not found')) {
-              client._notify('You appear to be offline. Please reconnect and try again.');
-            }
+            debugPrint(
+                '[ApiClient] Interceptor: refresh failed with 401; forcing logout');
+            // Any 401 from refresh means we cannot recover here. Force logout to break loops.
+            client._forceLogout();
           }
         }
         return handler.reject(err);
@@ -262,17 +456,5 @@ class _TokenRefreshInterceptor extends Interceptor {
     return handler.next(err);
   }
 
-  Future<void> _refreshAccess() async {
-    // Cookie (HttpOnly) with refresh token is stored in cookieJar and
-    // will be attached automatically to this request.
-    final res = await client.dio.post('/token/refresh/');
-    final data = res.data as Map;
-    final newAccess = data['access'] as String?;
-    if (newAccess == null) {
-      throw DioException(
-          requestOptions: res.requestOptions,
-          message: 'No access token in refresh');
-    }
-    client.setAccessToken(newAccess);
-  }
+  // refresh logic centralized in ApiClient._refreshAccess()
 }

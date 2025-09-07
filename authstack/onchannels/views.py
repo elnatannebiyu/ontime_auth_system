@@ -1,6 +1,10 @@
 from rest_framework import viewsets, filters, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.http import FileResponse
+from django.conf import settings
+from pathlib import Path
+import json
 
 from .models import Channel, Playlist, Video
 from .serializers import ChannelSerializer, PlaylistSerializer, VideoSerializer
@@ -12,6 +16,7 @@ from drf_yasg.utils import swagger_auto_schema
 class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Channel.objects.all()
     serializer_class = ChannelSerializer
+    lookup_field = "id_slug"
     # Read-only for any authenticated user. Mutations are guarded inside actions with explicit checks.
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -84,6 +89,86 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         tenant = self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
         qs = qs.filter(tenant=tenant)
         return qs
+
+    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
+    @action(detail=True, methods=["get"], url_path="logo")
+    def logo(self, request, pk=None, id_slug=None, **kwargs):
+        """Serve the channel logo file as an image stream.
+
+        Looks up the channel folder under BASE_DIR/youtube_channels by scanning
+        channel.v1.json for a matching id (id_slug). Then determines the image
+        filename either from the Channel.images JSON (kind=logo, path), or
+        defaults to icon.jpg/png. Returns 404 JSON if not found.
+        """
+        # DRF will pass id_slug as kwarg when lookup_field = 'id_slug'
+        # self.get_object() respects lookup_field automatically
+        channel = self.get_object()
+        base_root = Path(settings.BASE_DIR) / "youtube_channels"
+        if not base_root.exists():
+            return Response({"detail": "Channel media root not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        folder = None
+        # Try to find canonical folder by scanning channel.v1.json files
+        try:
+            for child in base_root.iterdir():
+                if not child.is_dir():
+                    continue
+                meta = child / "channel.v1.json"
+                if meta.exists():
+                    try:
+                        data = json.loads(meta.read_text(encoding="utf-8"))
+                        if data.get("id") == channel.id_slug:
+                            folder = child
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            folder = None
+
+        # Fallback: match folder by name case-insensitively (e.g., EBS for id_slug 'ebs')
+        if not folder:
+            try:
+                slug_lc = (channel.id_slug or "").lower()
+                for child in base_root.iterdir():
+                    if child.is_dir() and child.name.lower() == slug_lc:
+                        folder = child
+                        break
+            except Exception:
+                pass
+
+        if not folder or not folder.exists():
+            return Response({"detail": "Channel folder not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Determine image file name from images JSON or common defaults
+        img_name = None
+        imgs = getattr(channel, "images", None)
+        if imgs and isinstance(imgs, list):
+            for itm in imgs:
+                if isinstance(itm, dict) and itm.get("kind") == "logo" and itm.get("path"):
+                    img_name = itm.get("path")
+                    break
+        candidates = [img_name] if img_name else []
+        candidates += ["icon.jpg", "icon.png"]
+
+        img_path = None
+        for name in candidates:
+            if not name:
+                continue
+            p = folder / name
+            if p.exists() and p.is_file():
+                img_path = p
+                break
+
+        if not img_path:
+            return Response({"detail": "Logo image not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Guess mime type from extension
+        ext = img_path.suffix.lower()
+        content_type = "image/png" if ext == ".png" else "image/jpeg"
+        try:
+            return FileResponse(open(img_path, "rb"), content_type=content_type)
+        except Exception:
+            return Response({"detail": "Failed to read logo image."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="activate")

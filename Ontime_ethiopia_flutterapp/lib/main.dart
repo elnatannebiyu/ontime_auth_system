@@ -32,6 +32,11 @@ Future<void> main() async {
   final sessionManager = SimpleSessionManager();
   await sessionManager.initialize();
 
+  // Ensure ApiClient has persistent cookies and restored access token before any requests
+  await ApiClient().ensureInitialized();
+  // Set tenant header early for all requests
+  ApiClient().setTenant(tenantId);
+
   // Attempt to restore persisted token early
   final existingToken = await tokenStore.getAccess();
   if (existingToken != null && existingToken.isNotEmpty) {

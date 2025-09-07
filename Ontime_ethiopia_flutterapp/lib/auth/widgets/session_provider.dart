@@ -9,11 +9,11 @@ class SessionProvider extends StatefulWidget {
   final Widget? loginWidget;
   
   const SessionProvider({
-    Key? key,
+    super.key,
     required this.child,
     this.loadingWidget,
     this.loginWidget,
-  }) : super(key: key);
+  });
   
   @override
   State<SessionProvider> createState() => _SessionProviderState();

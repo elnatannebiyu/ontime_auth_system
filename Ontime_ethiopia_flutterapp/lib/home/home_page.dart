@@ -113,7 +113,7 @@ class _HomePageState extends State<HomePage> {
               isScrollable: true,
               tabs: [
                 Tab(text: _t('for_you')),
-                Tab(text: _t('trending')),
+                Tab(text: _t('Dramas')),
                 Tab(text: _t('sports')),
                 Tab(text: _t('kids')),
               ],
@@ -292,9 +292,10 @@ class _HomePageState extends State<HomePage> {
                                       : () async {
                                           await Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const ChannelsPage(
-                                                      tenantId: 'ontime'),
+                                              builder: (_) => ChannelsPage(
+                                                  tenantId: 'ontime',
+                                                  localizationController: widget
+                                                      .localizationController),
                                             ),
                                           );
                                           widget.api.setTenant(widget.tenantId);

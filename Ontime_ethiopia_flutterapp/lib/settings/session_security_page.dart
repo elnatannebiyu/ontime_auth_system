@@ -228,7 +228,7 @@ class _SessionSecurityPageState extends State<SessionSecurityPage> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Card(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: const Padding(
                 padding: EdgeInsets.all(16.0),
                 child: Column(

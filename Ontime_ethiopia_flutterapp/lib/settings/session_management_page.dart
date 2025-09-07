@@ -115,7 +115,7 @@ class _SessionManagementPageState extends State<SessionManagementPage> {
                 'Current Session',
                 style: TextStyle(color: Colors.green, fontWeight: FontWeight.w500),
               ),
-            Text('${osName.isNotEmpty ? osName : 'OS'} ${osVersion}'),
+            Text('${osName.isNotEmpty ? osName : 'OS'} $osVersion'),
             Text('Last active: ${_formatDate(lastActive)}'),
             Text('IP: ${(session['ip_address'] ?? 'Unknown').toString()}'),
           ],

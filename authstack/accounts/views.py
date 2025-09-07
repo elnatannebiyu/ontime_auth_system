@@ -105,8 +105,8 @@ class CookieTokenRefreshView(TokenRefreshView):
         tags=["Auth"],
     )
     def post(self, request, *args, **kwargs):
-        # Get refresh token from cookie
-        refresh_token = request.COOKIES.get('refresh_token')
+        # Get refresh token from cookie (same name used on login)
+        refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
         
         if not refresh_token:
             return Response(
@@ -125,14 +125,15 @@ class CookieTokenRefreshView(TokenRefreshView):
                 'refresh': new_tokens['refresh']
             }, status=status.HTTP_200_OK)
             
-            # Set new refresh token in cookie
+            # Set new refresh token in cookie, consistent with login cookie config
             response.set_cookie(
-                'refresh_token',
-                new_tokens['refresh'],
-                max_age=60 * 60 * 24 * 7,  # 7 days
+                key=REFRESH_COOKIE_NAME,
+                value=new_tokens['refresh'],
                 httponly=True,
-                secure=settings.DEBUG is False,
-                samesite='Strict'
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                path=REFRESH_COOKIE_PATH,
+                max_age=60 * 60 * 24 * 7,
             )
             
             return response
