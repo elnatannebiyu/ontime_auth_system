@@ -9,8 +9,38 @@ import json
 from .models import Channel, Playlist, Video
 from .serializers import ChannelSerializer, PlaylistSerializer, VideoSerializer
 from . import youtube_api
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
+
+# Swagger imports guarded to avoid hard dependency in production where drf_yasg/pkg_resources may be unavailable
+_ENABLE_SWAGGER = getattr(settings, 'ENABLE_SWAGGER', False) or settings.DEBUG
+try:
+    if _ENABLE_SWAGGER:
+        from drf_yasg import openapi  # type: ignore
+        from drf_yasg.utils import swagger_auto_schema  # type: ignore
+    else:
+        raise ImportError
+except Exception:
+    # Minimal shims: no-op decorator and simple openapi namespace with Parameter helper
+    def swagger_auto_schema(*args, **kwargs):  # type: ignore
+        def _decorator(func):
+            return func
+        return _decorator
+
+    class _OpenApiShim:  # type: ignore
+        IN_HEADER = 'header'
+        IN_QUERY = 'query'
+        TYPE_STRING = 'string'
+        TYPE_INTEGER = 'integer'
+
+        class Parameter:  # type: ignore
+            def __init__(self, name, in_, description='', type=None, required=False, default=None):
+                self.name = name
+                self.in_ = in_
+                self.description = description
+                self.type = type
+                self.required = required
+                self.default = default
+
+    openapi = _OpenApiShim()  # type: ignore
 
 
 class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
