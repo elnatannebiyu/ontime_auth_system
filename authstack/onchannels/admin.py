@@ -3,6 +3,7 @@ from django.conf import settings
 from pathlib import Path
 from typing import Optional
 from .models import Channel, Playlist, Video
+from series.models import Show
 from .forms import ChannelAdminForm, PlaylistAdminForm
 from .version_models import AppVersion, FeatureFlag
 import json
@@ -63,6 +64,7 @@ class ChannelAdmin(admin.ModelAdmin):
         "sync_youtube_all",
         "cascade_activate_playlists",
         "cascade_deactivate_playlists",
+        "create_show_from_channel",
     )
 
     @admin.action(description="Activate selected channels")
@@ -88,6 +90,47 @@ class ChannelAdmin(admin.ModelAdmin):
             updated = ch.playlists.update(is_active=False)
             total += updated
         self.message_user(request, f"Deactivated {total} playlist(s) across {queryset.count()} channel(s).")
+
+    @admin.action(description="Create Series Show from selected channel(s)")
+    def create_show_from_channel(self, request, queryset):
+        """Create a Show linked to each selected Channel if it doesn't exist.
+
+        Slug generation strategy:
+        - Prefer channel.id_slug as the base. If occupied, try `<base>-show`, then `<base>-show-<n>`.
+        Title:
+        - Prefer channel.name_en, else name_am, else id_slug.
+        Tenant:
+        - Copy from channel. Set is_active=True by default.
+        """
+        created = 0
+        skipped = 0
+        for ch in queryset:
+            # Check if a Show already exists for this channel (by exact slug match or FK link)
+            existing = Show.objects.filter(channel=ch).first()
+            if existing:
+                skipped += 1
+                continue
+            base = ch.id_slug or (ch.name_en or ch.name_am or "show").strip().lower().replace(" ", "-")
+            # Generate unique slug
+            slug_candidate = base
+            i = 1
+            while Show.objects.filter(slug=slug_candidate).exists():
+                slug_candidate = f"{base}-show" if i == 1 else f"{base}-show-{i}"
+                i += 1
+            title = ch.name_en or ch.name_am or ch.id_slug
+            Show.objects.create(
+                tenant=ch.tenant,
+                slug=slug_candidate,
+                title=title,
+                synopsis="",
+                cover_image=None,
+                default_locale=ch.default_locale,
+                tags=[],
+                channel=ch,
+                is_active=True,
+            )
+            created += 1
+        self.message_user(request, f"Shows created: {created}; skipped (already linked): {skipped}.", fail_silently=True)
 
     def save_model(self, request, obj: Channel, form, change):
         """Ensure a channel folder exists; optionally save uploaded logo.

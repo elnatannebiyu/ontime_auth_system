@@ -43,11 +43,27 @@ class LoginAttemptAdmin(admin.ModelAdmin):
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
-    """Admin for tenant memberships"""
-    list_display = ('user', 'tenant')
+    """Admin for tenant memberships, showing per-tenant roles and their permissions."""
+    list_display = ('user', 'tenant', 'roles_list')
     list_filter = ('tenant',)
     search_fields = ('user__username', 'user__email', 'tenant__name')
     raw_id_fields = ('user',)
+    filter_horizontal = ('roles',)
+    readonly_fields = ('roles_list', 'role_permissions')
+
+    def roles_list(self, obj):
+        return ", ".join(obj.roles.values_list('name', flat=True)) or '(none)'
+    roles_list.short_description = 'Roles'
+
+    def role_permissions(self, obj):
+        from django.contrib.auth.models import Permission
+        perms = Permission.objects.filter(group__in=obj.roles.all()).values_list(
+            'content_type__app_label', 'codename'
+        )
+        # Display as app_label.codename lines
+        lines = [f"{app}.{code}" for app, code in perms]
+        return "\n".join(sorted(lines)) or '(none)'
+    role_permissions.short_description = 'Role permissions (app.codename)'
 
 
 admin.site.unregister(Group)

@@ -1,4 +1,12 @@
 import 'dart:io' show Platform;
+import 'package:google_sign_in/google_sign_in.dart';
+
+// Optionally provided via --dart-define=GOOGLE_OAUTH_WEB_CLIENT_ID=... when running the app
+const String _envGoogleWebClientId =
+    String.fromEnvironment('GOOGLE_OAUTH_WEB_CLIENT_ID', defaultValue: '');
+// Optionally provided via --dart-define=GOOGLE_IOS_CLIENT_ID=... for iOS client id
+const String _envGoogleIosClientId =
+    String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: '');
 
 class SocialAuthResult {
   final String provider; // 'google' or 'apple'
@@ -17,12 +25,45 @@ class SocialAuthResult {
 }
 
 class SocialAuthService {
-  const SocialAuthService();
+  final String? serverClientId; // Required on Android to obtain idToken
+  SocialAuthService({this.serverClientId});
 
   Future<SocialAuthResult> signInWithGoogle() async {
-    // TODO: integrate google_sign_in and obtain server auth code / idToken
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    return SocialAuthResult(provider: 'google');
+    final googleSignIn = GoogleSignIn(
+      // On Android, provide the Web client ID via serverClientId to obtain an idToken
+      serverClientId: Platform.isAndroid
+          ? (serverClientId?.isNotEmpty == true
+              ? serverClientId
+              : (_envGoogleWebClientId.isNotEmpty ? _envGoogleWebClientId : null))
+          : null,
+      // On iOS, pass the iOS clientId
+      clientId: Platform.isIOS
+          ? (_envGoogleIosClientId.isNotEmpty ? _envGoogleIosClientId : null)
+          : null,
+      scopes: const <String>[
+        'email',
+        'openid',
+        'profile',
+      ],
+    );
+
+    final account = await googleSignIn.signIn();
+    if (account == null) {
+      throw Exception('Google sign-in aborted');
+    }
+    final auth = await account.authentication;
+    final idToken = auth.idToken; // This is what backend verifies
+    if (idToken == null || idToken.isEmpty) {
+      // Some devices may require re-auth prompts
+      throw Exception('Failed to obtain Google ID token');
+    }
+    return SocialAuthResult(
+      provider: 'google',
+      idToken: idToken,
+      accessToken: auth.accessToken,
+      email: account.email,
+      displayName: account.displayName,
+    );
   }
 
   Future<SocialAuthResult> signInWithApple() async {

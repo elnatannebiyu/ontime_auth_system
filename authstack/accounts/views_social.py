@@ -21,6 +21,7 @@ def social_login_view(request):
     provider = request.data.get('provider', '').lower()
     token = request.data.get('token')  # ID token or access token
     nonce = request.data.get('nonce')  # For Apple
+    allow_create = bool(request.data.get('allow_create', False))
     
     # Additional user data for registration
     user_data = request.data.get('user_data', {})
@@ -46,7 +47,7 @@ def social_login_view(request):
             'error': info.get('error', 'Authentication failed')
         }, status=status.HTTP_401_UNAUTHORIZED)
     
-    # Find or create social account
+    # Find social account; create only if allowed
     try:
         social_account = SocialAccount.objects.get(
             provider=provider,
@@ -62,44 +63,44 @@ def social_login_view(request):
         social_account.save()
         
     except SocialAccount.DoesNotExist:
-        # Check if user with email exists
-        email = info.get('email')
+        # Check if user with email exists (case-insensitive)
+        raw_email = info.get('email')
+        email = (raw_email or '').strip().lower() or None
         user = None
-        
+
         if email:
-            user = User.objects.filter(email=email).first()
-        
+            user = User.objects.filter(email__iexact=email).first()
+
+        # If user doesn't exist yet and creation is not allowed, prompt client to confirm
+        if not user and not allow_create:
+            return Response({'error': 'user_not_found'}, status=status.HTTP_404_NOT_FOUND)
+
         if not user:
-            # Create new user
-            username = email.split('@')[0] if email else f"{provider}_{info['provider_id']}"
-            
-            # Ensure unique username
-            base_username = username
+            # Create new user (only when allowed and no existing email match)
+            base_name = (email.split('@')[0] if email else f"{provider}_{info['provider_id']}")
+            username = base_name
             counter = 1
             while User.objects.filter(username=username).exists():
-                username = f"{base_username}{counter}"
+                username = f"{base_name}{counter}"
                 counter += 1
-            
             user = User.objects.create(
                 username=username,
                 email=email or '',
                 first_name=user_data.get('first_name', info.get('given_name', '')),
-                last_name=user_data.get('last_name', info.get('family_name', ''))
+                last_name=user_data.get('last_name', info.get('family_name', '')),
             )
-            
-            # Set unusable password for social auth users
             user.set_unusable_password()
             user.save()
-        
-        # Create social account
+
+        # Link or create social account for this user
         social_account = SocialAccount.objects.create(
             user=user,
             provider=provider,
             provider_id=info['provider_id'],
-            email=info.get('email', ''),
+            email=email or '',
             name=info.get('name', ''),
             picture_url=info.get('picture', ''),
-            extra_data=info
+            extra_data=info,
         )
     
     # Check user status
@@ -108,8 +109,66 @@ def social_login_view(request):
             'error': 'Account is disabled'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    # Create session using the Session.create_session method
-    session, refresh_token_plain = Session.create_session(user=user, request=request)
+    # Create or reuse a session bound to device
+    # Resolve device from headers
+    dev_id = request.META.get('HTTP_X_DEVICE_ID') or ''
+    dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
+    dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
+    from user_sessions.models import Device as RefreshDevice
+    device_obj = None
+    try:
+        if dev_id:
+            # Unique device_id across table; if owned by another user, fall back to unbound
+            existing = RefreshDevice.objects.filter(device_id=dev_id).first()
+            if existing and existing.user_id != user.id:
+                device_obj = None
+            else:
+                device_obj, _ = RefreshDevice.objects.get_or_create(
+                    device_id=dev_id,
+                    defaults={
+                        'user': user,
+                        'device_name': dev_name or 'Unknown',
+                        'device_type': dev_type or 'mobile',
+                    }
+                )
+                # If exists for same user, update name/type best-effort
+                if device_obj.user_id == user.id:
+                    update = False
+                    if dev_name and device_obj.device_name != dev_name:
+                        device_obj.device_name = dev_name; update = True
+                    if dev_type and device_obj.device_type != dev_type:
+                        device_obj.device_type = dev_type; update = True
+                    if update:
+                        device_obj.save()
+    except Exception:
+        device_obj = None
+
+    # Try to reuse a session for this user+device (even if previously revoked)
+    from django.utils import timezone as _tz
+    existing_session = None
+    try:
+        qs = Session.objects.filter(user=user)
+        if device_obj:
+            qs = qs.filter(device=device_obj)
+        existing_session = qs.order_by('-last_used_at').first()
+    except Exception:
+        existing_session = None
+
+    if existing_session:
+        # Reactivate (if needed), extend expiry, rotate token, and keep the same session id
+        try:
+            if existing_session.revoked_at is not None:
+                existing_session.revoked_at = None
+                existing_session.revoke_reason = ''
+                # extend expiry window from now
+                existing_session.expires_at = _tz.now() + (_tz.timedelta(days=30))
+                existing_session.save()
+            refresh_token_plain = existing_session.rotate_token()
+            session = existing_session
+        except Exception:
+            session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
+    else:
+        session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
     
     # Generate JWT tokens
     serializer = CustomTokenObtainPairSerializer()
@@ -117,16 +176,88 @@ def social_login_view(request):
     refresh = token
     access = refresh.access_token
     
-    # Add session info to tokens
-    refresh['sid'] = str(session.id)
-    access['sid'] = str(session.id)
+    # Add session info to tokens (middleware expects 'session_id')
+    refresh['session_id'] = str(session.id)
+    access['session_id'] = str(session.id)
+
+    # Ensure tenant membership and add tenant context expected by MeView (slug)
+    tenant = getattr(request, 'tenant', None)
+    if tenant:
+        try:
+            from .models import Membership
+            from django.contrib.auth.models import Group
+            membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
+            # Ensure default Viewer role exists and assign to member
+            viewer, _created_viewer = Group.objects.get_or_create(name="Viewer")
+            try:
+                # Optionally hydrate Viewer with view_* perms, mirroring RegisterView best-effort behavior
+                from django.contrib.auth.models import Permission
+                view_perms = Permission.objects.filter(codename__startswith='view_')
+                viewer.permissions.add(*view_perms)
+            except Exception:
+                # Non-fatal: permissions may not be fully available in some environments
+                pass
+            membership.roles.add(viewer)
+            # Clear user's permission cache so group perms are effective immediately
+            try:
+                if hasattr(user, "_perm_cache"):
+                    delattr(user, "_perm_cache")
+            except Exception:
+                pass
+        except Exception:
+            # Do not block login if membership/role assignment fails; MeView will enforce
+            pass
+        refresh['tenant_id'] = str(getattr(tenant, 'slug', tenant))
+        access['tenant_id'] = str(getattr(tenant, 'slug', tenant))
+
+    # Mirror into legacy accounts.UserSession for admin and compatibility
+    try:
+        from .models import UserSession as LegacySession
+        from django.utils import timezone as _tz
+        # Derive values required by legacy model
+        # Extract JTIs from JWTs for rotation compatibility
+        try:
+            access_jti = access.get('jti')
+        except Exception:
+            access_jti = None
+        try:
+            refresh_jti = refresh.get('jti')
+        except Exception:
+            refresh_jti = None
+        # Prefer explicit device headers sent by the app; fall back to UA/IP
+        dev_id = request.META.get('HTTP_X_DEVICE_ID') or str(session.id)
+        dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
+        dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
+        os_name = request.META.get('HTTP_X_OS_NAME', '')
+        os_version = request.META.get('HTTP_X_OS_VERSION', '')
+        ip_addr = request.META.get('REMOTE_ADDR') or '127.0.0.1'
+        ua = request.META.get('HTTP_USER_AGENT', '')
+        LegacySession.objects.update_or_create(
+            id=session.id,
+            defaults={
+                'user': user,
+                # Store the JWT refresh JTI so /api/token/refresh/ can validate against this session
+                'refresh_token_jti': (refresh_jti or ''),
+                'device_id': dev_id,
+                'device_name': dev_name,
+                'device_type': dev_type,
+                'os_name': os_name,
+                'os_version': os_version,
+                'ip_address': ip_addr,
+                'user_agent': ua,
+                'location': '',
+                'access_token_jti': (access_jti or ''),
+                'expires_at': session.expires_at,
+                'is_active': True,
+                'revoked_at': None,
+                'revoke_reason': '',
+            }
+        )
+    except Exception:
+        # Do not block login if legacy mirroring fails
+        pass
     
-    # Add tenant_id if available
-    if hasattr(request, 'tenant') and request.tenant:
-        refresh['tenant_id'] = str(request.tenant.id)
-        access['tenant_id'] = str(request.tenant.id)
-    
-    # Set refresh token cookie
+    # Set refresh token cookie (must be the SimpleJWT refresh string so /api/token/refresh/ works)
     response = Response({
         'access': str(access),
         'refresh': str(refresh),
@@ -144,14 +275,20 @@ def social_login_view(request):
         'is_new_user': social_account.created_at == social_account.last_login
     }, status=status.HTTP_200_OK)
     
-    # Set HTTP-only cookie for refresh token
+    # Set HTTP-only cookie to the SimpleJWT refresh token so CookieTokenRefreshView can rotate it
+    try:
+        from accounts.views import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
+    except Exception:
+        REFRESH_COOKIE_NAME = 'refresh_token'
+        REFRESH_COOKIE_PATH = '/'
     response.set_cookie(
-        key='refresh_token',
-        value=refresh_token_plain,
+        key=REFRESH_COOKIE_NAME,
+        value=str(refresh),
         max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
         httponly=True,
         secure=not settings.DEBUG,
-        samesite='Lax'
+        samesite='Lax',
+        path=REFRESH_COOKIE_PATH,
     )
     
     return response

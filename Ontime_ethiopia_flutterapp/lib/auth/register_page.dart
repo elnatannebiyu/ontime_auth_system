@@ -8,6 +8,7 @@ import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
 import '../core/utils/phone_input_formatter.dart';
 import '../core/theme/theme_controller.dart';
+import '../core/notifications/notification_permission_manager.dart';
 
 class RegisterPage extends StatefulWidget {
   final AuthApi api;
@@ -69,6 +70,9 @@ class _RegisterPageState extends State<RegisterPage> {
       // Post-register guard: ensure membership/access to tenant
       try {
         await widget.api.me();
+        if (mounted) {
+          await NotificationPermissionManager().ensurePermissionFlow(context);
+        }
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
       } on DioException catch (e) {
@@ -85,10 +89,24 @@ class _RegisterPageState extends State<RegisterPage> {
     } on DioException catch (e) {
       final data = e.response?.data;
       String message = e.message ?? 'Registration failed';
-      if (data is Map && data['email'] != null) {
-        message = (data['email'] as List?)?.join(', ') ?? message;
-      } else if (data is Map && data['detail'] != null) {
-        message = '${data['detail']}';
+      // Prefer field-specific errors
+      if (data is Map) {
+        final msgs = <String>[];
+        void collect(key) {
+          final v = data[key];
+          if (v is List) {
+            msgs.addAll(v.map((x) => '$key: $x'));
+          } else if (v is String) {
+            msgs.add('$key: $v');
+          }
+        }
+        // Collect common DRF error shapes
+        for (final k in ['email', 'password', 'non_field_errors', 'detail']) {
+          collect(k);
+        }
+        if (msgs.isNotEmpty) {
+          message = msgs.join('\n');
+        }
       }
       setState(() => _error = message);
     } catch (e) {
@@ -130,12 +148,73 @@ class _RegisterPageState extends State<RegisterPage> {
             // Social sign-in buttons
             SocialAuthButtons(
               onGoogle: () async {
-                final service = const SocialAuthService();
+                final service = SocialAuthService();
                 try {
-                  await service.signInWithGoogle();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Google sign-in coming soon')),
-                  );
+                  final result = await service.signInWithGoogle();
+                  // Step 1: attempt login without creating a new account
+                  Tokens tokens;
+                  try {
+                    tokens = await widget.api.socialLogin(
+                      tenantId: widget.tenantId,
+                      provider: 'google',
+                      token: result.idToken!,
+                      allowCreate: false,
+                    );
+                  } on DioException catch (e) {
+                    final code = e.response?.statusCode ?? 0;
+                    final data = e.response?.data;
+                    final errKey = (data is Map && data['error'] is String)
+                        ? data['error'] as String
+                        : '';
+                    if (code == 404 && errKey == 'user_not_found') {
+                      // Ask to create the account
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Create new account?'),
+                          content: Text(
+                              'No account exists for ${result.email ?? 'this Google account'}. Create one now?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true) return;
+                      tokens = await widget.api.socialLogin(
+                        tenantId: widget.tenantId,
+                        provider: 'google',
+                        token: result.idToken!,
+                        allowCreate: true,
+                        userData: {
+                          if (result.email != null) 'email': result.email,
+                          if (result.displayName != null) 'name': result.displayName,
+                        },
+                      );
+                    } else {
+                      rethrow;
+                    }
+                  }
+                  await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+                  await widget.api.me();
+                  if (mounted) {
+                    await NotificationPermissionManager().ensurePermissionFlow(context);
+                  }
+                  if (!mounted) return;
+                  Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
+                } on DioException catch (e) {
+                  final data = e.response?.data;
+                  final err = (data is Map && data['error'] is String)
+                      ? data['error'] as String
+                      : e.message ?? 'Google sign-in failed';
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(err)));
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Google sign-in error: $e')),
@@ -143,7 +222,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 }
               },
               onApple: () async {
-                final service = const SocialAuthService();
+                final service = SocialAuthService();
                 try {
                   await service.signInWithApple();
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -220,7 +299,15 @@ class _RegisterPageState extends State<RegisterPage> {
                     validator: (v) {
                       final val = v ?? '';
                       if (val.isEmpty) return 'Enter password';
-                      if (val.length < 8) return 'Use at least 8 characters';
+                      if (val.length < 8) return 'Password must be at least 8 characters';
+                      final upper = RegExp(r'[A-Z]');
+                      final lower = RegExp(r'[a-z]');
+                      final digit = RegExp(r'\d');
+                      final special = RegExp(r'[!@#\$%\^&\*(),.?":{}|<>]');
+                      if (!upper.hasMatch(val)) return 'Password must include an uppercase letter';
+                      if (!lower.hasMatch(val)) return 'Password must include a lowercase letter';
+                      if (!digit.hasMatch(val)) return 'Password must include a number';
+                      if (!special.hasMatch(val)) return 'Password must include a special character';
                       return null;
                     },
                   ),

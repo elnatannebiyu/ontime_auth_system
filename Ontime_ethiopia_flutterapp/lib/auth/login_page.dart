@@ -9,6 +9,7 @@ import '../core/theme/theme_controller.dart';
 import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
 import 'services/simple_session_manager.dart';
+import '../core/notifications/notification_permission_manager.dart';
 
 class LoginPage extends StatefulWidget {
   final AuthApi api;
@@ -65,6 +66,11 @@ class _LoginPageState extends State<LoginPage> {
       // Verify login by checking user info
       await widget.api.me();
 
+      // Ask for notifications permission with enterprise-grade flow
+      if (mounted) {
+        await NotificationPermissionManager().ensurePermissionFlow(context);
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
     } on DioException catch (e) {
@@ -72,8 +78,18 @@ class _LoginPageState extends State<LoginPage> {
       final detail = (data is Map && data['detail'] != null)
           ? '${data['detail']}'
           : e.message;
+      String uiMsg = 'Login failed';
+      if (detail == 'password_auth_not_set') {
+        uiMsg =
+            'This account was created with Google. Use “Continue with Google” or set a password first.';
+      } else if (detail ==
+          'No active account found with the given credentials') {
+        uiMsg = 'Incorrect email or password.';
+      } else if (detail != null && detail!.isNotEmpty) {
+        uiMsg = detail!;
+      }
       setState(() {
-        _error = detail ?? 'Login failed';
+        _error = uiMsg;
       });
     } catch (e) {
       setState(() {
@@ -111,12 +127,75 @@ class _LoginPageState extends State<LoginPage> {
             // Social sign-in buttons
             SocialAuthButtons(
               onGoogle: () async {
-                final service = const SocialAuthService();
+                final service = SocialAuthService();
                 try {
-                  await service.signInWithGoogle();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Google sign-in coming soon')),
-                  );
+                  final result = await service.signInWithGoogle();
+                  // Step 1: attempt login without creating a new account
+                  Tokens tokens;
+                  try {
+                    tokens = await widget.api.socialLogin(
+                      tenantId: widget.tenantId,
+                      provider: 'google',
+                      token: result.idToken!,
+                      allowCreate: false,
+                    );
+                  } on DioException catch (e) {
+                    final code = e.response?.statusCode ?? 0;
+                    final data = e.response?.data;
+                    final errKey = (data is Map && data['error'] is String)
+                        ? (data['error'] as String)
+                        : '';
+                    if (code == 404 && errKey == 'user_not_found') {
+                      // Ask the user for permission to create a new account
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Create new account?'),
+                          content: Text(
+                              'No account exists for ${result.email ?? 'this Google account'}. Create one now?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true) return;
+                      // Step 2: create account and login
+                      tokens = await widget.api.socialLogin(
+                        tenantId: widget.tenantId,
+                        provider: 'google',
+                        token: result.idToken!,
+                        allowCreate: true,
+                        userData: {
+                          if (result.email != null) 'email': result.email,
+                          if (result.displayName != null) 'name': result.displayName,
+                        },
+                      );
+                    } else {
+                      rethrow;
+                    }
+                  }
+                  await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+                  await widget.api.me();
+                  if (mounted) {
+                    await NotificationPermissionManager().ensurePermissionFlow(context);
+                  }
+                  if (!mounted) return;
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/home', (_) => false);
+                } on DioException catch (e) {
+                  final data = e.response?.data;
+                  final err = (data is Map && data['error'] is String)
+                      ? data['error'] as String
+                      : e.message ?? 'Google sign-in failed';
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(err)));
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Google sign-in error: $e')),
@@ -124,7 +203,7 @@ class _LoginPageState extends State<LoginPage> {
                 }
               },
               onApple: () async {
-                final service = const SocialAuthService();
+                final service = SocialAuthService();
                 try {
                   await service.signInWithApple();
                   ScaffoldMessenger.of(context).showSnackBar(

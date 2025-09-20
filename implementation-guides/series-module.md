@@ -248,3 +248,48 @@ Permissions:
 ### Testing
 - Unit tests: device register/unregister, subscribe/unsubscribe, fanout rendering.
 - Integration tests: sync creates events, fanout delivers to subscribed devices, failure handling.
+
+## Minimal YouTube API Strategy (Quota-Efficient)
+
+Goal: keep YouTube Data API usage tiny while staying fresh, aligned with our “Sync now” workflow and occasional global checks.
+
+Principle: do not poll continuously. Only fetch when mapping a new Season to a playlist, when an admin presses “Sync now,” or during a very infrequent global heartbeat (e.g., once/day).
+
+### A) First-time Season mapping → initial import
+- playlists.list (1 unit): fetch contentDetails.itemCount and basic info.
+- playlistItems.list (1 unit per page, maxResults=50): ingest items in 1–3 pages typically.
+- Optional: videos.list (1 unit per ≤50 IDs) only if duration/details needed now; you can defer to Episode detail view.
+Result: usually ~2–5 units once per playlist.
+
+### B) “Sync now” (admin-triggered)
+- Heartbeat: playlists.list (1 unit) to read itemCount.
+  - If unchanged since last sync → stop.
+  - If increased by k → proceed.
+- Tail-only fetch: playlistItems.list for just the last pages needed: ceil(k/50).
+  - Stop reading as soon as you hit a known videoId.
+- Optional: videos.list once for the handful of new items.
+Result: typical new episode sync ≈ 2 units (1 heartbeat + 1 tail page).
+
+### Why it’s cheap
+- Never scan the whole playlist again; only the tail.
+- Avoid search.list; batch videos.list by IDs (≤50 per call).
+
+### API hygiene
+- Always set fields to only what’s needed (title, videoId, publishedAt, privacyStatus, nextPageToken).
+- Use maxResults=50 to minimize page count.
+- Track and compare itemCount and known videoIds to short-circuit early.
+- ETags help bandwidth but don’t reduce quota; rely on call minimization.
+
+### Admin UX to reinforce minimal pulls
+- Per-Season “Sync now” button.
+- Optional global “Check for changes” daily that only calls playlists.list for enabled Seasons; flag those with changed counts.
+- Display last sync time and last item found so editors sync intentionally.
+
+### Edge cases
+- Reordering: tail-only still stops on first known videoId; add “Full resync” button for rare heavy edits.
+- Deleted/private: mark Episode visible=false when detected; keep record for audit.
+- Multiple new items: k new items → ceil(k/50) tail pages; still cheap.
+
+### Quota expectations
+- Even with ~32 shows, initial mapping might consume ~100 units total once.
+- Ongoing usage with manual syncs stays in single-digit units/day—well under default daily limits.

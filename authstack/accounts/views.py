@@ -26,7 +26,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 REFRESH_COOKIE_NAME = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
-REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/api/token/refresh/")
+REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/")
 
 
 def set_refresh_cookie(response: Response, refresh: str):
@@ -146,6 +146,7 @@ class CookieTokenRefreshView(TokenRefreshView):
 
 
 class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
     @swagger_auto_schema(
         manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
         operation_id="logout_create",
@@ -166,9 +167,20 @@ class LogoutView(APIView):
                 sid = at.get('session_id')
                 if sid:
                     try:
-                        session = UserSession.objects.get(id=sid, user=request.user)
+                        # Revoke without enforcing user equality; possession of the token implies control
+                        session = UserSession.objects.get(id=sid)
                         session.revoke('user_logout')
                     except UserSession.DoesNotExist:
+                        pass
+                    # Revoke in new refresh-session backend as well
+                    try:
+                        from user_sessions.models import Session as RefreshSession
+                        from django.utils import timezone as _tz
+                        rs = RefreshSession.objects.get(id=sid)
+                        rs.revoked_at = _tz.now()
+                        rs.revoke_reason = 'user_logout'
+                        rs.save()
+                    except Exception:
                         pass
         except Exception:
             # Ignore token parsing errors and continue to cookie fallback
@@ -187,9 +199,10 @@ class LogoutView(APIView):
                         session.revoke('user_logout')
                     except UserSession.DoesNotExist:
                         pass
+                        pass
                 elif jti:
                     try:
-                        session = UserSession.objects.get(refresh_token_jti=jti, user=request.user)
+                        session = UserSession.objects.get(refresh_token_jti=jti)
                         session.revoke('user_logout')
                     except UserSession.DoesNotExist:
                         pass
@@ -349,10 +362,24 @@ class RegisterView(APIView):
         from .models import Membership
         membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
 
-        # Assign default role 'Viewer' if it exists
-        viewer = Group.objects.filter(name="Viewer").first()
-        if viewer is not None:
-            membership.roles.add(viewer)
+        # Ensure default role 'Viewer' exists and assign to new member
+        viewer, created_viewer = Group.objects.get_or_create(name="Viewer")
+        # Ensure Viewer has baseline read-only permissions (all 'view_*')
+        try:
+            from django.contrib.auth.models import Permission
+            view_perms = Permission.objects.filter(codename__startswith='view_')
+            # Add any missing view_* perms (idempotent)
+            viewer.permissions.add(*view_perms)
+        except Exception:
+            # Do not block registration if permission assignment fails
+            pass
+        membership.roles.add(viewer)
+        # Refresh user's permission cache so group perms are effective immediately
+        try:
+            if hasattr(user, "_perm_cache"):
+                delattr(user, "_perm_cache")
+        except Exception:
+            pass
 
         # Build JWTs similar to CookieTokenObtainPairSerializer behavior
         token_ser = CookieTokenObtainPairSerializer()
@@ -361,6 +388,77 @@ class RegisterView(APIView):
         access["tenant_id"] = tenant.slug
         member_roles = list(membership.roles.values_list("name", flat=True))
         access["tenant_roles"] = member_roles
+        # Add global roles and effective perms to access for client-side hints
+        access["roles"] = list(user.groups.values_list("name", flat=True))
+        try:
+            access["perms"] = sorted(list(user.get_all_permissions()))
+        except Exception:
+            access["perms"] = []
+
+        # ---- Create session entries (accounts.UserSession and user_sessions.Session) and embed session_id ----
+        try:
+            from .models import UserSession as LegacySession
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+            import hashlib as _hashlib
+
+            # Extract JTIs
+            from rest_framework_simplejwt.tokens import RefreshToken as _RT
+            rt = _RT(str(refresh))
+            refresh_jti = rt.payload.get('jti', '')
+            access_jti = access["jti"] if "jti" in access else rt.access_token["jti"]
+
+            # Read device headers
+            dev_id = request.META.get('HTTP_X_DEVICE_ID') or ''
+            dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
+            dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
+            os_name = request.META.get('HTTP_X_OS_NAME', '')
+            os_version = request.META.get('HTTP_X_OS_VERSION', '')
+            ip_addr = request.META.get('REMOTE_ADDR') or '127.0.0.1'
+            ua = request.META.get('HTTP_USER_AGENT', '')
+
+            # Create legacy session (authoritative session_id UUID)
+            legacy = LegacySession.objects.create(
+                user=user,
+                device_id=dev_id or _hashlib.sha256(f"{ua}:{ip_addr}".encode()).hexdigest()[:32],
+                device_name=dev_name,
+                device_type=dev_type,
+                os_name=os_name,
+                os_version=os_version,
+                ip_address=ip_addr,
+                user_agent=ua,
+                location='',
+                refresh_token_jti=refresh_jti or _hashlib.sha256(str(refresh).encode()).hexdigest(),
+                access_token_jti=access_jti or '',
+                expires_at=_tz.now() + _tz.timedelta(days=7),
+                is_active=True,
+            )
+
+            # Mirror into new refresh-session backend with same UUID
+            refresh_hash = _hashlib.sha256(str(refresh).encode()).hexdigest()
+            RefreshSession.objects.update_or_create(
+                id=legacy.id,
+                defaults={
+                    'user': user,
+                    'device': None,
+                    'refresh_token_hash': refresh_hash,
+                    'refresh_token_family': legacy.refresh_token_jti,
+                    'rotation_counter': 0,
+                    'ip_address': ip_addr,
+                    'user_agent': ua,
+                    'revoked_at': None,
+                    'revoke_reason': '',
+                    'expires_at': _tz.now() + _tz.timedelta(days=7),
+                }
+            )
+
+            # Embed session_id into both tokens
+            rt['session_id'] = str(legacy.id)
+            access['session_id'] = str(legacy.id)
+            refresh = rt  # assign back so cookie uses updated token
+        except Exception:
+            # Non-fatal: if session creation fails, proceed without blocking registration
+            pass
 
         resp = Response({"access": str(access)}, status=status.HTTP_201_CREATED)
         set_refresh_cookie(resp, str(refresh))

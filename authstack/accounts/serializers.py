@@ -1,4 +1,5 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Permission
+from django.db.models import Q
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -27,8 +28,20 @@ class MeSerializer(serializers.ModelSerializer):
         return list(obj.groups.values_list("name", flat=True))
 
     def get_permissions(self, obj):
-        # Effective permissions, including those from groups
-        return sorted(list(obj.get_all_permissions()))
+        # Effective permissions including global groups and per-tenant Membership roles
+        perms = set(obj.get_all_permissions())
+        # If request has a tenant, merge in permissions from Membership.roles
+        request = self.context.get("request") if hasattr(self, "context") else None
+        tenant = getattr(request, "tenant", None) if request is not None else None
+        if tenant is not None:
+            from .models import Membership
+            member = Membership.objects.filter(user=obj, tenant=tenant).first()
+            if member:
+                role_perms = Permission.objects.filter(group__in=member.roles.all())
+                # Permission.__str__ is app_label | codename; we want "app_label.codename"
+                # get_all_permissions returns strings in format "app_label.codename"
+                perms.update({f"{p.content_type.app_label}.{p.codename}" for p in role_perms})
+        return sorted(list(perms))
 
     def get_tenant_roles(self, obj):
         # Resolve per-tenant roles for the current request. If no tenant, return [].
@@ -90,7 +103,8 @@ class RegistrationSerializer(serializers.Serializer):
         """Additional email validation and sanitization"""
         value = value.lower().strip()
         validate_email_domain(value)
-        if User.objects.filter(username=value).exists():
+        # Enforce case-insensitive uniqueness across both username and email
+        if User.objects.filter(Q(username__iexact=value) | Q(email__iexact=value)).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 

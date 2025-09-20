@@ -10,8 +10,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 
 from accounts.models import UserSession
+from user_sessions.models import Session as RefreshSession
 
 User = get_user_model()
 
@@ -28,7 +30,20 @@ class TokenVersionMixin:
         return token
     
     def validate(self, attrs):
-        data = super().validate(attrs)
+        # First, validate credentials. If invalid, provide a more specific error
+        # when the account exists but has no usable password (i.e., social-only).
+        try:
+            data = super().validate(attrs)
+        except AuthenticationFailed:
+            username = attrs.get('username') or ''
+            # Look up user case-insensitively by username or email
+            user = (User.objects.filter(username__iexact=username).first()
+                    or User.objects.filter(email__iexact=username).first())
+            if user is not None and not user.has_usable_password():
+                # Distinct signal for social-only accounts
+                raise AuthenticationFailed('password_auth_not_set')
+            # Otherwise propagate the original authentication failure
+            raise
         
         # Check if user has token_version attribute
         if hasattr(self.user, 'token_version'):
@@ -45,7 +60,7 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
     def validate(self, attrs):
         data = super().validate(attrs)
         
-        # Create or update session
+        # Create or update session (device-based reuse, aligned with social login)
         request = self.context.get('request')
         if request:
             # Get tenant_id from request
@@ -94,6 +109,33 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             refresh_token.access_token['session_id'] = str(session.id)
             data['refresh'] = str(refresh_token)
             data['access'] = str(refresh_token.access_token)
+
+            # Mirror into new refresh session backend so Admin and middleware can use either
+            try:
+                # Use same UUID so tokens and both tables align
+                import hashlib as _hashlib
+                from django.utils import timezone as _tz
+                # Hash the actual SimpleJWT refresh string for audit
+                refresh_hash = _hashlib.sha256(str(refresh_token).encode()).hexdigest()
+                RefreshSession.objects.update_or_create(
+                    id=session.id,
+                    defaults={
+                        'user': self.user,
+                        'device': None,
+                        'refresh_token_hash': refresh_hash,
+                        'refresh_token_family': session.refresh_token_jti if hasattr(session, 'refresh_token_jti') else jti or '',
+                        'rotation_counter': 0,
+                        'ip_address': request.META.get('REMOTE_ADDR') or '127.0.0.1',
+                        'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                        'revoked_at': None,
+                        'revoke_reason': '',
+                        # Keep a reasonable expiry for audit; SimpleJWT refresh lifetime is 7 days in settings
+                        'expires_at': _tz.now() + timedelta(days=7),
+                    }
+                )
+            except Exception:
+                # Do not block login if mirroring fails
+                pass
         
         return data
 

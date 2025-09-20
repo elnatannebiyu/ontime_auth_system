@@ -120,6 +120,8 @@ class _MyAppState extends State<MyApp> {
         SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
     });
+
+    // Mini player disabled: no attachment
   }
 
   @override

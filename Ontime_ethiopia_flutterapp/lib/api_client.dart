@@ -35,8 +35,8 @@ String _resolveApiBase() {
         return 'http://127.0.0.1:8000';
       case 'auto':
       default:
-        // Prefer device-local for physical phone (Termux), else fallback can be adjusted at runtime
-        return 'http://127.0.0.1:8000';
+        // Default to Android emulator host mapping
+        return 'http://10.0.2.2:8000';
     }
   }
   if (Platform.isIOS || Platform.isMacOS) {
@@ -411,6 +411,8 @@ class _TokenRefreshInterceptor extends Interceptor {
       try {
         // If we obviously don't have a refresh cookie, don't attempt refresh
         if (!await client._hasRefreshCookie()) {
+          // No way to refresh; force logout to clear bad token state
+          client._forceLogout();
           return handler.reject(err);
         }
         // rely on ApiClient's global single-flight guard

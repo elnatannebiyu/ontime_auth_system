@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../auth/tenant_auth_client.dart';
@@ -6,9 +8,11 @@ import '../core/localization/l10n.dart';
 import '../features/home/widgets/hero_carousel.dart';
 import '../features/home/widgets/section_header.dart';
 import '../features/home/widgets/poster_row.dart';
-import '../features/home/widgets/mini_player_bar.dart';
+// import '../features/home/widgets/mini_player_bar.dart';
+import '../features/series/pages/player_page.dart';
 import '../features/home/widgets/channel_bubbles.dart';
 import '../core/widgets/brand_title.dart';
+import '../features/series/pages/series_shows_page.dart';
 
 // Overflow menu actions for Home AppBar
 enum _HomeMenuAction { profile, settings, about, switchLanguage }
@@ -54,8 +58,7 @@ class _HomePageState extends State<HomePage> {
     'Kids'
   ];
 
-  // Mini player state
-  bool _showMini = false;
+  // Mini player now handled globally via MiniPlayerManager
 
   @override
   void initState() {
@@ -102,7 +105,20 @@ class _HomePageState extends State<HomePage> {
         length: 4,
         child: Scaffold(
           floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => setState(() => _showMini = true),
+            onPressed: () {
+              // Open full player directly (Option A)
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PlayerPage(
+                    api: widget.api,
+                    tenantId: widget.tenantId,
+                    episodeId: 31, // TODO: replace with real live episode id
+                    seasonId: null,
+                    title: 'Live',
+                  ),
+                ),
+              );
+            },
             icon: const Icon(Icons.live_tv),
             label: Text(_t('go_live')),
           ),
@@ -113,7 +129,7 @@ class _HomePageState extends State<HomePage> {
               isScrollable: true,
               tabs: [
                 Tab(text: _t('for_you')),
-                Tab(text: _t('Dramas')),
+                Tab(text: _t('Shows')),
                 Tab(text: _t('sports')),
                 Tab(text: _t('kids')),
               ],
@@ -217,25 +233,15 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // For You tab
                 _buildForYou(context),
-                // Other tabs placeholder UI for now
-                _buildPlaceholderTab(context, _t('trending')),
+                // Shows tab
+                SeriesShowsPage(api: widget.api, tenantId: widget.tenantId),
                 _buildPlaceholderTab(context, _t('sports')),
                 _buildPlaceholderTab(context, _t('kids')),
               ],
             ),
           ),
-          // Mini-player (extracted widget)
-          bottomSheet: _showMini
-              ? Padding(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: MiniPlayerBar(
-                    nowPlayingLabel: _t('now_playing'),
-                    onClose: () => setState(() => _showMini = false),
-                  ),
-                )
-              : null,
+          // Global mini-player is handled by MiniPlayerManager overlay.
+          bottomSheet: null,
         ),
       ),
     );
@@ -275,50 +281,49 @@ class _HomePageState extends State<HomePage> {
                             child: Text(_error!,
                                 style: const TextStyle(color: Colors.red)),
                           ),
-                                // Hero carousel (extracted)
-                                HeroCarousel(
-                                  liveLabel: _t('live'),
-                                  playLabel: _t('play'),
-                                  onPlay: () =>
-                                      setState(() => _showMini = true),
-                                ),
-                                const SizedBox(height: 12),
-                                // Browse Channels section header (extracted)
-                                SectionHeader(
-                                  title: _t('browse_channels'),
-                                  actionLabel: _t('see_all'),
-                                  onAction: _loading
-                                      ? null
-                                      : () async {
-                                          await Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => ChannelsPage(
-                                                  tenantId: 'ontime',
-                                                  localizationController: widget
-                                                      .localizationController),
-                                            ),
-                                          );
-                                          widget.api.setTenant(widget.tenantId);
-                                        },
-                                ),
-                                ChannelBubbles(
-                                  channels: _demoChannels,
-                                  onSeeAll: null,
-                                  onTapChannel: (_) {},
-                                ),
-                                const SizedBox(height: 12),
-                                // Trending Now section (extracted header)
-                                SectionHeader(title: _t('trending_now')),
-                                const SizedBox(height: 8),
-                                const PosterRow(count: 10),
-                                const SizedBox(height: 16),
-                                // New Releases section (extracted header)
-                                SectionHeader(title: _t('new_releases')),
-                                const SizedBox(height: 8),
-                                const PosterRow(count: 12, tall: true),
-                                const SizedBox(
-                                    height:
-                                        70), // space for mini-player above FAB notch
+                        // Hero carousel (extracted)
+                        HeroCarousel(
+                          liveLabel: _t('live'),
+                          playLabel: _t('play'),
+                          onPlay: () {},
+                        ),
+                        const SizedBox(height: 12),
+                        // Browse Channels section header (extracted)
+                        SectionHeader(
+                          title: _t('browse_channels'),
+                          actionLabel: _t('see_all'),
+                          onAction: _loading
+                              ? null
+                              : () async {
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => ChannelsPage(
+                                          tenantId: 'ontime',
+                                          localizationController:
+                                              widget.localizationController),
+                                    ),
+                                  );
+                                  widget.api.setTenant(widget.tenantId);
+                                },
+                        ),
+                        ChannelBubbles(
+                          channels: _demoChannels,
+                          onSeeAll: null,
+                          onTapChannel: (_) {},
+                        ),
+                        const SizedBox(height: 12),
+                        // Trending Now section (extracted header)
+                        SectionHeader(title: _t('trending_now')),
+                        const SizedBox(height: 8),
+                        const PosterRow(count: 10),
+                        const SizedBox(height: 16),
+                        // New Releases section (extracted header)
+                        SectionHeader(title: _t('new_releases')),
+                        const SizedBox(height: 8),
+                        const PosterRow(count: 12, tall: true),
+                        const SizedBox(
+                            height:
+                                70), // space for mini-player above FAB notch
                       ],
                     ),
                   ),

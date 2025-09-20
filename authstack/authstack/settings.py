@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'user_sessions',
     'otp_auth',
     'tenants',
+    'series',
 ]
 
 MIDDLEWARE = [
@@ -108,6 +109,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email settings
@@ -246,6 +249,17 @@ LOGGING = {
 # Social Auth Settings
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+# Optional: allow multiple Google client IDs (e.g., Web + iOS) for audience verification
+# Accepts either a comma-separated string or a single value. Defaults to empty list.
+_google_additional_raw = os.environ.get('GOOGLE_ADDITIONAL_CLIENT_IDS', '')
+if _google_additional_raw:
+    if ',' in _google_additional_raw:
+        GOOGLE_ADDITIONAL_CLIENT_IDS = [x.strip() for x in _google_additional_raw.split(',') if x.strip()]
+    else:
+        GOOGLE_ADDITIONAL_CLIENT_IDS = _google_additional_raw.strip()
+else:
+    GOOGLE_ADDITIONAL_CLIENT_IDS = []
 
 APPLE_CLIENT_ID = os.environ.get('APPLE_CLIENT_ID', '')
 APPLE_TEAM_ID = os.environ.get('APPLE_TEAM_ID', '')
