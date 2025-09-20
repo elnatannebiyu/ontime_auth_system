@@ -22,8 +22,36 @@ from .permissions import (
     IsTenantMember,
     TenantMatchesToken,
 )
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
+
+# Swagger imports guarded to avoid hard dependency in production where drf_yasg/pkg_resources may be unavailable
+_ENABLE_SWAGGER = getattr(settings, 'ENABLE_SWAGGER', False) or settings.DEBUG
+try:
+    if _ENABLE_SWAGGER:
+        from drf_yasg import openapi  # type: ignore
+        from drf_yasg.utils import swagger_auto_schema  # type: ignore
+    else:
+        raise ImportError
+except Exception:
+    # Minimal shims: no-op decorator and simple openapi namespace with Parameter helper
+    def swagger_auto_schema(*args, **kwargs):  # type: ignore
+        def _decorator(func):
+            return func
+        return _decorator
+
+    class _OpenApiShim:  # type: ignore
+        IN_HEADER = 'header'
+        TYPE_STRING = 'string'
+
+        class Parameter:  # type: ignore
+            def __init__(self, name, in_, description='', type=None, required=False, default=None):
+                self.name = name
+                self.in_ = in_
+                self.description = description
+                self.type = type
+                self.required = required
+                self.default = default
+
+    openapi = _OpenApiShim()  # type: ignore
 
 REFRESH_COOKIE_NAME = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
 REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/")
