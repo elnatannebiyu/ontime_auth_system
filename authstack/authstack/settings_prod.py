@@ -74,6 +74,11 @@ REFRESH_COOKIE_PATH = os.environ.get("REFRESH_COOKIE_PATH", "/")
 
 # --- Static files ---
 STATIC_ROOT = os.environ.get("STATIC_ROOT", str(Path(BASE_DIR) / "staticfiles"))
+STATIC_URL = STATIC_URL  # from base settings
+
+# WhiteNoise: serve static files via Gunicorn (compressed + hashed filenames)
+MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # --- Swagger / drf_yasg ---
 # Do not expose Swagger UI in production unless explicitly allowed
