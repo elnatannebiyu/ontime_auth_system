@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import '../../api_client.dart';
 import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
+import '../../core/services/social_auth.dart';
+import '../../config.dart';
 
 /// Simple session manager that works with existing auth infrastructure
 class SimpleSessionManager {
@@ -103,6 +105,10 @@ class SimpleSessionManager {
     } catch (e) {
       // Continue with logout even if API call fails
     } finally {
+      // Also sign out of Google so the account chooser appears next time
+      try {
+        await SocialAuthService(serverClientId: kGoogleWebClientId).signOutGoogle();
+      } catch (_) {}
       await _tokenStore.clear();
       _apiClient.setAccessToken(null);
       _isLoggedIn = false;

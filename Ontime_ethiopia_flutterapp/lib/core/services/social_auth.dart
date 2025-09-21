@@ -28,8 +28,8 @@ class SocialAuthService {
   final String? serverClientId; // Required on Android to obtain idToken
   SocialAuthService({this.serverClientId});
 
-  Future<SocialAuthResult> signInWithGoogle() async {
-    final googleSignIn = GoogleSignIn(
+  GoogleSignIn _buildGoogle()
+    => GoogleSignIn(
       // On Android, provide the Web client ID via serverClientId to obtain an idToken
       serverClientId: Platform.isAndroid
           ? (serverClientId?.isNotEmpty == true
@@ -46,6 +46,25 @@ class SocialAuthService {
         'profile',
       ],
     );
+
+  /// Sign out from the app session for GoogleSignIn so the account chooser is shown next time.
+  Future<void> signOutGoogle() async {
+    final gs = _buildGoogle();
+    try {
+      await gs.signOut();
+      // Disconnect revokes granted scopes from this app; optional but helps reset state
+      await gs.disconnect();
+    } catch (_) {}
+  }
+
+  Future<SocialAuthResult> signInWithGoogle({bool signOutFirst = false}) async {
+    final googleSignIn = _buildGoogle();
+    if (signOutFirst) {
+      try {
+        await googleSignIn.signOut();
+        await googleSignIn.disconnect();
+      } catch (_) {}
+    }
 
     final account = await googleSignIn.signIn();
     if (account == null) {

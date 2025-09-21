@@ -89,6 +89,16 @@ if os.environ.get("ENABLE_SWAGGER", "False") != "True":
 if os.environ.get('EMAIL_BACKEND'):
     EMAIL_BACKEND = os.environ['EMAIL_BACKEND']
 
+# --- Social OAuth (Google/Apple) ---
+# Provide Google Client IDs via env so accounts.social_auth can validate ID token audiences
+# Example:
+#   GOOGLE_CLIENT_ID="59310140647-ks91sebo8ccbd9f6m8q065p7vp4uogvm.apps.googleusercontent.com"
+#   GOOGLE_ADDITIONAL_CLIENT_IDS="59310140647-m77nbro0rb4i146mtcq5blpb0n1mn233.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_ADDITIONAL_CLIENT_IDS = [
+    x.strip() for x in os.environ.get("GOOGLE_ADDITIONAL_CLIENT_IDS", "").split(",") if x.strip()
+]
+
 # --- Logging ---
 LOGGING = {
     "version": 1,

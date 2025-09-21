@@ -10,6 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'auth/services/device_info_service.dart';
+import 'config.dart';
 
 /// Configure backend origin per platform with environment overrides
 /// Priority:
@@ -25,6 +26,10 @@ String _resolveApiBase() {
   // If explicit LAN provided, use it universally
   if (_envLanBase.isNotEmpty) {
     return _envLanBase;
+  }
+  // If a default API base is provided via config.dart, prefer that
+  if (kDefaultApiBase.isNotEmpty) {
+    return kDefaultApiBase;
   }
   if (Platform.isAndroid) {
     switch (_envAndroidMode) {
@@ -76,11 +81,11 @@ class ApiClient {
     dio.interceptors.add(CookieManager(cookieJar));
 
     // Dev logging: print requests/responses/errors to console
-    if (kDebugMode) {
+    if (kDebugMode || kEnableRequestHeaderLogging) {
       dio.interceptors.add(LogInterceptor(
         request: true,
         requestBody: true,
-        requestHeader: false,
+        requestHeader: kEnableRequestHeaderLogging,
         responseBody: true,
         responseHeader: false,
         error: true,
@@ -159,6 +164,14 @@ class ApiClient {
     _tenantSlug = tenantSlug;
   }
 
+  // Initialize default tenant from config, if not set elsewhere
+  void ensureDefaultTenant() {
+    if ((_tenantSlug == null || _tenantSlug!.isEmpty) &&
+        kDefaultTenant.isNotEmpty) {
+      _tenantSlug = kDefaultTenant;
+    }
+  }
+
   /// Allows changing the base URL at runtime (e.g., user setting or detection)
   void setBaseUrl(String base) {
     if (base.isEmpty) return;
@@ -232,6 +245,8 @@ class ApiClient {
       if (stored != null && stored.isNotEmpty) {
         _accessToken = stored;
       }
+      // Apply default tenant from config
+      ensureDefaultTenant();
     } catch (e) {
       // Fallback keeps memory cookie jar; app still works but won’t persist
     } finally {

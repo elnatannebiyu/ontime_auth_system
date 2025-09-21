@@ -1,8 +1,9 @@
+// ignore_for_file: unused_field, unused_element
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../auth/tenant_auth_client.dart';
-import 'package:flutter/cupertino.dart';
 import '../series_service.dart';
 import 'player_page.dart';
 

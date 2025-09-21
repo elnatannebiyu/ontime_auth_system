@@ -8,6 +8,7 @@ import '../core/widgets/social_auth_buttons.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
+import '../config.dart';
 import 'services/simple_session_manager.dart';
 import '../core/notifications/notification_permission_manager.dart';
 
@@ -85,8 +86,8 @@ class _LoginPageState extends State<LoginPage> {
       } else if (detail ==
           'No active account found with the given credentials') {
         uiMsg = 'Incorrect email or password.';
-      } else if (detail != null && detail!.isNotEmpty) {
-        uiMsg = detail!;
+      } else if (detail != null && detail.isNotEmpty) {
+        uiMsg = detail;
       }
       setState(() {
         _error = uiMsg;
@@ -127,7 +128,7 @@ class _LoginPageState extends State<LoginPage> {
             // Social sign-in buttons
             SocialAuthButtons(
               onGoogle: () async {
-                final service = SocialAuthService();
+                final service = SocialAuthService(serverClientId: kGoogleWebClientId);
                 try {
                   final result = await service.signInWithGoogle();
                   // Step 1: attempt login without creating a new account
