@@ -3,7 +3,7 @@ djangorestframework==3.16.1
 djangorestframework-simplejwt==5.5.1
 django-cors-headers==4.7.0
 PyJWT[crypto]==2.10.1
-drf-yasg==1.21.7
+drf-yasg==1.21.11
 requests==2.32.3
 Pillow==10.4.0
 django-ratelimit==4.1.0
