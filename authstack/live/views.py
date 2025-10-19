@@ -217,14 +217,20 @@ class LiveProxyBase:
             'User-Agent': LiveProxyBase.UA,
             'Origin': 'https://embed.novastream.et',
             'Referer': 'https://embed.novastream.et/',
-            'Accept': '*/*',
+            'Accept': 'application/vnd.apple.mpegurl,application/x-mpegURL,*/*',
             'Accept-Language': 'en-US,en;q=0.5',
         }
 
     @staticmethod
-    def _http_get(url: str, stream: bool = False):
+    def _http_get(url: str, stream: bool = False, extra_headers: dict | None = None):
         import requests
-        resp = requests.get(url, headers=LiveProxyBase._headers(), timeout=15, stream=stream)
+        headers = LiveProxyBase._headers()
+        if extra_headers:
+            try:
+                headers.update({k: v for k, v in extra_headers.items() if v is not None})
+            except Exception:
+                pass
+        resp = requests.get(url, headers=headers, timeout=15, stream=stream)
         return resp
 
     @staticmethod
@@ -370,14 +376,22 @@ class LiveProxyManifestView(APIView):
             if not line or line.startswith('#'):
                 out_lines.append(line)
                 continue
-            # If absolute URL, leave as-is; else rewrite to seg proxy
+            # Always proxy both absolute and relative URLs
             if line.startswith('http://') or line.startswith('https://'):
-                # If this is a nested playlist (.m3u8), proxy via manifest with ?url=
+                # Absolute URL: decide if it is a playlist or media segment
                 if line.lower().endswith('.m3u8'):
                     from urllib.parse import quote
                     out_lines.append(f"/api/live/proxy/{slug}/manifest/?tenant={tenant}&url=" + quote(line, safe=''))
                 else:
-                    out_lines.append(line)
+                    # Build seg proxy with base=<dir> and path=<filename>
+                    from urllib.parse import quote
+                    try:
+                        base_abs = line.rsplit('/', 1)[0] + '/'
+                        fname = line.rsplit('/', 1)[1]
+                        out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(fname) + f"/?tenant={tenant}&base=" + quote(base_abs, safe=''))
+                    except Exception:
+                        # fallback: pass through if split fails
+                        out_lines.append(line)
             else:
                 from urllib.parse import quote
                 # Relative reference: determine if it's a playlist or a media segment
@@ -391,6 +405,8 @@ class LiveProxyManifestView(APIView):
         res = HttpResponse(out, content_type='application/vnd.apple.mpegurl')
         # short caching to smooth playback
         res['Cache-Control'] = 'public, max-age=2'
+        # CORS for defensive playback
+        res['Access-Control-Allow-Origin'] = '*'
         return res
 
 
@@ -409,13 +425,26 @@ class LiveProxySegmentView(APIView):
             return HttpResponse('# Missing base', status=400, content_type='text/plain')
         upstream = LiveProxyBase._join_url(base, path)
         try:
-            resp = LiveProxyBase._http_get(upstream, stream=True)
+            # Forward Range for seek/LL-HLS
+            range_header = request.META.get('HTTP_RANGE')
+            extra = {'Range': range_header} if range_header else None
+            resp = LiveProxyBase._http_get(upstream, stream=True, extra_headers=extra)
         except Exception as exc:
             return HttpResponse(f"# Proxy error: {exc}", status=502, content_type='text/plain')
         # Stream bytes with original content-type when possible
         ct = resp.headers.get('Content-Type', 'application/octet-stream')
         from django.http import StreamingHttpResponse
-        sres = StreamingHttpResponse(resp.iter_content(chunk_size=64 * 1024), content_type=ct)
+        status_code = resp.status_code if resp.status_code in (200, 206) else 200
+        sres = StreamingHttpResponse(resp.iter_content(chunk_size=64 * 1024), content_type=ct, status=status_code)
         # long-lived caching for segments
         sres['Cache-Control'] = 'public, max-age=31536000, immutable'
+        # Propagate range-related headers if present
+        cr = resp.headers.get('Content-Range')
+        if cr:
+            sres['Content-Range'] = cr
+        ar = resp.headers.get('Accept-Ranges') or 'bytes'
+        if ar:
+            sres['Accept-Ranges'] = ar
+        # CORS for defensive playback
+        sres['Access-Control-Allow-Origin'] = '*'
         return sres
