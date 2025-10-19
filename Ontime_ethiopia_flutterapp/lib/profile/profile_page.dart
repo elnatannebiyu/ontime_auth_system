@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../auth/tenant_auth_client.dart';
-import '../auth/secure_token_store.dart';
-import '../api_client.dart';
+import '../auth/services/simple_session_manager.dart';
 import '../core/widgets/brand_title.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -13,7 +12,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _api = AuthApi();
-  final _store = SecureTokenStore();
+  // Removed unused SecureTokenStore; logout is centralized in SimpleSessionManager
   bool _loading = true;
   String? _error;
   Map<String, dynamic>? _me;
@@ -76,10 +75,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _logout() async {
     try {
-      await _api.logout();
+      // Route through the session manager so it also signs out of Google
+      // and clears local tokens consistently across the app.
+      await SimpleSessionManager().logout();
     } catch (_) {}
-    await _store.clear();
-    ApiClient().setAccessToken(null);
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }

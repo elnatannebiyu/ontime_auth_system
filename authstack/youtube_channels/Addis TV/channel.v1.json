@@ -1,0 +1,18 @@
+{
+  "tenant": "ontime",
+  "id": "addis-tv",
+  "display": {
+    "default_locale": "am",
+    "name": {
+      "am": "Addis TV",
+      "en": null
+    }
+  },
+  "availability": {
+    "is_active": true
+  },
+  "lineup": {
+    "sort_order": 100,
+    "featured": false
+  }
+}

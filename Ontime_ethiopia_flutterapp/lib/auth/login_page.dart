@@ -130,7 +130,8 @@ class _LoginPageState extends State<LoginPage> {
               onGoogle: () async {
                 final service = SocialAuthService(serverClientId: kGoogleWebClientId);
                 try {
-                  final result = await service.signInWithGoogle();
+                  // Force account chooser to appear after a prior social session
+                  final result = await service.signInWithGoogle(signOutFirst: true);
                   // Step 1: attempt login without creating a new account
                   Tokens tokens;
                   try {

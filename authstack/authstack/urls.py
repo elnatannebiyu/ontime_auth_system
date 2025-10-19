@@ -38,6 +38,7 @@ urlpatterns = [
     path("api/channels/", include("onchannels.urls")),
     path("api/auth/otp/", include("otp_auth.urls")),
     path("api/series/", include("series.urls")),
+    path("api/live/", include("live.urls")),
 ]
 
 if schema_view:

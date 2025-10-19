@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Player</title>
+  <style>
+    body { margin:0; background:#111; color:#eee; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; }
+    header { padding:12px 16px; background:#181818; position:sticky; top:0; display:flex; gap:8px; align-items:center; }
+    input[type=text]{flex:1; padding:8px; background:#0f0f0f; border:1px solid #333; color:#ddd; border-radius:6px;}
+    button{padding:8px 12px; background:#2d6cdf; border:0; color:#fff; border-radius:6px; cursor:pointer;}
+    .wrap { padding:16px; }
+    video { width:100%; max-height:80vh; background:#000; }
+    .logs { margin-top:12px; padding:8px; background:#0f0f0f; border:1px solid #333; border-radius:6px; max-height:30vh; overflow:auto; font-family:monospace; font-size:12px; color:#d4d4d4; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.10/dist/hls.min.js"></script>
+</head>
+<body>
+<header>
+  <input id="srcInput" type="text" placeholder="Enter master .m3u8 URL (for Direct)" />
+  <input id="slugInput" type="text" placeholder="slug (for Proxy)" style="max-width:160px" />
+  <input id="tenantInput" type="text" placeholder="tenant" style="max-width:140px" />
+  <select id="modeSelect" title="Mode">
+    <option value="direct">Direct</option>
+    <option value="proxy">Proxy</option>
+  </select>
+  <select id="engineSelect" title="Engine">
+    <option value="auto">Auto</option>
+    <option value="native">Native</option>
+    <option value="hlsjs">hls.js</option>
+  </select>
+  <button id="loadBtn">Load</button>
+</header>
+<div class="wrap">
+  <video id="player" controls playsinline muted crossorigin="anonymous"></video>
+  <div class="logs" id="logs"></div>
+</div>
+
+<script>
+  // Defaults (edit as desired)
+  const DEFAULT_SOURCE = '';
+  const DEFAULT_SLUG = 'fana';
+  const DEFAULT_TENANT = 'ontime';
+
+  function addLog(msg) {
+    try {
+      const el = document.getElementById('logs');
+      const p = document.createElement('div');
+      const ts = new Date().toLocaleTimeString();
+      p.textContent = '[' + ts + '] ' + msg;
+      el.appendChild(p);
+      el.scrollTop = el.scrollHeight;
+    } catch(_) {}
+  }
+
+  let hls;
+
+  function resolveSrc() {
+    const mode = document.getElementById('modeSelect').value;
+    const url = document.getElementById('srcInput').value.trim();
+    const slug = document.getElementById('slugInput').value.trim();
+    const tenant = document.getElementById('tenantInput').value.trim() || 'ontime';
+    if (mode === 'proxy') {
+      if (!slug) { addLog('Proxy mode: set a slug'); return null; }
+      return `/api/live/proxy/${encodeURIComponent(slug)}/manifest/?tenant=${encodeURIComponent(tenant)}`;
+    }
+    if (!url) { addLog('Direct mode: paste master .m3u8 URL'); return null; }
+    return url;
+  }
+
+  function loadSource() {
+    const engine = document.getElementById('engineSelect').value;
+    const src = resolveSrc();
+    if (!src) return;
+    const video = document.getElementById('player');
+    addLog('Initializing with source: ' + src + ' (engine=' + engine + ')');
+
+    if (hls) { hls.destroy(); hls = null; }
+    video.removeAttribute('src');
+    video.load();
+
+    const wantNative = (engine === 'native') || (engine === 'auto' && video.canPlayType('application/vnd.apple.mpegurl'));
+    if (wantNative) {
+      addLog('Using native HLS');
+      video.src = src;
+      video.play().then(()=>addLog('play() resolved (native)')).catch(e=>addLog('play() rejected (native): ' + e));
+      video.addEventListener('loadedmetadata', ()=>addLog('VIDEO loadedmetadata'));
+      video.addEventListener('waiting', ()=>addLog('VIDEO waiting'));
+      video.addEventListener('stalled', ()=>addLog('VIDEO stalled'));
+      video.addEventListener('error', ()=>addLog('VIDEO error (native): ' + (video.error && video.error.message)));
+    } else if (engine !== 'native' && window.Hls && Hls.isSupported()) {
+      addLog('Using hls.js');
+      const isProxy = src.startsWith('/api/');
+      hls = new Hls({
+        // Buffering
+        lowLatencyMode: false,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 60,
+        backBufferLength: 30,
+        maxBufferHole: 1.5,
+        // Live sync
+        liveSyncDuration: 3,
+        liveMaxLatencyDuration: 10,
+        // ABR/level
+        startLevel: 0,
+        capLevelToPlayerSize: true,
+        // Timeouts/retries
+        fragLoadingTimeOut: 20000,
+        manifestLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 3,
+        manifestLoadingMaxRetry: 3,
+        // Worker
+        enableWorker: true,
+        // Only attach tenant header when we are calling our proxy (avoid CORS preflight in Direct mode)
+        xhrSetup: (xhr) => {
+          if (isProxy) {
+            try { xhr.setRequestHeader('X-Tenant-Id', 'ontime'); } catch(_) {}
+          }
+        }
+      });
+      hls.on(Hls.Events.MEDIA_ATTACHED, ()=>addLog('HLS MEDIA_ATTACHED'));
+      hls.on(Hls.Events.MANIFEST_LOADING, ()=>addLog('HLS MANIFEST_LOADING'));
+      hls.on(Hls.Events.MANIFEST_PARSED, (e, data)=>{
+        addLog('HLS MANIFEST_PARSED levels=' + (data?.levels?.length ?? 'n/a'));
+        // Optional: temporarily pin to ~360p to improve stability; comment out after testing
+        const idx360 = (data?.levels || []).findIndex(l => (l?.height || 0) <= 360);
+        if (idx360 >= 0) { hls.nextLevel = idx360; addLog('Pinning level to ~360p'); }
+      });
+      hls.on(Hls.Events.ERROR, (e, data)=>{
+        addLog('HLS ERROR type=' + data.type + ' details=' + data.details + ' fatal=' + data.fatal);
+        if (data && data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          // Nudge playhead slightly to recover from short stalls
+          if (!video.paused && !video.seeking) {
+            try { video.currentTime = video.currentTime + 0.05; addLog('Nudged currentTime to recover stall'); } catch(_) {}
+          }
+        }
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              addLog('Fatal network error; retry startLoad');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              addLog('Fatal media error; recoverMediaError');
+              hls.recoverMediaError();
+              break;
+            default:
+              addLog('Unrecoverable; destroying hls');
+              hls.destroy();
+          }
+        }
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      video.play().then(()=>addLog('play() resolved (hls.js)')).catch(e=>addLog('play() rejected (hls.js): ' + e));
+    } else {
+      addLog('HLS not supported. Try Safari or Chrome with hls.js.');
+    }
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', ()=>{
+    loadSource();
+  });
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const input = document.getElementById('srcInput');
+    const slug = document.getElementById('slugInput');
+    const tenant = document.getElementById('tenantInput');
+    input.value = DEFAULT_SOURCE; slug.value = DEFAULT_SLUG; tenant.value = DEFAULT_TENANT;
+    addLog('Choose mode: Direct (master .m3u8) or Proxy (/api/live/proxy/<slug>/manifest/?tenant=...)');
+  });
+</script>
+</body>
+</html>

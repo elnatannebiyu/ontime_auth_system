@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../api_client.dart';
 import '../core/widgets/brand_title.dart';
 import '../core/localization/l10n.dart';
+import '../core/cache/channel_cache.dart';
 
 class ChannelsPage extends StatefulWidget {
   final String tenantId;
@@ -43,7 +44,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     }
     // Ensure ApiClient has restored cookies and access token so image headers can be attached
     _initializeClient();
-    _loadChannels();
+    _primeFromCacheThenLoad();
   }
 
   // ---- Channel details modal ----
@@ -253,6 +254,21 @@ class _ChannelsPageState extends State<ChannelsPage> {
     } catch (_) {}
   }
 
+  Future<void> _primeFromCacheThenLoad() async {
+    // Load cached channels immediately if present
+    final tenant = _client.tenant ?? widget.tenantId;
+    try {
+      final cached = await ChannelCache.load(tenant);
+      if (cached.isNotEmpty) {
+        setState(() {
+          _channels = cached;
+        });
+      }
+    } catch (_) {}
+    // Then load fresh from network
+    await _loadChannels();
+  }
+
   // ---- Thumbnail helpers ----
   String? _thumbFromMap(Map<String, dynamic> m) {
     // Common flat fields
@@ -377,8 +393,13 @@ class _ChannelsPageState extends State<ChannelsPage> {
       }
       setState(() {
         _channels = all;
-        _cachedChannels = all; // update cache on success
+        _cachedChannels = all; // update cache on success (session cache)
       });
+      // Persist to disk cache per tenant
+      try {
+        final tenant = _client.tenant ?? widget.tenantId;
+        await ChannelCache.save(tenant, all);
+      } catch (_) {}
       if (kDebugMode) {
         debugPrint('[ChannelsPage] Loaded channels: count=${all.length}');
       }
@@ -393,12 +414,26 @@ class _ChannelsPageState extends State<ChannelsPage> {
         debugPrint('[ChannelsPage] Error loading channels: $e');
       }
       if (e is DioException && e.type == DioExceptionType.connectionError) {
-        if (_cachedChannels.isNotEmpty) {
-          setState(() {
-            _channels = _cachedChannels;
-            _offline = true;
-          });
-        } else {
+        // Try persistent cache first
+        try {
+          final tenant = _client.tenant ?? widget.tenantId;
+          final cached = await ChannelCache.load(tenant);
+          if (cached.isNotEmpty) {
+            setState(() {
+              _channels = cached;
+              _offline = true;
+            });
+          } else if (_cachedChannels.isNotEmpty) {
+            setState(() {
+              _channels = _cachedChannels;
+              _offline = true;
+            });
+          } else {
+            setState(() {
+              _error = 'You appear to be offline. Failed to load channels.';
+            });
+          }
+        } catch (_) {
           setState(() {
             _error = 'You appear to be offline. Failed to load channels.';
           });

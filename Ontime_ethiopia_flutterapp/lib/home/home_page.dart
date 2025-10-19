@@ -1,5 +1,7 @@
 // ignore_for_file: unused_field
 
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../auth/tenant_auth_client.dart';
@@ -13,6 +15,8 @@ import '../features/series/pages/player_page.dart';
 import '../features/home/widgets/channel_bubbles.dart';
 import '../core/widgets/brand_title.dart';
 import '../features/series/pages/series_shows_page.dart';
+import '../api_client.dart';
+import '../core/cache/channel_cache.dart';
 
 // Overflow menu actions for Home AppBar
 enum _HomeMenuAction { profile, settings, about, switchLanguage }
@@ -40,23 +44,15 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _error;
   bool _offline = false;
+  // Preview list for channel bubbles: [{name, slug, thumbUrl}]
+  List<Map<String, String>> _bubbleChannels = const [];
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
 
   String _t(String key) => widget.localizationController.t(key);
 
-  // Simple demo data for enhanced sections (UI-only)
-  static const List<String> _demoChannels = [
-    'Abbay',
-    'ESAT',
-    'Kana',
-    'Zete',
-    'Arts',
-    'Music',
-    'Sport',
-    'Kids'
-  ];
+  // (demo channel list removed; now using live data)
 
   // Mini player now handled globally via MiniPlayerManager
 
@@ -78,6 +74,8 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _me = me;
       });
+      // Load channel preview for bubbles (non-blocking for rest of UI)
+      unawaited(_loadChannelBubbles());
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.connectionError) {
         setState(() {
@@ -92,6 +90,80 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  // --- Channels preview (icons) for bubbles ---
+  String? _thumbFromMap(Map<String, dynamic> m) {
+    const keys = [
+      'thumbnail', 'thumbnail_url', 'thumb', 'thumb_url',
+      'image', 'image_url', 'logo', 'logo_url', 'poster', 'poster_url',
+    ];
+    for (final k in keys) {
+      final v = m[k];
+      if (v is String && v.isNotEmpty) return v;
+    }
+    final t = m['thumbnails'];
+    if (t is Map) {
+      for (final size in ['high', 'medium', 'default', 'standard']) {
+        final s = t[size];
+        if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
+          return s['url'] as String;
+        }
+      }
+      if (t['url'] is String && (t['url'] as String).isNotEmpty) {
+        return t['url'] as String;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadChannelBubbles() async {
+    final client = ApiClient();
+    final tenant = client.tenant ?? widget.tenantId;
+    // 1) Prime from cache quickly
+    try {
+      final cached = await ChannelCache.load(tenant);
+      if (cached.isNotEmpty) {
+        final mapped = cached.map<Map<String, String>>((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          final slug = (m['id_slug'] ?? '').toString();
+          final display = (m['name_en'] ?? m['name_am'] ?? slug).toString();
+          final thumb = _thumbFromMap(m) ?? '$kApiBase/api/channels/$slug/logo/';
+          return {'name': display, 'slug': slug, 'thumbUrl': thumb};
+        }).toList();
+        if (mounted) {
+          setState(() => _bubbleChannels = mapped);
+        }
+      }
+    } catch (_) {}
+    // 2) Refresh from network (first page)
+    try {
+      final res = await client.get('/channels/', queryParameters: {
+        'ordering': 'sort_order',
+        'page': '1',
+      });
+      final raw = res.data;
+      List<dynamic> pageData;
+      if (raw is Map && raw['results'] is List) {
+        pageData = List<dynamic>.from(raw['results'] as List);
+      } else if (raw is List) {
+        pageData = raw;
+      } else {
+        pageData = const [];
+      }
+      final List<Map<String, String>> mapped = pageData.map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        final slug = (m['id_slug'] ?? '').toString();
+        final display = (m['name_en'] ?? m['name_am'] ?? slug).toString();
+        final thumb = _thumbFromMap(m) ?? '$kApiBase/api/channels/$slug/logo/';
+        return {'name': display, 'slug': slug, 'thumbUrl': thumb};
+      }).toList();
+      if (mounted) {
+        setState(() => _bubbleChannels = mapped);
+      }
+    } catch (_) {
+      // Non-fatal for home; ignore errors
     }
   }
 
@@ -298,7 +370,7 @@ class _HomePageState extends State<HomePage> {
                                   await Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => ChannelsPage(
-                                          tenantId: 'ontime',
+                                          tenantId: widget.tenantId,
                                           localizationController:
                                               widget.localizationController),
                                     ),
@@ -307,9 +379,28 @@ class _HomePageState extends State<HomePage> {
                                 },
                         ),
                         ChannelBubbles(
-                          channels: _demoChannels,
-                          onSeeAll: null,
-                          onTapChannel: (_) {},
+                          channels: _bubbleChannels,
+                          onSeeAll: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChannelsPage(
+                                  tenantId: widget.tenantId,
+                                  localizationController: widget.localizationController,
+                                ),
+                              ),
+                            );
+                          },
+                          onTapChannel: (slug) {
+                            // For now, open full ChannelsPage; future: deep-link to slug
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChannelsPage(
+                                  tenantId: widget.tenantId,
+                                  localizationController: widget.localizationController,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 12),
                         // Trending Now section (extracted header)

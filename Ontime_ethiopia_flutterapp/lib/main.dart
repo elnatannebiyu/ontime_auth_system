@@ -102,8 +102,14 @@ class _MyAppState extends State<MyApp> {
 
     // Register global force-logout handler so interceptor can redirect to login
     ApiClient().setForceLogoutHandler(() async {
-      await tokenStore.clear();
-      ApiClient().setAccessToken(null);
+      // Use session manager to ensure social provider sign-out (e.g., Google)
+      try {
+        await SimpleSessionManager().logout();
+      } catch (_) {
+        // Fallback clearing if needed
+        await tokenStore.clear();
+        ApiClient().setAccessToken(null);
+      }
       _smKey.currentState?.showSnackBar(
         const SnackBar(
           content: Text('Session expired. Please sign in again.'),
@@ -364,7 +370,8 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _loading = true);
 
     try {
-      await repo.logout();
+      // Use the centralized session manager so social providers are signed out
+      await SimpleSessionManager().logout();
       setState(() {
         _status = 'Logged out successfully';
         _userInfo = null;

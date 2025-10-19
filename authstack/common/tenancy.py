@@ -110,6 +110,22 @@ class TenantResolverMiddleware(MiddlewareMixin):
             )
             return tenant
 
+        # 1b) Special-cases: allow query param for public preview/proxy so Admin "Preview" works
+        # This keeps other API routes strict to headers/subdomain.
+        try:
+            path = (request.path or "")
+            if path.startswith("/api/live/preview/") or path.startswith("/api/live/proxy/"):
+                qp_tenant = request.GET.get("tenant") or getattr(request, "query_params", {}).get("tenant")  # type: ignore[attr-defined]
+                if qp_tenant:
+                    tenant = Tenant.objects.filter(slug=qp_tenant, active=True).first()
+                    if tenant:
+                        which = "preview" if path.startswith("/api/live/preview/") else "proxy"
+                        logger.debug("Tenant resolution via query param for %s: %s", which, tenant.slug)
+                        return tenant
+        except Exception:
+            # Fall through to host-based resolution
+            pass
+
         # 2) Portal host: use subdomain part (left-most label)
         host = request.get_host().split(":")[0]
         # Ignore localhost without subdomain

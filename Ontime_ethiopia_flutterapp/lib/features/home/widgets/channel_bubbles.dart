@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
+import '../../../api_client.dart';
 
 class ChannelBubbles extends StatelessWidget {
-  final List<String> channels;
+  // Each map should contain: { 'name': String, 'slug': String, 'thumbUrl': String? }
+  final List<Map<String, String>> channels;
   final VoidCallback? onSeeAll;
-  final void Function(String channel)? onTapChannel;
+  final void Function(String slug)? onTapChannel;
   const ChannelBubbles({
     super.key,
     required this.channels,
     this.onSeeAll,
     this.onTapChannel,
   });
+
+  Map<String, String>? _authHeadersFor(String url) {
+    // Only add headers for our backend origin
+    if (!url.startsWith(kApiBase)) return null;
+    final client = ApiClient();
+    final token = client.getAccessToken();
+    final tenant = client.tenant;
+    final headers = <String, String>{};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    if (tenant != null && tenant.isNotEmpty) {
+      headers['X-Tenant-Id'] = tenant;
+    }
+    return headers.isEmpty ? null : headers;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +38,10 @@ class ChannelBubbles extends StatelessWidget {
         itemCount: channels.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
-          final name = channels[i];
+          final item = channels[i];
+          final name = item['name'] ?? '';
+          final slug = item['slug'] ?? name;
+          final thumb = item['thumbUrl'];
           return Column(
             children: [
               MouseRegion(
@@ -31,7 +52,7 @@ class ChannelBubbles extends StatelessWidget {
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: onTapChannel != null ? () => onTapChannel!(name) : null,
+                      onTap: onTapChannel != null ? () => onTapChannel!(slug) : null,
                       customBorder: const CircleBorder(),
                       child: Ink(
                         decoration: ShapeDecoration(
@@ -42,12 +63,28 @@ class ChannelBubbles extends StatelessWidget {
                         ),
                         width: 52,
                         height: 52,
-                        child: Center(
-                          child: Text(
-                            name.characters.first.toUpperCase(),
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
+                        child: thumb == null || thumb.isEmpty
+                            ? Center(
+                                child: Text(
+                                  (name.isNotEmpty ? name.characters.first : '?').toUpperCase(),
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              )
+                            : ClipOval(
+                                child: Image.network(
+                                  thumb,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  headers: _authHeadersFor(thumb),
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      (name.isNotEmpty ? name.characters.first : '?').toUpperCase(),
+                                      style: const TextStyle(fontWeight: FontWeight.w800),
+                                    ),
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                   ),

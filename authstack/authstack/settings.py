@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'otp_auth',
     'tenants',
     'series',
+    'live.apps.LiveConfig',
 ]
 
 MIDDLEWARE = [
