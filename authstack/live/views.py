@@ -219,6 +219,7 @@ class LiveProxyBase:
             'Referer': 'https://embed.novastream.et/',
             'Accept': 'application/vnd.apple.mpegurl,application/x-mpegURL,*/*',
             'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'identity',
         }
 
     @staticmethod
@@ -455,10 +456,13 @@ class LiveProxySegmentView(APIView):
             resp = LiveProxyBase._http_get(upstream, stream=True, extra_headers=extra)
         except Exception as exc:
             return HttpResponse(f"# Proxy error: {exc}", status=502, content_type='text/plain')
-        # Stream bytes with original content-type when possible
+        # Stream bytes with original content-type when possible; pass through status
         ct = resp.headers.get('Content-Type', 'application/octet-stream')
         from django.http import StreamingHttpResponse
-        status_code = resp.status_code if resp.status_code in (200, 206) else 200
+        status_code = resp.status_code
+        if status_code not in (200, 206):
+            # return concise error so players/reporters see the true upstream status
+            return HttpResponse(f"# Upstream error {status_code}", status=status_code, content_type='text/plain')
         sres = StreamingHttpResponse(resp.iter_content(chunk_size=64 * 1024), content_type=ct, status=status_code)
         # long-lived caching for segments
         sres['Cache-Control'] = 'public, max-age=31536000, immutable'
