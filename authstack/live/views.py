@@ -260,11 +260,14 @@ class LiveProxyManifestView(APIView):
         #     "body": null,
         #     "response_path": "m3u8",  # or "url"
         #     "ttl_ms": 1500000          # optional
+        #   ,
+        #   "bootstrap": { "start_url": "https://www.fanamc.com/english/live" }  # optional: fetch page to seed cookies
         #   },
         #   "allowed_upstream": ["edge.example.com"]
         # }
         meta = getattr(obj, 'meta', None) or {}
         signer = meta.get('signer') or {}
+        bootstrap = meta.get('bootstrap') or {}
         allowed_upstream = set(meta.get('allowed_upstream') or [])
 
         DEFAULT_SIGN_TTL_MS = 25 * 60 * 1000
@@ -292,7 +295,13 @@ class LiveProxyManifestView(APIView):
 
         def _extract_from_payload(payload):
             if isinstance(payload, str):
-                return payload.strip()
+                # Try direct text first; if HTML, try to find a .m3u8 URL within
+                txt = payload.strip()
+                if txt.lower().startswith('<!doctype') or txt.lower().startswith('<html'):
+                    import re
+                    m = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', txt)
+                    return m.group(0) if m else None
+                return txt
             if isinstance(payload, dict):
                 # simple path lookup
                 path = (signer.get('response_path') or 'm3u8').split('.')
@@ -322,7 +331,22 @@ class LiveProxyManifestView(APIView):
                 body = body.replace('{slug}', slug)
             ttl_ms = int(signer.get('ttl_ms') or DEFAULT_SIGN_TTL_MS)
             try:
-                resp = requests.request(method, url_t, headers=headers, data=body, timeout=15)
+                # If no Cookie provided, optionally bootstrap cookies by visiting a start page (e.g., fanamc live page)
+                session = None
+                cookie_hdr = (headers.get('Cookie') or headers.get('cookie'))
+                if not cookie_hdr and bootstrap.get('start_url'):
+                    session = requests.Session()
+                    # Visit start page to seed cookies
+                    session.get(bootstrap['start_url'], headers={
+                        'User-Agent': headers.get('User-Agent') or LiveProxyBase.UA,
+                        'Accept': headers.get('Accept') or 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Referer': headers.get('Referer') or headers.get('Origin') or '',
+                        'Origin': headers.get('Origin') or '',
+                    }, timeout=15)
+                    # Use session to call signer without explicit Cookie header
+                    resp = session.request(method, url_t, headers={k: v for k, v in headers.items() if k.lower() != 'cookie'}, data=body, timeout=15)
+                else:
+                    resp = requests.request(method, url_t, headers=headers, data=body, timeout=15)
                 resp.raise_for_status()
                 payload = resp.json() if 'application/json' in (resp.headers.get('Content-Type') or '') else resp.text
                 signed_url = _extract_from_payload(payload)
@@ -388,7 +412,7 @@ class LiveProxyManifestView(APIView):
                     try:
                         base_abs = line.rsplit('/', 1)[0] + '/'
                         fname = line.rsplit('/', 1)[1]
-                        out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(fname) + f"/?tenant={tenant}&base=" + quote(base_abs, safe=''))
+                        out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(fname) + f"?tenant={tenant}&base=" + quote(base_abs, safe=''))
                     except Exception:
                         # fallback: pass through if split fails
                         out_lines.append(line)
@@ -399,8 +423,8 @@ class LiveProxyManifestView(APIView):
                     full = LiveProxyBase._join_url(base, line)
                     out_lines.append(f"/api/live/proxy/{slug}/manifest/?tenant={tenant}&url=" + quote(full, safe=''))
                 else:
-                    # Ensure trailing slash before query string to avoid 301 redirect
-                    out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(line) + f"/?tenant={tenant}&base=" + quote(base))
+                    # Keep extension at end of URL (no trailing slash) for HLS clients
+                    out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(line) + f"?tenant={tenant}&base=" + quote(base))
         out = "\n".join(out_lines)
         res = HttpResponse(out, content_type='application/vnd.apple.mpegurl')
         # short caching to smooth playback

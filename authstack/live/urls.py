@@ -18,7 +18,7 @@ urlpatterns = [
     path('preview/<slug:slug>/', LivePreviewView.as_view(), name='live-preview'),
     # Proxy endpoints for headers-injected playback (preview only)
     path('proxy/<slug:slug>/manifest/', LiveProxyManifestView.as_view(), name='live-proxy-manifest'),
-    path('proxy/<slug:slug>/seg/<path:path>/', LiveProxySegmentView.as_view(), name='live-proxy-segment'),
+    path('proxy/<slug:slug>/seg/<path:path>', LiveProxySegmentView.as_view(), name='live-proxy-segment'),
 ]
 
 urlpatterns += router.urls
