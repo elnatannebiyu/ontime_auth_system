@@ -117,6 +117,9 @@ class TokenObtainPairWithCookieView(TokenObtainPairView):
 
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
+    # Disable DRF throttling here; refresh is cookie-based and often unauthenticated at DRF layer,
+    # so global AnonRateThrottle could incorrectly rate-limit it.
+    throttle_classes: list = []
     # Swagger header parameter for tenancy (required by middleware)
     PARAM_TENANT = openapi.Parameter(
         name="X-Tenant-Id",
