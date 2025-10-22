@@ -86,3 +86,4 @@ frontend/.vite-temp/
 # IDE / Editor
 .vscode/
 *.code-workspace
+authstack/secrets/
