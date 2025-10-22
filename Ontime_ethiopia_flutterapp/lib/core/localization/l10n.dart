@@ -41,6 +41,7 @@ class LocalizationController extends ChangeNotifier {
       'trending': 'Trending',
       'sports': 'Sports',
       'kids': 'Kids',
+      'Shorts': 'Shorts',
       'browse_channels': 'Browse channels',
       'continue_watching': 'Continue watching',
       'see_all': 'See all',
@@ -102,6 +103,21 @@ class LocalizationController extends ChangeNotifier {
       'uid': 'UID',
       'created_at': 'Created at',
       'updated_at': 'Updated at',
+      // Update / dialogs
+      'update_required_title': 'Update Required',
+      'update_required_body': 'Please update the app to continue.',
+      'update_cta': 'Update',
+      'open_link_manually': 'Open this link manually',
+      'link_copied': 'Link copied to clipboard',
+      'copy': 'Copy',
+      'close_dialog': 'Close',
+      'session_expired': 'Session expired. Please sign in again.',
+      // Common UI
+      'search': 'Search',
+      'menu': 'Menu',
+      'you_are_offline': 'You are offline',
+      'some_actions_offline': 'Some actions may not work until you reconnect.',
+      'coming_soon': 'coming soon',
     };
     const am = {
       'home': 'መነሻ',
@@ -113,6 +129,7 @@ class LocalizationController extends ChangeNotifier {
       'trending': 'ታዋቂ',
       'sports': 'ስፖርት',
       'kids': 'ለህፃናት',
+      'Shorts': 'አጭር ቪዲዮዎች',
       'browse_channels': 'ቻናሎችን ይመልከቱ',
       'continue_watching': 'ቀጥሎ የሚታይ',
       'see_all': 'ሁሉንም ይመልከቱ',
@@ -174,6 +191,21 @@ class LocalizationController extends ChangeNotifier {
       'uid': 'UID',
       'created_at': 'ተፈጠረ በ',
       'updated_at': 'ተዘምኗል በ',
+      // Update / dialogs
+      'update_required_title': 'ዝማኔ ያስፈልጋል',
+      'update_required_body': 'መቀጠል ለማድረግ መተግበሪያውን እባክዎ ያዘምኑ።',
+      'update_cta': 'አዘምን',
+      'open_link_manually': 'ይህን አገናኝ በእጅ ይክፈቱ',
+      'link_copied': 'አገናኙ ወደ ቅጂ ተቀምጧል',
+      'copy': 'ቅጂ',
+      'close_dialog': 'ዝጋ',
+      'session_expired': 'ክፍለ ጊዜዎ አልፏል። እባክዎ እንደገና ይግቡ።',
+      // Common UI
+      'search': 'ፈልግ',
+      'menu': 'ምናሌ',
+      'you_are_offline': 'ከመስመር ውጭ ነዎት',
+      'some_actions_offline': 'እስክትገናኙ ድረስ አንዳንድ እርምጃዎች ላይ ሊሰሩ አይችሉም።',
+      'coming_soon': 'ለቅርብ ጊዜ',
     };
     final dict = _lang == AppLanguage.en ? en : am;
     return dict[key] ?? key;

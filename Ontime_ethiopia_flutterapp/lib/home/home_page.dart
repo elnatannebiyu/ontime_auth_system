@@ -223,16 +223,16 @@ class _HomePageState extends State<HomePage> {
             ),
             actions: [
               IconButton(
-                tooltip: 'Search',
+                tooltip: _t('search'),
                 icon: const Icon(Icons.search),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Search coming soon')),
+                    SnackBar(content: Text('Search ${_t('coming_soon')}')),
                   );
                 },
               ),
               PopupMenuButton<_HomeMenuAction>(
-                tooltip: 'Menu',
+                tooltip: _t('menu'),
                 itemBuilder: (context) {
                   final lang = widget.localizationController.language;
                   final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
@@ -357,9 +357,8 @@ class _HomePageState extends State<HomePage> {
                                 .surfaceContainerHighest,
                             child: ListTile(
                               leading: const Icon(Icons.wifi_off),
-                              title: const Text('You are offline'),
-                              subtitle: const Text(
-                                  'Some actions may not work until you reconnect.'),
+                              title: Text(_t('you_are_offline')),
+                              subtitle: Text(_t('some_actions_offline')),
                             ),
                           )
                         else if (_error != null)
@@ -443,7 +442,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildPlaceholderTab(BuildContext context, String title) {
     return Center(
-      child: Text('$title — coming soon',
+      child: Text('$title — ${_t('coming_soon')}',
           style: Theme.of(context).textTheme.titleMedium),
     );
   }

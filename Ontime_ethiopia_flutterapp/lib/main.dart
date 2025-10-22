@@ -125,7 +125,7 @@ class _MyAppState extends State<MyApp> {
     showDialog(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Open this link manually'),
+        title: Text(localizationController.t('open_link_manually')),
         content: SelectableText(url),
         actions: [
           TextButton(
@@ -134,17 +134,17 @@ class _MyAppState extends State<MyApp> {
                 await Clipboard.setData(ClipboardData(text: url));
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Link copied to clipboard')),
+                  SnackBar(content: Text(localizationController.t('link_copied'))),
                 );
               } catch (_) {
                 Navigator.of(ctx).pop();
               }
             },
-            child: const Text('Copy'),
+            child: Text(localizationController.t('copy')),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text(localizationController.t('close_dialog')),
           ),
         ],
       ),
@@ -175,8 +175,8 @@ class _MyAppState extends State<MyApp> {
         ApiClient().setAccessToken(null);
       }
       _smKey.currentState?.showSnackBar(
-        const SnackBar(
-          content: Text('Session expired. Please sign in again.'),
+        SnackBar(
+          content: Text(localizationController.t('session_expired')),
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 3),
         ),
@@ -239,9 +239,9 @@ class _MyAppState extends State<MyApp> {
       builder: (_) => WillPopScope(
         onWillPop: () async => false,
         child: AlertDialog(
-          title: const Text('Update Required'),
+          title: Text(localizationController.t('update_required_title')),
           content: Text(
-            message.isNotEmpty ? message : 'Please update the app to continue.',
+            message.isNotEmpty ? message : localizationController.t('update_required_body'),
           ),
           actions: [
             FilledButton(
@@ -259,7 +259,7 @@ class _MyAppState extends State<MyApp> {
                   return null;
                 }),
               ),
-              child: const Text('Update'),
+              child: Text(localizationController.t('update_cta')),
             ),
           ],
         ),
@@ -363,13 +363,12 @@ class _SplashGateState extends State<SplashGate> {
       await widget.api.me();
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
-    } catch (e) {
+    } on DioException catch (e) {
       // If offline or network error, keep tokens and go to home with an offline message
-      if (e is DioException &&
-          (e.type == DioExceptionType.connectionError || e.error is SocketException)) {
+      if (e.type == DioExceptionType.connectionError || e.error is SocketException) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('You appear to be offline. Some actions may not work.'),
               behavior: SnackBarBehavior.floating,
             ),
@@ -378,8 +377,15 @@ class _SplashGateState extends State<SplashGate> {
         }
         return;
       }
-
-      // For other failures, show message and go to login (tokens may be invalid)
+      // For other auth failures, clear and go to login
+      await widget.tokenStore.clear();
+      ApiClient().setAccessToken(null);
+      if (!mounted) return;
+      setState(() => _error = 'Session expired. Please sign in again.');
+      await Future.delayed(const Duration(milliseconds: 300));
+      Navigator.of(context).pushReplacementNamed('/login');
+    } catch (_) {
+      // Any unexpected failure: clear and go to login
       await widget.tokenStore.clear();
       ApiClient().setAccessToken(null);
       if (!mounted) return;
