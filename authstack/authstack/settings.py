@@ -79,7 +79,7 @@ CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localho
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = os.environ.get('CELERY_TIMEZONE', 'UTC')
+CELERY_TIMEZONE = os.environ.get('CELERY_TIMEZONE', 'Africa/Addis_Ababa')
 
 # Celery Beat schedule
 from celery.schedules import crontab  # type: ignore
@@ -124,11 +124,12 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "Africa/Addis_Ababa"
 USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

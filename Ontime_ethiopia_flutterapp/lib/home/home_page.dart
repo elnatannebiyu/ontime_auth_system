@@ -218,6 +218,7 @@ class _HomePageState extends State<HomePage> {
                 Tab(text: _t('for_you')),
                 Tab(text: _t('Shows')),
                 Tab(text: _t('Live')),
+                Tab(text: _t('Radio')),
                 Tab(text: _t('Shorts')),
               ],
             ),

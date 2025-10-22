@@ -66,6 +66,10 @@ class ApiClient {
   void Function(String message, String? storeUrl)?
       _onUpdateRequired; // optional: show blocking modal/update CTA
   Completer<void>? _refreshing; // single-flight guard for refresh
+  // Backoff/cooldown to avoid frequent refresh attempts
+  DateTime? _refreshBackoffUntil; // when set, skip refresh until this time
+  DateTime? _lastRefreshAttemptAt; // throttle preflight immediately after an attempt
+  Duration _postRefreshCooldown = const Duration(seconds: 60); // after a refresh (or attempt), skip preflight for this long
 
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
@@ -324,11 +328,18 @@ class ApiClient {
       {Duration skew = const Duration(seconds: 60)}) async {
     final token = _accessToken;
     if (token == null || token.isEmpty) return;
+    // Respect backoff window (e.g., after 429) and short cooldown after a recent attempt
+    final now = DateTime.now();
+    if (_refreshBackoffUntil != null && now.isBefore(_refreshBackoffUntil!)) {
+      return; // skip refresh during backoff
+    }
+    if (_lastRefreshAttemptAt != null && now.difference(_lastRefreshAttemptAt!) < _postRefreshCooldown) {
+      return; // skip if a refresh was just attempted recently
+    }
     // If there is no refresh cookie, skip refresh attempts
     if (!await _hasRefreshCookie()) return;
     try {
       final exp = JwtDecoder.getExpirationDate(token);
-      final now = DateTime.now();
       if (exp.isBefore(now.add(skew))) {
         await _refreshAccess();
       }
@@ -348,6 +359,7 @@ class ApiClient {
     }
     _refreshing = Completer<void>();
     try {
+      _lastRefreshAttemptAt = DateTime.now();
       // Cookie (HttpOnly) with refresh token is stored in cookieJar and
       // will be attached automatically to this request by CookieManager.
       try {
@@ -413,6 +425,8 @@ class ApiClient {
         debugPrint(
             '[ApiClient] Refresh succeeded; setting new access token (len=${newAccess.length})');
         setAccessToken(newAccess);
+        // After a successful refresh, set a short cooldown to avoid clustered preflights
+        _refreshBackoffUntil = DateTime.now().add(_postRefreshCooldown);
       } on DioException catch (e) {
         // If the refresh endpoint itself returned 401 due to invalid session/refresh
         if (e.response?.statusCode == 401) {
@@ -429,6 +443,11 @@ class ApiClient {
               detail.contains('Refresh token not found')) {
             _forceLogout();
           }
+        }
+        // If server rate limited (429), back off for a few minutes to avoid hammering
+        if (e.response?.statusCode == 429) {
+          debugPrint('[ApiClient] Refresh 429 received; applying backoff');
+          _refreshBackoffUntil = DateTime.now().add(const Duration(minutes: 5));
         }
         rethrow;
       }

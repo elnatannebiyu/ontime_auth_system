@@ -7,6 +7,7 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 from django.db import transaction
 from django.utils import timezone
+import logging
 try:
     from onchannels.models import UserNotification
 except Exception:  # pragma: no cover
@@ -17,6 +18,7 @@ except Exception:  # pragma: no cover
     Device = None  # type: ignore
 
 _initialized = False
+logger = logging.getLogger(__name__)
 
 
 def _ensure_initialized() -> None:
@@ -26,12 +28,20 @@ def _ensure_initialized() -> None:
     # Initialize with GOOGLE_APPLICATION_CREDENTIALS if present
     creds_path = os.environ.get("FIREBASE_CREDENTIALS_JSON") or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if creds_path and os.path.exists(creds_path):
-        cred = credentials.Certificate(creds_path)
-        firebase_admin.initialize_app(cred)
+        logger.info("[FCM] Initializing Firebase Admin with credentials at %s", creds_path)
+        try:
+            cred = credentials.Certificate(creds_path)
+            firebase_admin.initialize_app(cred)
+            logger.info("[FCM] Firebase Admin initialized successfully")
+        except Exception as e:  # noqa: BLE001
+            logger.exception("[FCM] Firebase Admin initialization failed: %s", e)
+            raise
     else:
         # Fallback to default creds (useful on GCP)
         try:
+            logger.info("[FCM] Initializing Firebase Admin with default credentials (no explicit JSON path)")
             firebase_admin.initialize_app()
+            logger.info("[FCM] Firebase Admin initialized successfully (default)")
         except Exception:
             raise RuntimeError(
                 "Firebase Admin failed to initialize. Set FIREBASE_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS to service account JSON.")
@@ -73,8 +83,15 @@ def send_to_token(
         android=android_config,
         apns=apns_config,
     )
-    resp = messaging.send(message, dry_run=False)
-    return resp
+    try:
+        logger.debug("[FCM] Sending to token (len=%d) title='%s' collapse_key='%s' ttl=%s",
+                     len(token or ""), title, collapse_key, ttl_seconds)
+        resp = messaging.send(message, dry_run=False)
+        logger.info("[FCM] Send success: %s", resp)
+        return resp
+    except Exception as e:  # noqa: BLE001
+        logger.exception("[FCM] Send failed for token prefix=%s...: %s", (token or "")[:12], e)
+        raise
 
 
 def _is_invalid_token_error(exc: Exception) -> bool:
@@ -112,6 +129,7 @@ def send_to_user(
         .exclude(push_token='')
         .values_list('push_token', flat=True)
     )
+    logger.info("[FCM] user_id=%s has %d push-enabled device token(s)", user_id, len(tokens))
     if not tokens:
         return ([], [])
 
@@ -129,14 +147,17 @@ def send_to_user(
                 collapse_key=collapse_key,
             )
             ok.append(tok)
+            logger.debug("[FCM] user_id=%s token prefix=%s...: sent OK", user_id, (tok or "")[:12])
         except Exception as exc:  # noqa: BLE001
             bad.append(tok)
+            logger.warning("[FCM] user_id=%s token prefix=%s...: send FAILED: %s", user_id, (tok or "")[:12], exc)
             if _is_invalid_token_error(exc):
                 try:
                     with transaction.atomic():
                         Device.objects.filter(push_token=tok).update(push_enabled=False)
+                    logger.info("[FCM] Disabled invalid token for user_id=%s token prefix=%s...", user_id, (tok or "")[:12])
                 except Exception:
-                    pass
+                    logger.exception("[FCM] Failed to disable invalid token for user_id=%s token prefix=%s...", user_id, (tok or "")[:12])
             continue
 
     # Persist a UserNotification if model is available and at least one token was targeted
@@ -152,8 +173,9 @@ def send_to_user(
                 data={k: str(v) for k, v in (data or {}).items()} or None,
                 created_at=timezone.now(),
             )
+            logger.debug("[FCM] UserNotification persisted for user_id=%s (ok=%d, targeted=%d)", user_id, len(ok), len(tokens))
         except Exception:
-            pass
+            logger.exception("[FCM] Failed to persist UserNotification for user_id=%s", user_id)
 
     return (ok, bad)
 
