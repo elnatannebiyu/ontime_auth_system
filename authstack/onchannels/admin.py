@@ -1,4 +1,10 @@
 from django.contrib import admin
+from django.utils import timezone
+
+from .models import ScheduledNotification
+from .models import UserNotification
+from .notification_models import Announcement
+from onchannels.tasks import enqueue_notification
 from django.conf import settings
 from pathlib import Path
 from typing import Optional
@@ -752,5 +758,65 @@ class FeatureFlagAdmin(admin.ModelAdmin):
         }),
         ('User Targeting', {
             'fields': ('enabled_users', 'disabled_users')
+        }),
+    )
+
+# ScheduledNotification Admin
+
+
+@admin.register(ScheduledNotification)
+class ScheduledNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'title', 'target_type', 'target_user', 'send_at', 'status', 'attempts', 'updated_at'
+    )
+    list_filter = ('status', 'target_type', 'send_at', 'updated_at')
+    search_fields = ('title', 'body', 'target_value')
+    actions = ['send_now', 'retry_failed']
+
+    @admin.action(description="Send selected now")
+    def send_now(self, request, queryset):
+        from django.utils import timezone as _tz
+        for n in queryset:
+            if n.status != ScheduledNotification.STATUS_PENDING:
+                continue
+            n.send_at = _tz.now()
+            n.save(update_fields=['send_at'])
+            enqueue_notification.delay(n.id)
+
+    @admin.action(description="Retry failed")
+    def retry_failed(self, request, queryset):
+        from django.utils import timezone as _tz
+        retried = 0
+        for n in queryset:
+            if n.status != ScheduledNotification.STATUS_FAILED:
+                continue
+            n.status = ScheduledNotification.STATUS_PENDING
+            n.send_at = _tz.now()
+            n.save(update_fields=['status', 'send_at'])
+            enqueue_notification.delay(n.id)
+            retried += 1
+        self.message_user(request, f"Retried {retried} failed notification(s).")
+
+
+@admin.register(UserNotification)
+class UserNotificationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'tenant', 'title', 'created_at', 'read_at')
+    list_filter = ('tenant', 'read_at', 'created_at')
+    search_fields = ('user__username', 'user__email', 'title', 'body')
+    ordering = ('-created_at',)
+
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ['kind', 'tenant', 'title', 'is_active', 'starts_at', 'ends_at', 'updated_at']
+    list_filter = ['kind', 'tenant', 'is_active']
+    search_fields = ['title', 'body', 'tenant']
+    ordering = ['-updated_at']
+    fieldsets = (
+        ('Announcement', {
+            'fields': ('kind', 'tenant', 'title', 'body'),
+        }),
+        ('Status & Schedule', {
+            'fields': ('is_active', 'starts_at', 'ends_at'),
         }),
     )

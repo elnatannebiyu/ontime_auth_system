@@ -270,6 +270,8 @@ class LiveProxyManifestView(APIView):
         signer = meta.get('signer') or {}
         bootstrap = meta.get('bootstrap') or {}
         allowed_upstream = set(meta.get('allowed_upstream') or [])
+        if not allowed_upstream:
+            allowed_upstream = {'edge.novastream.et'}
 
         DEFAULT_SIGN_TTL_MS = 25 * 60 * 1000
         # simple in-process cache: key by (tenant, slug)
@@ -401,6 +403,15 @@ class LiveProxyManifestView(APIView):
             if not line or line.startswith('#'):
                 out_lines.append(line)
                 continue
+            # Compute absolute URL for allowlist check
+            from urllib.parse import urljoin
+            abs_url = line if line.startswith(('http://', 'https://')) else urljoin(base, line)
+            # Enforce upstream allowlist
+            from urllib.parse import urlparse as _urlparse
+            _host = _urlparse(abs_url).hostname or ''
+            if allowed_upstream and _host not in allowed_upstream:
+                out_lines.append('# blocked: forbidden upstream host')
+                continue
             # Always proxy both absolute and relative URLs
             if line.startswith('http://') or line.startswith('https://'):
                 # Absolute URL: decide if it is a playlist or media segment
@@ -428,8 +439,10 @@ class LiveProxyManifestView(APIView):
                     out_lines.append(f"/api/live/proxy/{slug}/seg/" + quote(line) + f"?tenant={tenant}&base=" + quote(base))
         out = "\n".join(out_lines)
         res = HttpResponse(out, content_type='application/vnd.apple.mpegurl')
-        # short caching to smooth playback
-        res['Cache-Control'] = 'public, max-age=2'
+        # Do not cache manifests; origin rotates URLs frequently
+        res['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        res['Pragma'] = 'no-cache'
+        res['Expires'] = '0'
         # CORS for defensive playback
         res['Access-Control-Allow-Origin'] = '*'
         return res
@@ -441,14 +454,24 @@ class LiveProxySegmentView(APIView):
 
     def get(self, request, slug: str, path: str):
         tenant = request.headers.get('X-Tenant-Id') or request.GET.get('tenant') or 'ontime'
-        # Validate previewable
-        get_object_or_404(
+        # Validate previewable and fetch meta for allowlist
+        obj = get_object_or_404(
             Live.objects.select_related('channel').filter(tenant=tenant, channel__id_slug=slug, is_previewable=True)
         )
+        # Derive allowlist
+        meta = getattr(Live.objects.only('meta').get(tenant=tenant, channel__id_slug=slug), 'meta', None) or {}
+        allowed_upstream = set(meta.get('allowed_upstream') or [])
+        if not allowed_upstream:
+            allowed_upstream = {'edge.novastream.et'}
         base = request.GET.get('base') or ''
         if not base:
             return HttpResponse('# Missing base', status=400, content_type='text/plain')
         upstream = LiveProxyBase._join_url(base, path)
+        # Enforce upstream allowlist
+        from urllib.parse import urlparse as _urlparse
+        _host = _urlparse(upstream).hostname or ''
+        if allowed_upstream and _host not in allowed_upstream:
+            return HttpResponse('# Forbidden upstream host', status=403, content_type='text/plain')
         try:
             # Forward Range for seek/LL-HLS
             range_header = request.META.get('HTTP_RANGE')
@@ -466,13 +489,13 @@ class LiveProxySegmentView(APIView):
         sres = StreamingHttpResponse(resp.iter_content(chunk_size=64 * 1024), content_type=ct, status=status_code)
         # long-lived caching for segments
         sres['Cache-Control'] = 'public, max-age=31536000, immutable'
-        # Propagate range-related headers if present
-        cr = resp.headers.get('Content-Range')
-        if cr:
-            sres['Content-Range'] = cr
-        ar = resp.headers.get('Accept-Ranges') or 'bytes'
-        if ar:
-            sres['Accept-Ranges'] = ar
+        # Propagate useful headers
+        for _h in ('Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified', 'Content-Length', 'Cache-Control'):
+            _v = resp.headers.get(_h)
+            if _v:
+                sres[_h] = _v
+        if 'Accept-Ranges' not in sres:
+            sres['Accept-Ranges'] = 'bytes'
         # CORS for defensive playback
         sres['Access-Control-Allow-Origin'] = '*'
         return sres

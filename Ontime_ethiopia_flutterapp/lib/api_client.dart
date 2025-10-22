@@ -63,6 +63,8 @@ class ApiClient {
   void Function()? _onForceLogout; // optional app-level handler
   void Function(String message)?
       _onNotify; // optional UI notifier (e.g., snackbar)
+  void Function(String message, String? storeUrl)?
+      _onUpdateRequired; // optional: show blocking modal/update CTA
   Completer<void>? _refreshing; // single-flight guard for refresh
 
   static final ApiClient _singleton = ApiClient._internal();
@@ -75,6 +77,14 @@ class ApiClient {
           receiveTimeout: const Duration(seconds: 20),
           headers: {
             'Accept': 'application/json',
+          },
+          // Treat 426 (Upgrade Required) as a handled response so Dio won't throw
+          validateStatus: (code) {
+            if (code == null) return false;
+            if (code == 426) return true;
+            // Also accept 401/403 to allow interceptors to handle
+            if (code == 401 || code == 403) return true;
+            return code >= 200 && code < 400;
           },
         )),
         cookieJar = CookieJar() {
@@ -120,8 +130,9 @@ class ApiClient {
       try {
         final path = options.path; // may be relative like '/token/refresh/'
         final lower = path.toLowerCase();
-        final isAuthEndpoint =
-            lower.contains('/token/refresh/') || lower.contains('/token/');
+        final isAuthEndpoint = lower.contains('/token/refresh/') ||
+            lower.contains('/token/') ||
+            lower.contains('/logout/');
         if (!isAuthEndpoint) {
           await ensureFreshAccess(skew: const Duration(seconds: 60));
         }
@@ -145,6 +156,46 @@ class ApiClient {
 
     // Handle 401 -> refresh -> retry
     dio.interceptors.add(_TokenRefreshInterceptor(this));
+
+    // Normalize backend version-enforcement (426) to a friendly notification
+    dio.interceptors.add(InterceptorsWrapper(
+      onResponse: (Response response, ResponseInterceptorHandler handler) async {
+        if (response.statusCode == 426) {
+          try {
+            final data = response.data;
+            final msg = (data is Map && data['message'] is String)
+                ? data['message'] as String
+                : 'Please update the app to continue.';
+            // Clear any existing credentials to prevent further use
+            _forceLogout();
+            final storeUrl = (data is Map && data['store_url'] is String)
+                ? data['store_url'] as String
+                : null;
+            final cb = _onUpdateRequired;
+            if (cb != null) cb(msg, storeUrl);
+          } catch (_) {}
+        }
+        return handler.next(response);
+      },
+      onError: (DioException err, ErrorInterceptorHandler handler) async {
+        if (err.response?.statusCode == 426) {
+          try {
+            final data = err.response?.data;
+            final msg = (data is Map && data['message'] is String)
+                ? data['message'] as String
+                : 'Please update the app to continue.';
+            // Clear any existing credentials to prevent further use
+            _forceLogout();
+            final storeUrl = (data is Map && data['store_url'] is String)
+                ? data['store_url'] as String
+                : null;
+            final cb = _onUpdateRequired;
+            if (cb != null) cb(msg, storeUrl);
+          } catch (_) {}
+        }
+        return handler.next(err);
+      },
+    ));
   }
 
   void setAccessToken(String? token) {
@@ -192,7 +243,15 @@ class ApiClient {
     _onNotify = handler;
   }
 
+  /// Register a callback invoked when the backend enforces an app update (HTTP 426)
+  void setUpdateRequiredHandler(
+      void Function(String message, String? storeUrl)? handler) {
+    _onUpdateRequired = handler;
+  }
+
   void _forceLogout() async {
+    // Only surface a logout message/navigation if we previously had an access token
+    final hadToken = _accessToken != null && _accessToken!.isNotEmpty;
     debugPrint('[ApiClient] Forcing logout: clearing access token and cookies');
     _accessToken = null;
     try {
@@ -200,7 +259,7 @@ class ApiClient {
       await _secure.delete(key: 'access_token');
     } catch (_) {}
     final cb = _onForceLogout;
-    if (cb != null) {
+    if (cb != null && hadToken) {
       debugPrint(
           '[ApiClient] Invoking force-logout callback (navigation to /login)');
       cb();
@@ -401,6 +460,7 @@ class _TokenRefreshInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final response = err.response;
     final requestOptions = err.requestOptions;
+    final pathLower = requestOptions.path.toLowerCase();
 
     // Suppress offline message for connection-level errors
     if (err.type == DioExceptionType.connectionError ||
@@ -413,6 +473,21 @@ class _TokenRefreshInterceptor extends Interceptor {
     final alreadyRetried = requestOptions.extra['retried'] == true;
 
     if (isUnauthorized && !alreadyRetried) {
+      // If this was a logout call or server says no credentials, do not loop
+      if (pathLower.contains('/logout/')) {
+        return handler.reject(err);
+      }
+      // Do not try refresh logic on login/refresh endpoints themselves
+      if (pathLower.contains('/token/refresh/') || pathLower.endsWith('/token/') || pathLower.contains('/token?') || pathLower.contains('/token\u0026')) {
+        return handler.reject(err);
+      }
+      final detail = (response?.data is Map && (response!.data)['detail'] is String)
+          ? (response.data)['detail'] as String
+          : '';
+      if (detail.contains('Authentication credentials were not provided')) {
+        // Already unauthenticated; do not force-logout again or retry
+        return handler.reject(err);
+      }
       // If backend explicitly signals revoked or missing refresh cookie, force logout immediately
       final data = response?.data;
       final code =
@@ -463,7 +538,9 @@ class _TokenRefreshInterceptor extends Interceptor {
             debugPrint(
                 '[ApiClient] Interceptor: refresh failed with 401; forcing logout');
             // Any 401 from refresh means we cannot recover here. Force logout to break loops.
-            client._forceLogout();
+            if (!pathLower.contains('/logout/')) {
+              client._forceLogout();
+            }
           }
         }
         return handler.reject(err);

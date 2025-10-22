@@ -38,6 +38,8 @@ MIDDLEWARE = [
     # Placed before TenantResolverMiddleware so our debug logs display the normalized header
     "common.tenancy.AuthorizationHeaderNormalizerMiddleware",
     "common.tenancy.TenantResolverMiddleware",
+    # Enforce minimum supported app version (returns HTTP 426 for outdated builds)
+    "common.middleware.version_enforce.AppVersionEnforceMiddleware",
     "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation early
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -69,6 +71,23 @@ DATABASES = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
+}
+
+# Celery configuration
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = os.environ.get('CELERY_TIMEZONE', 'UTC')
+
+# Celery Beat schedule
+from celery.schedules import crontab  # type: ignore
+CELERY_BEAT_SCHEDULE = {
+    'dispatch-due-notifications': {
+        'task': 'onchannels.tasks.dispatch_due_notifications',
+        'schedule': 60.0,  # every minute
+    },
 }
 
 # Cache configuration for rate limiting
@@ -266,3 +285,11 @@ APPLE_CLIENT_ID = os.environ.get('APPLE_CLIENT_ID', '')
 APPLE_TEAM_ID = os.environ.get('APPLE_TEAM_ID', '')
 APPLE_KEY_ID = os.environ.get('APPLE_KEY_ID', '')
 APPLE_PRIVATE_KEY = os.environ.get('APPLE_PRIVATE_KEY', '')
+
+# Explicit allowlist of Google Web OAuth client IDs for social login audience verification
+# Include staging/prod IDs here as needed (comma-separated via env or hardcoded set)
+GOOGLE_WEB_CLIENT_IDS = {
+    "59310140647-ks91sebo8ccbd9f6m8q065p7vp4uogvm.apps.googleusercontent.com",
+    # iOS client ID so tokens issued on iOS are accepted by the backend verifier
+    "59310140647-m77nbro0rb4i146mtcq5blpb0n1mn233.apps.googleusercontent.com",
+}

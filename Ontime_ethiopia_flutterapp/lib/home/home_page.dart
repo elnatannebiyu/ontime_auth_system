@@ -17,6 +17,8 @@ import '../core/widgets/brand_title.dart';
 import '../features/series/pages/series_shows_page.dart';
 import '../api_client.dart';
 import '../core/cache/channel_cache.dart';
+import '../live/live_page.dart';
+import '../core/notifications/notification_permission_manager.dart';
 
 // Overflow menu actions for Home AppBar
 enum _HomeMenuAction { profile, settings, about, switchLanguage }
@@ -60,6 +62,10 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _load();
+    // Ask for notification permission gracefully after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationPermissionManager().ensurePermissionFlow(context);
+    });
   }
 
   Future<void> _load() async {
@@ -96,8 +102,16 @@ class _HomePageState extends State<HomePage> {
   // --- Channels preview (icons) for bubbles ---
   String? _thumbFromMap(Map<String, dynamic> m) {
     const keys = [
-      'thumbnail', 'thumbnail_url', 'thumb', 'thumb_url',
-      'image', 'image_url', 'logo', 'logo_url', 'poster', 'poster_url',
+      'thumbnail',
+      'thumbnail_url',
+      'thumb',
+      'thumb_url',
+      'image',
+      'image_url',
+      'logo',
+      'logo_url',
+      'poster',
+      'poster_url',
     ];
     for (final k in keys) {
       final v = m[k];
@@ -129,7 +143,8 @@ class _HomePageState extends State<HomePage> {
           final m = Map<String, dynamic>.from(e as Map);
           final slug = (m['id_slug'] ?? '').toString();
           final display = (m['name_en'] ?? m['name_am'] ?? slug).toString();
-          final thumb = _thumbFromMap(m) ?? '$kApiBase/api/channels/$slug/logo/';
+          final thumb =
+              _thumbFromMap(m) ?? '$kApiBase/api/channels/$slug/logo/';
           return {'name': display, 'slug': slug, 'thumbUrl': thumb};
         }).toList();
         if (mounted) {
@@ -202,8 +217,8 @@ class _HomePageState extends State<HomePage> {
               tabs: [
                 Tab(text: _t('for_you')),
                 Tab(text: _t('Shows')),
-                Tab(text: _t('sports')),
-                Tab(text: _t('kids')),
+                Tab(text: _t('Live')),
+                Tab(text: _t('Shorts')),
               ],
             ),
             actions: [
@@ -307,7 +322,7 @@ class _HomePageState extends State<HomePage> {
                 _buildForYou(context),
                 // Shows tab
                 SeriesShowsPage(api: widget.api, tenantId: widget.tenantId),
-                _buildPlaceholderTab(context, _t('sports')),
+                const LivePage(),
                 _buildPlaceholderTab(context, _t('kids')),
               ],
             ),
@@ -385,7 +400,8 @@ class _HomePageState extends State<HomePage> {
                               MaterialPageRoute(
                                 builder: (_) => ChannelsPage(
                                   tenantId: widget.tenantId,
-                                  localizationController: widget.localizationController,
+                                  localizationController:
+                                      widget.localizationController,
                                 ),
                               ),
                             );
@@ -396,7 +412,8 @@ class _HomePageState extends State<HomePage> {
                               MaterialPageRoute(
                                 builder: (_) => ChannelsPage(
                                   tenantId: widget.tenantId,
-                                  localizationController: widget.localizationController,
+                                  localizationController:
+                                      widget.localizationController,
                                 ),
                               ),
                             );

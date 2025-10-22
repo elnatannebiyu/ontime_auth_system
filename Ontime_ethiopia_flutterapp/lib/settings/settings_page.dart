@@ -115,6 +115,16 @@ class SettingsPage extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, '/session-security'),
           ),
           const Divider(height: 32),
+          Text('Notifications', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.notifications),
+            title: const Text('Notification Inbox'),
+            subtitle: const Text('View announcements and push notifications'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/inbox'),
+          ),
+          const Divider(height: 32),
           if (kDebugMode) ...[
             Text('Developer',
                 style: Theme.of(context)

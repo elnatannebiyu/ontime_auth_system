@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import '../../api_client.dart';
+import '../../core/notifications/fcm_manager.dart';
 import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
 import '../../core/services/social_auth.dart';
@@ -33,6 +34,10 @@ class SimpleSessionManager {
       _isLoggedIn = true;
       _sessionController.add(true);
       _startRefreshTimer();
+      // Ensure device is registered for push if we already had a valid token
+      try {
+        await FcmManager().ensureRegisteredWithBackend();
+      } catch (_) {}
     }
   }
 
@@ -57,6 +62,10 @@ class SimpleSessionManager {
       _isLoggedIn = true;
       _sessionController.add(true);
       _startRefreshTimer();
+      // Ensure FCM token is registered now that we have access
+      try {
+        await FcmManager().ensureRegisteredWithBackend();
+      } catch (_) {}
     } catch (e) {
       _isLoggedIn = false;
       _sessionController.add(false);
@@ -74,6 +83,10 @@ class SimpleSessionManager {
       if (newAccessToken != null) {
         await _tokenStore.setTokens(newAccessToken, null);
         _apiClient.setAccessToken(newAccessToken);
+        // Optionally ensure device registration after refresh as well
+        try {
+          await FcmManager().ensureRegisteredWithBackend();
+        } catch (_) {}
       }
     } catch (e) {
       // Do not logout on refresh failure. Handle common cases gracefully.
@@ -101,6 +114,11 @@ class SimpleSessionManager {
   /// Logout
   Future<void> logout() async {
     try {
+      // First disable push for this user+device while Authorization is valid
+      try {
+        await _apiClient.post('/user-sessions/unregister-device/');
+      } catch (_) {}
+      // Then logout server-side
       await _apiClient.post('/logout/');
     } catch (e) {
       // Continue with logout even if API call fails

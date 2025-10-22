@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from onchannels.version_service import VersionCheckService
 from onchannels.version_models import AppVersion, FeatureFlag
 from django.utils import timezone
+from django.conf import settings
+from onchannels.notification_models import Announcement
+from django.db import models
 
 
 @api_view(['POST'])
@@ -137,3 +140,31 @@ def _get_store_url_for_response(platform, version):
     elif platform == 'android':
         return version.android_store_url
     return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def first_login_announcement_view(request):
+    """Return a first-time login announcement.
+
+    Priority:
+    1) Announcement row in DB (kind=first_login, tenant='ontime', is_active and within schedule)
+    2) Fallback to settings FIRST_LOGIN_TITLE/BODY
+    3) 404 if none
+    """
+    # For now, scope to fixed tenant 'ontime' as requested
+    q = Announcement.objects.filter(kind=Announcement.KIND_FIRST_LOGIN, tenant='ontime', is_active=True)
+    # Filter by schedule window
+    now = timezone.now()
+    q = q.filter(models.Q(starts_at__isnull=True) | models.Q(starts_at__lte=now))
+    q = q.filter(models.Q(ends_at__isnull=True) | models.Q(ends_at__gte=now))
+    ann = q.order_by('-updated_at').first()
+    if ann and (ann.title.strip() or ann.body.strip()):
+        return Response({'title': ann.title.strip(), 'body': ann.body.strip()}, status=status.HTTP_200_OK)
+
+    # Fallback to settings
+    title = (getattr(settings, 'FIRST_LOGIN_TITLE', '') or '').strip()
+    body = (getattr(settings, 'FIRST_LOGIN_BODY', '') or '').strip()
+    if title or body:
+        return Response({'title': title, 'body': body}, status=status.HTTP_200_OK)
+    return Response({'detail': 'No announcement'}, status=status.HTTP_404_NOT_FOUND)

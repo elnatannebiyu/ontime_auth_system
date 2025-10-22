@@ -39,6 +39,7 @@ urlpatterns = [
     path("api/auth/otp/", include("otp_auth.urls")),
     path("api/series/", include("series.urls")),
     path("api/live/", include("live.urls")),
+    path("api/user-sessions/", include("user_sessions.urls")),
 ]
 
 if schema_view:

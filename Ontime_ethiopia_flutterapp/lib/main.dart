@@ -18,9 +18,27 @@ import 'settings/session_management_page.dart';
 import 'settings/session_security_page.dart';
 import 'auth/services/simple_session_manager.dart';
 import 'features/forms/pages/dynamic_form_page.dart';
+import 'core/notifications/fcm_manager.dart';
+import 'live/live_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/version/version_gate.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+import 'settings/notification_inbox_page.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  // TODO: handle background message data if needed
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Register Firebase Messaging background handler
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   // Initialize enterprise auth client and token store
   final api = AuthApi();
   final tokenStore = SecureTokenStore();
@@ -86,6 +104,52 @@ class _MyAppState extends State<MyApp> {
   static final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   static final GlobalKey<ScaffoldMessengerState> _smKey =
       GlobalKey<ScaffoldMessengerState>();
+  bool _updateDialogShown = false;
+  String? _pendingUpdateMsg;
+  String? _pendingUpdateUrl;
+
+  Future<void> _openStoreLinkWithFallback(BuildContext ctx, String url) async {
+    try {
+      final uri = Uri.parse(url);
+      // 1) Try external application
+      if (await canLaunchUrl(uri)) {
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+      // 2) Try in-app webview
+      final okWeb = await launchUrl(uri, mode: LaunchMode.inAppWebView);
+      if (okWeb) return;
+    } catch (_) {}
+    // 3) Last resort: show the URL and allow copy
+    if (!mounted) return;
+    showDialog(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        title: const Text('Open this link manually'),
+        content: SelectableText(url),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                await Clipboard.setData(ClipboardData(text: url));
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Link copied to clipboard')),
+                );
+              } catch (_) {
+                Navigator.of(ctx).pop();
+              }
+            },
+            child: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -127,7 +191,80 @@ class _MyAppState extends State<MyApp> {
       );
     });
 
+    // Show a blocking modal when the backend enforces an app update (HTTP 426)
+    ApiClient().setUpdateRequiredHandler((message, storeUrl) async {
+      // Do not navigate here; ApiClient's force-logout handler already sends user to /login
+      final ctx = _navKey.currentContext;
+      if (ctx == null) {
+        // Cache and try again after the next frame when context becomes available
+        _pendingUpdateMsg = message;
+        _pendingUpdateUrl = storeUrl;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx2 = _navKey.currentContext;
+          if (ctx2 != null && !_updateDialogShown && _pendingUpdateMsg != null) {
+            _showUpdateDialog(ctx2, _pendingUpdateMsg!, _pendingUpdateUrl);
+            _pendingUpdateMsg = null;
+            _pendingUpdateUrl = null;
+          }
+        });
+        return;
+      }
+      if (_updateDialogShown) return;
+      _showUpdateDialog(ctx, message, storeUrl);
+    });
+
     // Mini player disabled: no attachment
+
+    // Initialize Firebase Cloud Messaging (mobile only)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FcmManager().initialize(context: _navKey.currentContext);
+      final ctx = _navKey.currentContext;
+      // If a pending 426 was cached before context existed, show it now
+      if (ctx != null && !_updateDialogShown && _pendingUpdateMsg != null) {
+        _showUpdateDialog(ctx, _pendingUpdateMsg!, _pendingUpdateUrl);
+        _pendingUpdateMsg = null;
+        _pendingUpdateUrl = null;
+      }
+      if (ctx != null && !_updateDialogShown) {
+        VersionGate.checkAndPrompt(ctx);
+      }
+    });
+  }
+
+  void _showUpdateDialog(BuildContext ctx, String message, String? storeUrl) {
+    _updateDialogShown = true;
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          title: const Text('Update Required'),
+          content: Text(
+            message.isNotEmpty ? message : 'Please update the app to continue.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: (storeUrl == null || storeUrl.isEmpty)
+                  ? null
+                  : () async {
+                      final ctx2 = _navKey.currentContext ?? ctx;
+                      await _openStoreLinkWithFallback(ctx2, storeUrl);
+                    },
+              style: ButtonStyle(
+                backgroundColor: MaterialStateProperty.resolveWith((states) {
+                  if (states.contains(MaterialState.disabled)) {
+                    return Colors.grey.shade400;
+                  }
+                  return null;
+                }),
+              ),
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -173,10 +310,12 @@ class _MyAppState extends State<MyApp> {
                   themeController: themeController,
                   localizationController: localizationController,
                 ),
+            '/inbox': (_) => const NotificationInboxPage(),
             '/session-management': (_) => const SessionManagementPage(),
             '/session-security': (_) => const SessionSecurityPage(),
             '/about': (_) => const AboutPage(),
             '/profile': (_) => const ProfilePage(),
+            '/live': (_) => const LivePage(),
             // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
             '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
             '/dev/forms/register': (_) => const DynamicFormPage(action: 'register'),

@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.models import Group, Permission
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import UserSession, LoginAttempt, Membership
+from common.fcm_sender import send_to_user
 
 @admin.register(UserSession)
 class UserSessionAdmin(admin.ModelAdmin):
@@ -75,3 +78,31 @@ class GroupAdmin(admin.ModelAdmin):
 class PermissionAdmin(admin.ModelAdmin):
     list_display = ("name", "codename", "content_type")
     list_filter = ("content_type",)
+
+
+User = get_user_model()
+
+
+try:
+    admin.site.unregister(User)
+except Exception:
+    pass
+
+@admin.register(User)
+class UserAdmin(DjangoUserAdmin):
+    actions = ['send_test_push']
+
+    def send_test_push(self, request, queryset):
+        title = "Test push"
+        body = "Hello from Admin"
+        total_ok = 0
+        total_bad = 0
+        for user in queryset:
+            try:
+                ok, bad = send_to_user(user_id=user.id, title=title, body=body, data={"link": "/inbox"})
+                total_ok += len(ok)
+                total_bad += len(bad)
+            except Exception as exc:  # noqa: BLE001
+                self.message_user(request, f"Failed to send to user {user.id}: {exc}", level='error')
+        self.message_user(request, f"Sent to {total_ok} token(s); failed {total_bad}.")
+    send_test_push.short_description = "Send test push to selected users"

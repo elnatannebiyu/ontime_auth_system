@@ -1,5 +1,7 @@
 from django.db import models
 import uuid
+from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 
 class Channel(models.Model):
@@ -92,3 +94,79 @@ class Video(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title or self.video_id}"
+
+
+# Scheduled Notification model (lives here to be auto-discovered by Django)
+User = get_user_model()
+
+
+class ScheduledNotification(models.Model):
+    TARGET_TOKEN = 'token'
+    TARGET_TOPIC = 'topic'
+    TARGET_USER = 'user'
+
+    STATUS_PENDING = 'pending'
+    STATUS_SENT = 'sent'
+    STATUS_FAILED = 'failed'
+
+    TARGET_CHOICES = [
+        (TARGET_TOKEN, 'Token'),
+        (TARGET_TOPIC, 'Topic'),
+        (TARGET_USER, 'User'),
+    ]
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SENT, 'Sent'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    data = models.JSONField(blank=True, null=True)
+
+    target_type = models.CharField(max_length=10, choices=TARGET_CHOICES, default=TARGET_TOKEN)
+    target_value = models.TextField(blank=True)
+    target_user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='scheduled_notifications')
+
+    send_at = models.DateTimeField(help_text='UTC time to send')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', 'send_at']),
+            models.Index(fields=['target_type']),
+        ]
+        ordering = ['send_at']
+
+    def is_due(self) -> bool:
+        return self.status == self.STATUS_PENDING and self.send_at <= timezone.now()
+
+
+class UserNotification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', db_index=True)
+    tenant = models.CharField(max_length=64, default='ontime', db_index=True)
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True, default='')
+    data = models.JSONField(blank=True, null=True)
+    read_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'read_at']),
+        ]
+        ordering = ['-created_at']
+        verbose_name = 'User Notification'
+        verbose_name_plural = 'User Notifications'
+
+    def mark_read(self):
+        if not self.read_at:
+            self.read_at = timezone.now()
+            self.save(update_fields=['read_at'])
