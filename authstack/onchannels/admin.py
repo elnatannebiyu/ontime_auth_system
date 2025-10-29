@@ -9,6 +9,7 @@ from django.conf import settings
 from pathlib import Path
 from typing import Optional
 from .models import Channel, Playlist, Video
+from .models import ShortJob
 from series.models import Show
 from .forms import ChannelAdminForm, PlaylistAdminForm
 from .version_models import AppVersion, FeatureFlag
@@ -509,11 +510,11 @@ class ChannelAdmin(admin.ModelAdmin):
 @admin.register(Playlist)
 class PlaylistAdmin(admin.ModelAdmin):
     form = PlaylistAdminForm
-    list_display = ("id", "title", "channel", "item_count", "is_active", "last_synced_at")
-    list_filter = ("channel", "is_active")
+    list_display = ("id", "title", "channel", "item_count", "is_active", "is_shorts", "last_synced_at")
+    list_filter = ("channel", "is_active", "is_shorts")
     search_fields = ("id", "title", "channel__id_slug", "channel__name_en", "channel__name_am")
     ordering = ("channel", "title")
-    actions = ("activate_playlists", "deactivate_playlists")
+    actions = ("activate_playlists", "deactivate_playlists", "mark_as_shorts", "unmark_as_shorts")
 
     @admin.action(description="Activate selected playlists")
     def activate_playlists(self, request, queryset):
@@ -522,6 +523,16 @@ class PlaylistAdmin(admin.ModelAdmin):
     @admin.action(description="Deactivate selected playlists")
     def deactivate_playlists(self, request, queryset):
         queryset.update(is_active=False)
+
+    @admin.action(description="Mark selected playlists as Shorts")
+    def mark_as_shorts(self, request, queryset):
+        updated = queryset.update(is_shorts=True)
+        self.message_user(request, f"Marked {updated} playlist(s) as Shorts.")
+
+    @admin.action(description="Unmark selected playlists as Shorts")
+    def unmark_as_shorts(self, request, queryset):
+        updated = queryset.update(is_shorts=False)
+        self.message_user(request, f"Unmarked {updated} playlist(s) from Shorts.")
 
 
 @admin.register(Video)
@@ -711,6 +722,43 @@ class VideoAdmin(admin.ModelAdmin):
     playlist_is_active.boolean = True  # type: ignore[attr-defined]
     playlist_is_active.admin_order_field = "playlist__is_active"  # type: ignore[attr-defined]
     playlist_is_active.short_description = "Playlist active"  # type: ignore[attr-defined]
+
+
+@admin.register(ShortJob)
+class ShortJobAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'tenant', 'status', 'content_class', 'ladder_profile', 'duration_seconds',
+        'reserved_bytes', 'used_bytes', 'created_at'
+    )
+    list_filter = ('tenant', 'status', 'content_class', 'ladder_profile')
+    search_fields = ('id', 'source_url', 'tenant')
+    readonly_fields = ('created_at', 'updated_at', 'error_message', 'retry_count', 'hls_master_url')
+    actions = ['retry_ingestion']
+
+    def retry_ingestion(self, request, queryset):  # noqa: D401
+        """Retry selected failed ShortJobs by re-queuing the task."""
+        from .tasks import process_short_job
+        count = 0
+        for job in queryset:
+            try:
+                if getattr(job, 'status', None) != getattr(ShortJob, 'STATUS_FAILED', 'failed'):
+                    continue
+                job.status = ShortJob.STATUS_QUEUED
+                job.error_message = ''
+                job.retry_count = (job.retry_count or 0) + 1
+                job.save(update_fields=["status", "error_message", "retry_count", "updated_at"])
+                try:
+                    process_short_job.delay(str(job.id))
+                except Exception:
+                    pass
+                count += 1
+            except Exception:
+                continue
+        if count:
+            self.message_user(request, f"Enqueued {count} job(s) for retry.")
+        else:
+            self.message_user(request, "No failed jobs were selected.")
+    retry_ingestion.short_description = "Retry ingestion for selected failed jobs"  # type: ignore[attr-defined]
 
 
 # Version and Feature Flag Admin

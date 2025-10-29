@@ -1,13 +1,56 @@
+# --- Helpers: YouTube video_id normalization for dedupe ---
+def _yt_video_id_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        import urllib.parse as _up
+        p = _up.urlparse(url)
+        host = (p.netloc or '').lower()
+        path = p.path or ''
+        qs = _up.parse_qs(p.query)
+        # https://www.youtube.com/watch?v=ID
+        if 'v' in qs and qs['v']:
+            return qs['v'][0]
+        # https://youtu.be/ID or /shorts/ID
+        parts = [s for s in path.split('/') if s]
+        if host.endswith('youtu.be') and parts:
+            return parts[0]
+        if host.endswith('youtube.com') and len(parts) >= 2 and parts[0] in {'shorts', 'embed', 'live'}:
+            return parts[1]
+    except Exception:
+        return None
+    return None
+
+
+def _yt_video_id_via_ytdlp(url: str | None, timeout_sec: int = 5) -> str | None:
+    if not url:
+        return None
+    try:
+        import subprocess, shlex
+        proc = subprocess.run(['yt-dlp', '-s', '--get-id', url], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout_sec)
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout.strip().splitlines()[0].strip()
+    except Exception:
+        return None
+    return None
 from rest_framework import viewsets, filters, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.http import FileResponse
 from django.conf import settings
 from pathlib import Path
+import os
 import json
+from datetime import datetime, timedelta, timezone as dt_timezone
+import hashlib
+import random
+import hmac
+import base64
+from django.db.models import Max, F, Q
 
-from .models import Channel, Playlist, Video
-from .serializers import ChannelSerializer, PlaylistSerializer, VideoSerializer
+from .models import Channel, Playlist, Video, ShortJob
+from .serializers import ChannelSerializer, PlaylistSerializer, VideoSerializer, ShortJobSerializer, CreateShortJobSerializer
 from . import youtube_api
 
 # Swagger imports guarded to avoid hard dependency in production where drf_yasg/pkg_resources may be unavailable
@@ -247,57 +290,6 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     return Response({"detail": "Could not resolve channel id from handle/url."}, status=status.HTTP_404_NOT_FOUND)
             data = youtube_api.list_playlists(channel_id, page_token=page_token, max_results=max_results)
             return Response(data)
-        except youtube_api.YouTubeAPIError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
-
-    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
-    @action(detail=True, methods=["post"], url_path="yt/sync-videos")
-    def sync_videos(self, request, pk=None):
-        """Sync videos for this channel's active playlists (or all playlists if none active)."""
-        if not request.user.has_perm("onchannels.change_channel"):
-            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-        channel = self.get_object()
-        try:
-            playlists = list(channel.playlists.filter(is_active=True))
-            if not playlists:
-                playlists = list(channel.playlists.all())
-            total_created = 0
-            total_updated = 0
-            from datetime import datetime, timezone
-            for pl in playlists:
-                page = None
-                while True:
-                    data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
-                    for it in data.get("items", []):
-                        vid = it.get("videoId")
-                        published_at = it.get("publishedAt")
-                        dt = None
-                        if published_at:
-                            try:
-                                # YouTube returns e.g. 2020-01-01T12:34:56Z
-                                dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                            except Exception:
-                                dt = None
-                        obj, created = Video.objects.update_or_create(
-                            playlist=pl,
-                            video_id=vid,
-                            defaults={
-                                "channel": channel,
-                                "title": it.get("title") or "",
-                                "thumbnails": it.get("thumbnails") or {},
-                                "position": it.get("position"),
-                                "published_at": dt,
-                                "is_active": True,
-                            },
-                        )
-                        if created:
-                            total_created += 1
-                        else:
-                            total_updated += 1
-                    page = data.get("nextPageToken")
-                    if not page:
-                        break
-            return Response({"created": total_created, "updated": total_updated})
         except youtube_api.YouTubeAPIError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -616,3 +608,340 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
         if channel_slug:
             qs = qs.filter(channel__id_slug=channel_slug)
         return qs
+
+
+class ShortsPlaylistsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+
+        # Params
+        updated_since_str = request.query_params.get("updated_since")
+        try:
+            if updated_since_str:
+                since = datetime.fromisoformat(updated_since_str)
+                if since.tzinfo is None:
+                    since = since.replace(tzinfo=dt_timezone.utc)
+            else:
+                since = datetime.now(tz=dt_timezone.utc) - timedelta(days=int(request.query_params.get("days", 30)))
+        except Exception:
+            return Response({"detail": "Invalid updated_since"}, status=status.HTTP_400_BAD_REQUEST)
+
+        limit = int(request.query_params.get("limit", 100))
+        offset = int(request.query_params.get("offset", 0))
+        per_channel_limit = int(request.query_params.get("per_channel_limit", 5))
+        channel_slug = request.query_params.get("channel")
+
+        qs = (
+            Playlist.objects.select_related("channel")
+            .filter(channel__tenant=tenant, is_active=True)
+            .annotate(latest_video_published_at=Max("videos__published_at"))
+        )
+
+        # Filter only playlists explicitly marked as shorts
+        qs = qs.filter(is_shorts=True)
+
+        # Recency: include only if latest video is within the window
+        qs = qs.filter(latest_video_published_at__gte=since)
+
+        if channel_slug:
+            qs = qs.filter(channel__id_slug=channel_slug)
+
+        # Order by recency
+        qs = qs.order_by("-latest_video_published_at", "-last_synced_at")
+
+        # Apply per-channel limit in Python for portability
+        items = []
+        per_counts = {}
+        for pl in qs:
+            cid = pl.channel_id
+            c = per_counts.get(cid, 0)
+            if c < per_channel_limit:
+                items.append(pl)
+                per_counts[cid] = c + 1
+            # Early exit if we have collected enough overall
+            if len(items) >= offset + limit:
+                break
+
+        total = len(items)
+        page = items[offset : offset + limit]
+        ser = PlaylistSerializer(page, many=True, context={"request": request})
+        return Response({"count": total, "results": ser.data})
+
+
+class ShortsFeedView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+
+        updated_since_str = request.query_params.get("updated_since")
+        try:
+            if updated_since_str:
+                since = datetime.fromisoformat(updated_since_str)
+                if since.tzinfo is None:
+                    since = since.replace(tzinfo=dt_timezone.utc)
+            else:
+                since = datetime.now(tz=dt_timezone.utc) - timedelta(days=int(request.query_params.get("days", 30)))
+        except Exception:
+            return Response({"detail": "Invalid updated_since"}, status=status.HTTP_400_BAD_REQUEST)
+
+        limit = int(request.query_params.get("limit", 100))
+        per_channel_limit = int(request.query_params.get("per_channel_limit", 5))
+        channel_slug = request.query_params.get("channel")
+        bias_count = int(request.query_params.get("recent_bias_count", 20))
+
+        qs = (
+            Playlist.objects.select_related("channel")
+            .filter(channel__tenant=tenant, is_active=True)
+            .annotate(latest_video_published_at=Max("videos__published_at"))
+        )
+
+        qs = qs.filter(is_shorts=True)
+
+        qs = qs.filter(Q(latest_video_published_at__gte=since) | Q(last_synced_at__gte=since))
+
+        if channel_slug:
+            qs = qs.filter(channel__id_slug=channel_slug)
+
+        # Order by recency
+        qs = qs.order_by("-latest_video_published_at", "-last_synced_at")
+
+        # Apply per-channel limit in Python and cap total
+        items = []
+        per_counts = {}
+        for pl in qs:
+            cid = pl.channel_id
+            c = per_counts.get(cid, 0)
+            if c < per_channel_limit:
+                items.append(pl)
+                per_counts[cid] = c + 1
+            if len(items) >= limit:
+                break
+
+        # Determine seed: explicit seed param, else X-Device-Id header, else user id
+        seed = request.query_params.get("seed") or request.headers.get("X-Device-Id") or str(getattr(request.user, "id", "0"))
+        seed_bytes = seed.encode("utf-8")
+        seed_int = int.from_bytes(hashlib.sha256(seed_bytes).digest(), "big")
+
+        # Bias: keep first bias_count in recency order; shuffle remainder deterministically
+        head = items[:bias_count]
+        tail = items[bias_count:]
+        rng = random.Random(seed_int)
+        rng.shuffle(tail)
+        ordered = head + tail
+
+        def normalize(pl: Playlist):
+            updated_at = getattr(pl, "latest_video_published_at", None) or pl.last_synced_at
+            return {
+                "channel": pl.channel.id_slug,
+                "playlist_id": pl.id,
+                "title": pl.title,
+                "updated_at": updated_at.isoformat() if updated_at else None,
+                "items_count": pl.item_count,
+            }
+
+        results = [normalize(p) for p in ordered]
+        return Response({"count": len(results), "results": results, "seed_source": "device"})
+
+
+class ShortImportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        data = request.data or {}
+        ser = CreateShortJobSerializer(data=data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        payload = ser.validated_data
+        # Basic preflight: require source_url
+        source_url = payload.get('source_url')
+        if not source_url:
+            return Response({"detail": "source_url is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Dedupe: find existing job by normalized video_id (fallback to url contains)
+        vid = _yt_video_id_from_url(source_url) or _yt_video_id_via_ytdlp(source_url)
+        base_qs = ShortJob.objects.filter(tenant=tenant).exclude(status=ShortJob.STATUS_DELETED)
+        existing_ready = None
+        existing_inprog = None
+        if vid:
+            existing_ready = base_qs.filter(status=ShortJob.STATUS_READY).filter(Q(source_url__icontains=vid)).order_by('-updated_at').first()
+            if not existing_ready:
+                existing_inprog = base_qs.filter(status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING]).filter(Q(source_url__icontains=vid)).order_by('-updated_at').first()
+        else:
+            # Fallback: exact URL match
+            existing_ready = base_qs.filter(status=ShortJob.STATUS_READY, source_url=source_url).first()
+            if not existing_ready:
+                existing_inprog = base_qs.filter(status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING], source_url=source_url).first()
+
+        if existing_ready:
+            return Response({"job_id": str(existing_ready.id), "deduped": True, "status": existing_ready.status}, status=status.HTTP_200_OK)
+        if existing_inprog:
+            return Response({"job_id": str(existing_inprog.id), "deduped": True, "status": existing_inprog.status}, status=status.HTTP_202_ACCEPTED)
+
+        job = ShortJob.objects.create(
+            tenant=tenant,
+            requested_by=getattr(request, 'user', None),
+            source_url=source_url,
+            status=ShortJob.STATUS_QUEUED,
+            ladder_profile=payload.get('ladder_profile', 'shorts_v1'),
+            content_class=payload.get('content_class', ShortJob.CLASS_NORMAL),
+        )
+        # Compute artifact prefix now for stable pathing
+        job.artifact_prefix = f"shorts/{tenant}/{job.id}"
+        job.save(update_fields=["artifact_prefix", "updated_at"])
+
+        # Enqueue async processing
+        try:
+            from .tasks import process_short_job
+            process_short_job.delay(str(job.id))
+        except Exception:
+            # If Celery unavailable, leave job queued; client can retry
+            pass
+
+        return Response({"job_id": str(job.id)}, status=status.HTTP_202_ACCEPTED)
+
+
+class ShortImportStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id: str):
+        job = ShortJob.objects.filter(id=job_id).first()
+        if not job:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ShortJobSerializer(job).data)
+
+
+class ShortImportRetryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, job_id: str):
+        job = ShortJob.objects.filter(id=job_id).first()
+        if not job:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        if job.status != ShortJob.STATUS_FAILED:
+            return Response({"detail": "Only failed jobs can be retried."}, status=status.HTTP_400_BAD_REQUEST)
+        # Reset and enqueue
+        job.status = ShortJob.STATUS_QUEUED
+        job.error_message = ""
+        job.retry_count = (job.retry_count or 0) + 1
+        job.save(update_fields=["status", "error_message", "retry_count", "updated_at"])
+        try:
+            from .tasks import process_short_job
+            process_short_job.delay(str(job.id))
+        except Exception:
+            pass
+        return Response({"job_id": str(job.id), "status": job.status})
+
+
+class AdminShortsMetricsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        # Read metrics file
+        media_root = Path(str(getattr(settings, 'MEDIA_ROOT', '/srv/media/short/videos')))
+        metrics_path = media_root / 'shorts' / 'metrics.json'
+        metrics = {}
+        try:
+            if metrics_path.exists():
+                metrics = json.loads(metrics_path.read_text(encoding='utf-8'))
+        except Exception:
+            metrics = {}
+        # Latest READY job for tenant
+        latest = ShortJob.objects.filter(tenant=tenant, status=ShortJob.STATUS_READY).order_by('-updated_at').first()
+        data = {
+            'metrics': metrics,
+            'latest_job_id': str(latest.id) if latest else None,
+            'latest_hls': latest.hls_master_url if latest else None,
+            'tenant': tenant,
+        }
+        return Response(data)
+
+
+class ShortImportPreviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id: str):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        job = ShortJob.objects.filter(id=job_id).first()
+        if not job:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        if job.tenant != tenant and not request.user.is_staff:
+            return Response({"detail": "Wrong tenant"}, status=status.HTTP_403_FORBIDDEN)
+        if job.status != ShortJob.STATUS_READY or not job.hls_master_url:
+            return Response({"detail": "Not ready"}, status=status.HTTP_409_CONFLICT)
+
+        master = job.hls_master_url
+        signed = None
+        if request.query_params.get('signed') in {'1', 'true', 'yes'}:
+            try:
+                exp = int((datetime.now(tz=dt_timezone.utc) + timedelta(minutes=10)).timestamp())
+                msg = f"{master}:{exp}".encode('utf-8')
+                key = (getattr(settings, 'SECRET_KEY', 'secret') or 'secret').encode('utf-8')
+                sig = base64.urlsafe_b64encode(hmac.new(key, msg, digestmod='sha256').digest()).rstrip(b'=')
+                sep = '&' if ('?' in master) else '?'
+                signed = f"{master}{sep}exp={exp}&sig={sig.decode('utf-8')}"
+            except Exception:
+                signed = None
+        return Response({"url": master, "signed_url": signed})
+
+
+class ShortsBatchImportRecentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except Exception:
+            limit = 10
+        # Find recent videos from active, shorts playlists for this tenant
+        vids = (
+            Video.objects.select_related("playlist", "channel")
+            .filter(playlist__is_shorts=True, playlist__is_active=True, channel__tenant=tenant)
+            .order_by("-published_at", "-position")[: max(1, min(limit, 50))]
+        )
+        results = []
+        for v in vids:
+            vid = v.video_id
+            if not vid:
+                continue
+            source_url = f"https://youtu.be/{vid}"
+            # Dedupe using existing helpers
+            norm = _yt_video_id_from_url(source_url) or _yt_video_id_via_ytdlp(source_url)
+            base_qs = ShortJob.objects.filter(tenant=tenant).exclude(status=ShortJob.STATUS_DELETED)
+            existing_ready = None
+            existing_inprog = None
+            if norm:
+                existing_ready = base_qs.filter(status=ShortJob.STATUS_READY, source_url__icontains=norm).order_by('-updated_at').first()
+                if not existing_ready:
+                    existing_inprog = base_qs.filter(status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING], source_url__icontains=norm).order_by('-updated_at').first()
+            if existing_ready:
+                results.append({"video_id": vid, "job_id": str(existing_ready.id), "status": existing_ready.status, "deduped": True})
+                continue
+            if existing_inprog:
+                results.append({"video_id": vid, "job_id": str(existing_inprog.id), "status": existing_inprog.status, "deduped": True})
+                continue
+            # Create new job (Ephemeral by default) and enqueue
+            job = ShortJob.objects.create(
+                tenant=tenant,
+                requested_by=getattr(request, 'user', None),
+                source_url=source_url,
+                status=ShortJob.STATUS_QUEUED,
+                ladder_profile='shorts_v1',
+                content_class=getattr(ShortJob, 'CLASS_EPHEMERAL', 'ephemeral'),
+            )
+            job.artifact_prefix = f"shorts/{tenant}/{job.id}"
+            job.save(update_fields=["artifact_prefix", "updated_at"])
+            try:
+                from .tasks import process_short_job
+                process_short_job.delay(str(job.id))
+            except Exception:
+                pass
+            results.append({"video_id": vid, "job_id": str(job.id), "status": job.status, "deduped": False})
+        return Response({"count": len(results), "results": results})

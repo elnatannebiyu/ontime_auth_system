@@ -134,7 +134,8 @@ class _MyAppState extends State<MyApp> {
                 await Clipboard.setData(ClipboardData(text: url));
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text(localizationController.t('link_copied'))),
+                  SnackBar(
+                      content: Text(localizationController.t('link_copied'))),
                 );
               } catch (_) {
                 Navigator.of(ctx).pop();
@@ -201,7 +202,9 @@ class _MyAppState extends State<MyApp> {
         _pendingUpdateUrl = storeUrl;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final ctx2 = _navKey.currentContext;
-          if (ctx2 != null && !_updateDialogShown && _pendingUpdateMsg != null) {
+          if (ctx2 != null &&
+              !_updateDialogShown &&
+              _pendingUpdateMsg != null) {
             _showUpdateDialog(ctx2, _pendingUpdateMsg!, _pendingUpdateUrl);
             _pendingUpdateMsg = null;
             _pendingUpdateUrl = null;
@@ -241,7 +244,9 @@ class _MyAppState extends State<MyApp> {
         child: AlertDialog(
           title: Text(localizationController.t('update_required_title')),
           content: Text(
-            message.isNotEmpty ? message : localizationController.t('update_required_body'),
+            message.isNotEmpty
+                ? message
+                : localizationController.t('update_required_body'),
           ),
           actions: [
             FilledButton(
@@ -252,8 +257,8 @@ class _MyAppState extends State<MyApp> {
                       await _openStoreLinkWithFallback(ctx2, storeUrl);
                     },
               style: ButtonStyle(
-                backgroundColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.disabled)) {
+                backgroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.disabled)) {
                     return Colors.grey.shade400;
                   }
                   return null;
@@ -318,7 +323,8 @@ class _MyAppState extends State<MyApp> {
             '/live': (_) => const LivePage(),
             // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
             '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
-            '/dev/forms/register': (_) => const DynamicFormPage(action: 'register'),
+            '/dev/forms/register': (_) =>
+                const DynamicFormPage(action: 'register'),
           },
         );
       },
@@ -365,11 +371,13 @@ class _SplashGateState extends State<SplashGate> {
       Navigator.of(context).pushReplacementNamed('/home');
     } on DioException catch (e) {
       // If offline or network error, keep tokens and go to home with an offline message
-      if (e.type == DioExceptionType.connectionError || e.error is SocketException) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.error is SocketException) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('You appear to be offline. Some actions may not work.'),
+              content:
+                  Text('You appear to be offline. Some actions may not work.'),
               behavior: SnackBarBehavior.floating,
             ),
           );

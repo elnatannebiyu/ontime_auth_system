@@ -27,7 +27,7 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
       _error = null;
     });
     try {
-      final manifestUrl = '${kApiBase}/api/live/proxy/${widget.slug}/manifest/';
+      final manifestUrl = '$kApiBase/api/live/proxy/${widget.slug}/manifest/';
       final c = VideoPlayerController.networkUrl(Uri.parse(manifestUrl));
       await c.initialize();
       await c.play();

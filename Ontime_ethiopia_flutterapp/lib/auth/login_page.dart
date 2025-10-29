@@ -68,12 +68,14 @@ class _LoginPageState extends State<LoginPage> {
       if (data is Map) {
         final title = (data['title'] as String?)?.trim();
         final body = (data['body'] as String?)?.trim();
-        if ((title != null && title.isNotEmpty) || (body != null && body.isNotEmpty)) {
+        if ((title != null && title.isNotEmpty) ||
+            (body != null && body.isNotEmpty)) {
           // Suppress duplicates: if the same content was already shown for this tenant, skip.
           final prefs = await SharedPreferences.getInstance();
           final tenant = widget.tenantId;
-          final userKeyPart = userId != null ? '_u${userId}' : '';
-          final contentKey = 'first_login_announcement_${tenant}${userKeyPart}_hash';
+          final userKeyPart = userId != null ? '_u$userId' : '';
+          final contentKey =
+              'first_login_announcement_$tenant${userKeyPart}_hash';
           final contentVal = '${title ?? ''}\n${body ?? ''}';
           final lastShown = prefs.getString(contentKey);
           if (lastShown == contentVal) {
@@ -158,8 +160,10 @@ class _LoginPageState extends State<LoginPage> {
       } else if (detail ==
           'No active account found with the given credentials') {
         uiMsg = 'Incorrect email or password.';
-      } else if (code == 403 && detail.contains('Not a member of this tenant')) {
-        uiMsg = "Your account isn't a member of this tenant ('${widget.tenantId}'). Contact support or switch tenant.";
+      } else if (code == 403 &&
+          detail.contains('Not a member of this tenant')) {
+        uiMsg =
+            "Your account isn't a member of this tenant ('${widget.tenantId}'). Contact support or switch tenant.";
       } else if (detail.isNotEmpty) {
         uiMsg = detail;
       }
@@ -202,10 +206,12 @@ class _LoginPageState extends State<LoginPage> {
             // Social sign-in buttons
             SocialAuthButtons(
               onGoogle: () async {
-                final service = SocialAuthService(serverClientId: kGoogleWebClientId);
+                final service =
+                    SocialAuthService(serverClientId: kGoogleWebClientId);
                 try {
                   // Force account chooser to appear after a prior social session
-                  final result = await service.signInWithGoogle(signOutFirst: true);
+                  final result =
+                      await service.signInWithGoogle(signOutFirst: true);
                   // Step 1: attempt login without creating a new account
                   Tokens tokens;
                   try {
@@ -250,20 +256,23 @@ class _LoginPageState extends State<LoginPage> {
                         allowCreate: true,
                         userData: {
                           if (result.email != null) 'email': result.email,
-                          if (result.displayName != null) 'name': result.displayName,
+                          if (result.displayName != null)
+                            'name': result.displayName,
                         },
                       );
                     } else {
                       rethrow;
                     }
                   }
-                  await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+                  await widget.tokenStore
+                      .setTokens(tokens.access, tokens.refresh);
                   await widget.api.me();
                   // Optional: show backend-provided first-login announcement for parity with password login
                   await _maybeShowFirstLoginAnnouncement();
                   // Ask for notifications permission before registering FCM to ensure APNs is available on iOS
                   if (mounted) {
-                    await NotificationPermissionManager().ensurePermissionFlow(context);
+                    await NotificationPermissionManager()
+                        .ensurePermissionFlow(context);
                   }
                   // Now register FCM token with backend
                   await FcmManager().ensureRegisteredWithBackend();
@@ -284,7 +293,8 @@ class _LoginPageState extends State<LoginPage> {
                 } catch (e) {
                   // If a 426 slipped through as a generic error, do not show snackbar
                   final msg = '$e';
-                  if (msg.contains('426') || msg.contains('APP_UPDATE_REQUIRED')) {
+                  if (msg.contains('426') ||
+                      msg.contains('APP_UPDATE_REQUIRED')) {
                     return;
                   }
                   ScaffoldMessenger.of(context).showSnackBar(

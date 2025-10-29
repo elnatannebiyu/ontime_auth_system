@@ -63,6 +63,7 @@ class Playlist(models.Model):
     thumbnails = models.JSONField(default=dict, blank=True)
     item_count = models.IntegerField(default=0)
     is_active = models.BooleanField(default=False, help_text="Mark playlists active to surface in apps")
+    is_shorts = models.BooleanField(default=False, db_index=True, help_text="Mark playlist as part of Shorts feed")
     last_synced_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -170,3 +171,71 @@ class UserNotification(models.Model):
         if not self.read_at:
             self.read_at = timezone.now()
             self.save(update_fields=['read_at'])
+
+
+# Shorts ingestion job model
+class ShortJob(models.Model):
+    STATUS_QUEUED = 'queued'
+    STATUS_DOWNLOADING = 'downloading'
+    STATUS_TRANSCODING = 'transcoding'
+    STATUS_UPLOADING = 'uploading'
+    STATUS_READY = 'ready'
+    STATUS_RETIRING = 'retiring'
+    STATUS_DELETED = 'deleted'
+    STATUS_FAILED = 'failed'
+
+    CLASS_PINNED = 'pinned'
+    CLASS_PREFERRED = 'preferred'
+    CLASS_NORMAL = 'normal'
+    CLASS_EPHEMERAL = 'ephemeral'
+
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, 'Queued'),
+        (STATUS_DOWNLOADING, 'Downloading'),
+        (STATUS_TRANSCODING, 'Transcoding'),
+        (STATUS_UPLOADING, 'Uploading'),
+        (STATUS_READY, 'Ready'),
+        (STATUS_RETIRING, 'Retiring'),
+        (STATUS_DELETED, 'Deleted'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    CLASS_CHOICES = [
+        (CLASS_PINNED, 'Pinned'),
+        (CLASS_PREFERRED, 'Preferred'),
+        (CLASS_NORMAL, 'Normal'),
+        (CLASS_EPHEMERAL, 'Ephemeral'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.CharField(max_length=64, default='ontime', db_index=True)
+    requested_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='short_jobs')
+    source_url = models.TextField(help_text='Original source URL or video identifier')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED, db_index=True)
+    error_message = models.TextField(blank=True, default='')
+    retry_count = models.PositiveIntegerField(default=0)
+
+    artifact_prefix = models.CharField(max_length=255, blank=True, default='')
+    ladder_profile = models.CharField(max_length=64, default='shorts_v1')
+    duration_seconds = models.PositiveIntegerField(default=0)
+
+    reserved_bytes = models.BigIntegerField(default=0)
+    used_bytes = models.BigIntegerField(default=0)
+
+    hls_master_url = models.TextField(blank=True, default='')
+
+    content_class = models.CharField(max_length=16, choices=CLASS_CHOICES, default=CLASS_NORMAL)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'status', '-created_at']),
+        ]
+        ordering = ['-created_at']
+        verbose_name = 'Short Ingestion Job'
+        verbose_name_plural = 'Short Ingestion Jobs'
+
+    def __str__(self) -> str:
+        return f"ShortJob {self.id} [{self.status}]"

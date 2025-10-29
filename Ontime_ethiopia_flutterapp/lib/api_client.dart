@@ -68,8 +68,11 @@ class ApiClient {
   Completer<void>? _refreshing; // single-flight guard for refresh
   // Backoff/cooldown to avoid frequent refresh attempts
   DateTime? _refreshBackoffUntil; // when set, skip refresh until this time
-  DateTime? _lastRefreshAttemptAt; // throttle preflight immediately after an attempt
-  Duration _postRefreshCooldown = const Duration(seconds: 60); // after a refresh (or attempt), skip preflight for this long
+  DateTime?
+      _lastRefreshAttemptAt; // throttle preflight immediately after an attempt
+  final Duration _postRefreshCooldown = const Duration(
+      seconds:
+          60); // after a refresh (or attempt), skip preflight for this long
 
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
@@ -163,7 +166,8 @@ class ApiClient {
 
     // Normalize backend version-enforcement (426) to a friendly notification
     dio.interceptors.add(InterceptorsWrapper(
-      onResponse: (Response response, ResponseInterceptorHandler handler) async {
+      onResponse:
+          (Response response, ResponseInterceptorHandler handler) async {
         if (response.statusCode == 426) {
           try {
             final data = response.data;
@@ -333,7 +337,8 @@ class ApiClient {
     if (_refreshBackoffUntil != null && now.isBefore(_refreshBackoffUntil!)) {
       return; // skip refresh during backoff
     }
-    if (_lastRefreshAttemptAt != null && now.difference(_lastRefreshAttemptAt!) < _postRefreshCooldown) {
+    if (_lastRefreshAttemptAt != null &&
+        now.difference(_lastRefreshAttemptAt!) < _postRefreshCooldown) {
       return; // skip if a refresh was just attempted recently
     }
     // If there is no refresh cookie, skip refresh attempts
@@ -497,12 +502,16 @@ class _TokenRefreshInterceptor extends Interceptor {
         return handler.reject(err);
       }
       // Do not try refresh logic on login/refresh endpoints themselves
-      if (pathLower.contains('/token/refresh/') || pathLower.endsWith('/token/') || pathLower.contains('/token?') || pathLower.contains('/token\u0026')) {
+      if (pathLower.contains('/token/refresh/') ||
+          pathLower.endsWith('/token/') ||
+          pathLower.contains('/token?') ||
+          pathLower.contains('/token\u0026')) {
         return handler.reject(err);
       }
-      final detail = (response?.data is Map && (response!.data)['detail'] is String)
-          ? (response.data)['detail'] as String
-          : '';
+      final detail =
+          (response?.data is Map && (response!.data)['detail'] is String)
+              ? (response.data)['detail'] as String
+              : '';
       if (detail.contains('Authentication credentials were not provided')) {
         // Already unauthenticated; do not force-logout again or retry
         return handler.reject(err);

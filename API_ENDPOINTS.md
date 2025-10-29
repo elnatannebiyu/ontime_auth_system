@@ -150,6 +150,59 @@
 - **Auth:** Required (Admin)
 - **Response:** 204 No Content
 
+## Shorts Endpoints
+
+These endpoints surface recent "shorts" playlists per channel with tenant awareness and optional deterministic ordering.
+
+### 25. List Recent Shorts Playlists
+- **GET** `/api/channels/shorts/playlists/`
+- **Auth:** Required
+- **Headers:**
+  - `X-Tenant-Id: ontime`
+  - `Authorization: Bearer <ACCESS>`
+- **Query Params:**
+  - `updated_since` (ISO8601, optional) — default: now - 30 days
+  - `days` (int, optional) — alternative to updated_since; default 30
+  - `limit` (int, optional) — default 100
+  - `offset` (int, optional) — default 0
+  - `per_channel_limit` (int, optional) — default 5
+  - `channel` (slug, optional) — filter by channel slug
+- **Notes:**
+  - Playlists are tenant-filtered and active-only.
+  - Recency is based on latest video publish time, falling back to `last_synced_at`.
+- **Response:**
+  - Paginated payload with `results` of PlaylistSerializer fields.
+- **Example:**
+```bash
+curl -sS "http://localhost:8000/api/channels/shorts/playlists/?limit=50&per_channel_limit=5&days=30" \
+  -H "Authorization: Bearer $ACCESS" \
+  -H "X-Tenant-Id: ontime"
+```
+
+### 26. Get Shorts Feed (Deterministic Shuffle)
+- **GET** `/api/channels/shorts/feed/`
+- **Auth:** Required
+- **Headers:**
+  - `X-Tenant-Id: ontime`
+  - `Authorization: Bearer <ACCESS>`
+  - `X-Device-Id` (optional) — used as seed source if `seed` not provided
+- **Query Params:**
+  - `updated_since` (ISO8601, optional) — default: now - 30 days
+  - `days` (int, optional) — alternative to updated_since; default 30
+  - `limit` (int, optional) — default 100
+  - `per_channel_limit` (int, optional) — default 5
+  - `channel` (slug, optional)
+  - `seed` (string, optional) — overrides deterministic seed
+  - `recent_bias_count` (int, optional) — number of top recent items to keep before shuffling remainder; default 20
+- **Response:**
+  - `{ count, results: [{ channel, playlist_id, title, updated_at, items_count }], seed_source }`
+- **Example (seeded):**
+```bash
+curl -sS "http://localhost:8000/api/channels/shorts/feed/?limit=50&per_channel_limit=5&days=30&seed=test-seed" \
+  -H "Authorization: Bearer $ACCESS" \
+  -H "X-Tenant-Id: ontime"
+```
+
 ## Admin Endpoints
 
 ### 25. Admin Only

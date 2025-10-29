@@ -45,7 +45,8 @@ class FcmManager {
       final pkg = await PackageInfo.fromPlatform();
       final deviceId = await DeviceInfoService.getDeviceId();
       final deviceName = await DeviceInfoService.getDeviceName();
-      final deviceType = Platform.isIOS ? 'ios' : (Platform.isAndroid ? 'android' : 'web');
+      final deviceType =
+          Platform.isIOS ? 'ios' : (Platform.isAndroid ? 'android' : 'web');
       final appVersion = pkg.version;
       await ApiClient().post('/user-sessions/register-device/', data: {
         'device_id': deviceId,
@@ -85,7 +86,8 @@ class FcmManager {
 
   Future<void> _showLocalNotification(String title, String body,
       {String? payload}) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
       _androidChannelId,
       _androidChannelName,
       channelDescription: _androidChannelDesc,
@@ -122,7 +124,8 @@ class FcmManager {
     } catch (_) {}
   }
 
-  Future<void> initialize({BuildContext? context, bool requestPermissions = false}) async {
+  Future<void> initialize(
+      {BuildContext? context, bool requestPermissions = false}) async {
     if (!Platform.isAndroid && !Platform.isIOS) return; // Mobile only
     if (_initialized) return;
 
@@ -147,7 +150,7 @@ class FcmManager {
       // Obtain the FCM token
       final token = await FirebaseMessaging.instance.getToken();
       if (kDebugMode) {
-        debugPrint('FCM token: ' + (token ?? 'null'));
+        debugPrint('FCM token: ${token ?? 'null'}');
       }
       if (token != null && token.isNotEmpty) {
         try {
@@ -160,7 +163,7 @@ class FcmManager {
 
       // Listen for token refresh
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        if (kDebugMode) debugPrint('FCM token refreshed: ' + newToken);
+        if (kDebugMode) debugPrint('FCM token refreshed: $newToken');
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_kTokenKey, newToken);

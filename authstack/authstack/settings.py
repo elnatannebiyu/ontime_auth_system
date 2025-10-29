@@ -75,12 +75,18 @@ DATABASES = {
 }
 
 # Celery configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/2')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/2')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = os.environ.get('CELERY_TIMEZONE', 'Africa/Addis_Ababa')
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'global_keyprefix': os.environ.get('CELERY_KEY_PREFIX', 'celery-shorts:')
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    'global_keyprefix': os.environ.get('CELERY_KEY_PREFIX', 'celery-shorts:')
+}
 
 # Celery Beat schedule
 from celery.schedules import crontab  # type: ignore
@@ -88,6 +94,10 @@ CELERY_BEAT_SCHEDULE = {
     'dispatch-due-notifications': {
         'task': 'onchannels.tasks.dispatch_due_notifications',
         'schedule': 60.0,  # every minute
+    },
+    'evict-shorts-low-water': {
+        'task': 'onchannels.tasks.evict_shorts_low_water',
+        'schedule': 60.0 * 15,  # every 15 minutes
     },
 }
 
@@ -133,7 +143,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', '/srv/media/short/videos')
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email settings

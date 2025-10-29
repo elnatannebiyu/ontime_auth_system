@@ -19,6 +19,7 @@ import '../api_client.dart';
 import '../core/cache/channel_cache.dart';
 import '../live/live_page.dart';
 import '../core/notifications/notification_permission_manager.dart';
+import '../shorts/shorts_page.dart';
 
 // Overflow menu actions for Home AppBar
 enum _HomeMenuAction { profile, settings, about, switchLanguage }
@@ -218,7 +219,6 @@ class _HomePageState extends State<HomePage> {
                 Tab(text: _t('for_you')),
                 Tab(text: _t('Shows')),
                 Tab(text: _t('Live')),
-                Tab(text: _t('Radio')),
                 Tab(text: _t('Shorts')),
               ],
             ),
@@ -324,7 +324,7 @@ class _HomePageState extends State<HomePage> {
                 // Shows tab
                 SeriesShowsPage(api: widget.api, tenantId: widget.tenantId),
                 const LivePage(),
-                _buildPlaceholderTab(context, _t('kids')),
+                ShortsPage(api: widget.api, tenantId: widget.tenantId),
               ],
             ),
           ),

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local HLS Test Player</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; background: #0b0c0f; color: #e6e9ef; }
+    .row { margin-bottom: 12px; }
+    input[type=text] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2f3a; background: #111317; color: #e6e9ef; }
+    button { padding: 10px 14px; border-radius: 8px; border: 1px solid #3a3f4a; background: #1a73e8; color: white; cursor: pointer; }
+    button.secondary { background: #2a2f3a; }
+    video { width: 100%; max-width: 960px; background: black; border-radius: 10px; }
+    .hint { color: #98a2b3; font-size: 14px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <h1>Local HLS Test Player</h1>
+  <div class="row hint">Paste your HLS master URL. For local dev via Nginx on 8080, it looks like: http://127.0.0.1:8080/media/videos/shorts/ontime/&lt;job_id&gt;/master.m3u8</div>
+  <div class="row">
+    <input id="src" type="text" placeholder="http://127.0.0.1:8080/media/videos/shorts/ontime/<job_id>/master.m3u8" />
+  </div>
+  <div class="row">
+    <button id="load">Load</button>
+    <button id="play" class="secondary">Play/Pause</button>
+  </div>
+  <video id="video" controls playsinline></video>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const video = $('#video');
+    const input = $('#src');
+
+    function attach(src) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({lowLatencyMode: false});
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          video.play().catch(() => {});
+        });
+        window.hls = hls; // debug
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = src;
+        video.addEventListener('loadedmetadata', function () {
+          video.play().catch(() => {});
+        });
+      } else {
+        alert('HLS not supported in this browser. Try a recent Chrome/Safari/Edge.');
+      }
+    }
+
+    $('#load').addEventListener('click', () => {
+      const src = input.value.trim();
+      if (!src) { alert('Enter an HLS URL'); return; }
+      attach(src);
+    });
+
+    $('#play').addEventListener('click', () => {
+      if (video.paused) video.play(); else video.pause();
+    });
+
+    // Optional: prefill from query ?src=
+    const params = new URLSearchParams(location.search);
+    if (params.get('src')) {
+      input.value = params.get('src');
+      attach(input.value);
+    }
+  </script>
+</body>
+</html>

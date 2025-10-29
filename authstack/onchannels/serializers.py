@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Channel, Playlist, Video
+from .models import Channel, Playlist, Video, ShortJob
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -74,6 +74,32 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "channel_logo_url",
         ]
         read_only_fields = ("last_synced_at",)
+
+
+class ShortJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShortJob
+        fields = [
+            'id', 'tenant', 'requested_by', 'source_url', 'status', 'error_message', 'retry_count',
+            'artifact_prefix', 'ladder_profile', 'duration_seconds', 'reserved_bytes', 'used_bytes',
+            'hls_master_url', 'content_class', 'created_at', 'updated_at'
+        ]
+        read_only_fields = (
+            'id', 'tenant', 'requested_by', 'status', 'error_message', 'retry_count',
+            'artifact_prefix', 'duration_seconds', 'reserved_bytes', 'used_bytes',
+            'hls_master_url', 'created_at', 'updated_at'
+        )
+
+
+class CreateShortJobSerializer(serializers.Serializer):
+    source_url = serializers.CharField()
+    ladder_profile = serializers.ChoiceField(choices=[('shorts_v1', 'shorts_v1'), ('shorts_premium', 'shorts_premium')], required=False, default='shorts_v1')
+    content_class = serializers.ChoiceField(choices=[
+        (ShortJob.CLASS_NORMAL, 'normal'),
+        (ShortJob.CLASS_PREFERRED, 'preferred'),
+        (ShortJob.CLASS_PINNED, 'pinned'),
+        (ShortJob.CLASS_EPHEMERAL, 'ephemeral'),
+    ], required=False, default=ShortJob.CLASS_NORMAL)
 
     def get_channel_logo_url(self, obj: Playlist) -> str:
         path = f"/api/channels/{obj.channel.id_slug}/logo/"
