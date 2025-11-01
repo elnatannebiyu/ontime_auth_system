@@ -47,10 +47,16 @@ import hashlib
 import random
 import hmac
 import base64
+from django.db import models
 from django.db.models import Max, F, Q
 
-from .models import Channel, Playlist, Video, ShortJob
-from .serializers import ChannelSerializer, PlaylistSerializer, VideoSerializer, ShortJobSerializer, CreateShortJobSerializer
+from .models import Channel, Playlist, Video, ShortJob, ShortReaction, ShortComment
+from .serializers import (
+    ChannelSerializer, PlaylistSerializer, VideoSerializer,
+    ShortJobSerializer, CreateShortJobSerializer,
+    ShortReactionSerializer, ReactionSummarySerializer,
+    ShortCommentSerializer,
+)
 from . import youtube_api
 
 # Swagger imports guarded to avoid hard dependency in production where drf_yasg/pkg_resources may be unavailable
@@ -945,3 +951,251 @@ class ShortsBatchImportRecentView(APIView):
                 pass
             results.append({"video_id": vid, "job_id": str(job.id), "status": job.status, "deduped": False})
         return Response({"count": len(results), "results": results})
+
+
+class ShortsReadyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except Exception:
+            limit = 20
+        base = os.environ.get('MEDIA_PUBLIC_BASE', 'http://127.0.0.1:8080')
+        # Fetch latest READY jobs for tenant
+        jobs = (
+            ShortJob.objects.filter(tenant=tenant, status=ShortJob.STATUS_READY)
+            .order_by('-updated_at')[: max(1, min(limit, 100))]
+        )
+        out = []
+        for j in jobs:
+            rel = j.hls_master_url or ''
+            if rel and not rel.startswith('http'):
+                abs_url = f"{base}{rel}"
+            else:
+                abs_url = rel
+            # Try to enrich with title/channel from Video if available
+            title = ''
+            channel_name = ''
+            try:
+                vid = _yt_video_id_from_url(getattr(j, 'source_url', '') or '')
+                if vid:
+                    v = Video.objects.filter(video_id=vid).select_related('channel').first()
+                    if v:
+                        title = (getattr(v, 'title', '') or '')
+                        ch = getattr(v, 'channel', None)
+                        if ch:
+                            channel_name = getattr(ch, 'name_en', '') or getattr(ch, 'id_slug', '') or ''
+            except Exception:
+                pass
+            out.append({
+                "job_id": str(j.id),
+                "title": title,
+                "channel": channel_name,
+                "duration_seconds": int(getattr(j, 'duration_seconds', 0) or 0),
+                "absolute_hls": abs_url,
+                "updated_at": j.updated_at.isoformat() if getattr(j, 'updated_at', None) else None,
+            })
+        return Response(out)
+
+
+class ShortsReadyFeedView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            limit = int(request.query_params.get("limit", 50))
+            bias_count = int(request.query_params.get("recent_bias_count", 15))
+        except Exception:
+            limit, bias_count = 50, 15
+
+        base = os.environ.get('MEDIA_PUBLIC_BASE', 'http://127.0.0.1:8080')
+
+        jobs = (
+            ShortJob.objects.filter(tenant=tenant, status=ShortJob.STATUS_READY)
+            .order_by('-updated_at')[: max(1, min(limit * 3, 300))]
+        )
+        items = list(jobs)
+        head = items[:bias_count]
+        tail = items[bias_count:limit]
+
+        seed = request.query_params.get("seed") or request.headers.get("X-Device-Id") or str(getattr(request.user, "id", "0"))
+        import hashlib, random
+        seed_int = int.from_bytes(hashlib.sha256(seed.encode("utf-8")).digest(), "big")
+        rng = random.Random(seed_int)
+        rng.shuffle(tail)
+        ordered = head + tail
+
+        out = []
+        for j in ordered[:limit]:
+            rel = j.hls_master_url or ''
+            abs_url = f"{base}{rel}" if rel and not rel.startswith('http') else rel
+            # Enrich title/channel best-effort
+            title = ''
+            channel_name = ''
+            try:
+                vid = _yt_video_id_from_url(getattr(j, 'source_url', '') or '')
+                if vid:
+                    v = Video.objects.filter(video_id=vid).select_related('channel').first()
+                    if v:
+                        title = (getattr(v, 'title', '') or '')
+                        ch = getattr(v, 'channel', None)
+                        if ch:
+                            channel_name = getattr(ch, 'name_en', '') or getattr(ch, 'id_slug', '') or ''
+            except Exception:
+                pass
+            out.append({
+                "job_id": str(j.id),
+                "title": title,
+                "channel": channel_name,
+                "duration_seconds": int(getattr(j, 'duration_seconds', 0) or 0),
+                "absolute_hls": abs_url,
+                "updated_at": j.updated_at.isoformat() if getattr(j, 'updated_at', None) else None,
+            })
+        return Response({"count": len(out), "results": out, "seed_source": "device_or_user"})
+
+
+class ShortsReactionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id: str):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            job = ShortJob.objects.get(id=job_id, tenant=tenant)
+        except ShortJob.DoesNotExist:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        agg = job.reactions.values('value').order_by().annotate(c=models.Count('id'))
+        likes = next((x['c'] for x in agg if x['value'] == ShortReaction.LIKE), 0)
+        dislikes = next((x['c'] for x in agg if x['value'] == ShortReaction.DISLIKE), 0)
+        mine = job.reactions.filter(user=request.user).first()
+        mine_val = 'like' if getattr(mine, 'value', None) == ShortReaction.LIKE else ('dislike' if getattr(mine, 'value', None) == ShortReaction.DISLIKE else None)
+        return Response({"user": mine_val, "likes": likes, "dislikes": dislikes})
+
+    def post(self, request, job_id: str):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            job = ShortJob.objects.get(id=job_id, tenant=tenant)
+        except ShortJob.DoesNotExist:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        val = (request.data or {}).get('value')
+        if val not in ("like", "dislike", None):
+            return Response({"detail": "Invalid value"}, status=status.HTTP_400_BAD_REQUEST)
+        existing = ShortReaction.objects.filter(job=job, user=request.user).first()
+        if val is None:
+            if existing:
+                existing.delete()
+        else:
+            new_val = ShortReaction.LIKE if val == 'like' else ShortReaction.DISLIKE
+            if existing:
+                existing.value = new_val
+                existing.save(update_fields=['value', 'updated_at'])
+            else:
+                ShortReaction.objects.create(job=job, user=request.user, value=new_val)
+
+        # Return summary after update
+        agg = job.reactions.values('value').order_by().annotate(c=models.Count('id'))
+        likes = next((x['c'] for x in agg if x['value'] == ShortReaction.LIKE), 0)
+        dislikes = next((x['c'] for x in agg if x['value'] == ShortReaction.DISLIKE), 0)
+        mine = job.reactions.filter(user=request.user).first()
+        mine_val = 'like' if getattr(mine, 'value', None) == ShortReaction.LIKE else ('dislike' if getattr(mine, 'value', None) == ShortReaction.DISLIKE else None)
+        return Response({"user": mine_val, "likes": likes, "dislikes": dislikes})
+
+
+class ShortsCommentsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id: str):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            job = ShortJob.objects.get(id=job_id, tenant=tenant)
+        except ShortJob.DoesNotExist:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            limit = int(request.query_params.get('limit', 20))
+            offset = int(request.query_params.get('offset', 0))
+        except Exception:
+            limit, offset = 20, 0
+        qs = job.comments.filter(is_deleted=False).select_related('user').order_by('-created_at')
+        total = qs.count()
+        page = qs[offset: offset + max(1, min(limit, 100))]
+        ser = ShortCommentSerializer(page, many=True)
+        return Response({"count": total, "results": ser.data})
+
+    def post(self, request, job_id: str):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            job = ShortJob.objects.get(id=job_id, tenant=tenant)
+        except ShortJob.DoesNotExist:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        text = (request.data or {}).get('text', '')
+        if not text or not isinstance(text, str):
+            return Response({"detail": "Text is required"}, status=status.HTTP_400_BAD_REQUEST)
+        obj = ShortComment.objects.create(job=job, user=request.user, text=text)
+        return Response(ShortCommentSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class ShortsCommentDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, comment_id: str):
+        try:
+            obj = ShortComment.objects.select_related('user', 'job').get(id=comment_id)
+        except ShortComment.DoesNotExist:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        if obj.job.tenant != tenant:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        if obj.user_id != request.user.id and not request.user.is_staff:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        if not obj.is_deleted:
+            obj.is_deleted = True
+            obj.save(update_fields=['is_deleted', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ShortsSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        q = (request.query_params.get('q') or '').strip()
+        try:
+            limit = int(request.query_params.get('limit', 30))
+        except Exception:
+            limit = 30
+        if not q:
+            return Response({"count": 0, "results": []})
+        vids = (
+            Video.objects.select_related('channel')
+            .filter(
+                Q(channel__tenant=tenant),
+                Q(title__icontains=q) | Q(channel__name_en__icontains=q) | Q(channel__id_slug__icontains=q)
+            )
+            .order_by('-published_at')[: max(1, min(limit, 100))]
+        )
+        base = os.environ.get('MEDIA_PUBLIC_BASE', 'http://127.0.0.1:8080')
+        results = []
+        for v in vids:
+            # Find a READY short for this video_id
+            sj = (
+                ShortJob.objects.filter(tenant=tenant, status=ShortJob.STATUS_READY, source_url__icontains=v.video_id)
+                .order_by('-updated_at')
+                .first()
+            )
+            if not sj:
+                continue
+            rel = sj.hls_master_url or ''
+            abs_url = f"{base}{rel}" if rel and not rel.startswith('http') else rel
+            results.append({
+                "job_id": str(sj.id),
+                "title": v.title or '',
+                "channel": getattr(v.channel, 'name_en', '') or getattr(v.channel, 'id_slug', ''),
+                "duration_seconds": int(getattr(sj, 'duration_seconds', 0) or 0),
+                "absolute_hls": abs_url,
+                "updated_at": sj.updated_at.isoformat() if getattr(sj, 'updated_at', None) else None,
+            })
+        return Response(results)

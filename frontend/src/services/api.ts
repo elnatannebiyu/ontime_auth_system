@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const apiBase = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api`;
+// Use relative base to leverage Vite proxy in dev (see vite.config.ts)
+const apiBase = "/api";
 const TENANT_ID: string = (import.meta as any).env?.VITE_TENANT_ID || "ontime";
 
 const api = axios.create({
@@ -8,8 +9,13 @@ const api = axios.create({
   withCredentials: true,
 });
 
-let accessToken: string | null = null;
-export const setAccessToken = (t: string | null) => { accessToken = t; };
+const ACCESS_KEY = "admin_fe_access";
+let accessToken: string | null = sessionStorage.getItem(ACCESS_KEY);
+export const setAccessToken = (t: string | null) => {
+  accessToken = t;
+  if (t) sessionStorage.setItem(ACCESS_KEY, t);
+  else sessionStorage.removeItem(ACCESS_KEY);
+};
 export const getAccessToken = () => accessToken;
 
 api.interceptors.request.use((config) => {

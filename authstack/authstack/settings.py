@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from datetime import timedelta
+from corsheaders.defaults import default_headers, default_methods
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-change-this-in-production-@#$%^&*()"
@@ -192,6 +193,14 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
 ]
+
+# Allow custom headers used by the admin frontend
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-tenant-id',
+    'x-admin-login',
+]
+# Methods (use defaults, but make explicit for clarity)
+CORS_ALLOW_METHODS = list(default_methods)
 
 # SimpleJWT
 SIMPLE_JWT = {

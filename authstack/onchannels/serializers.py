@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Channel, Playlist, Video, ShortJob
+from .models import Channel, Playlist, Video, ShortJob, ShortReaction, ShortComment
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -74,6 +74,36 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "channel_logo_url",
         ]
         read_only_fields = ("last_synced_at",)
+
+
+class ShortReactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShortReaction
+        fields = [
+            'id', 'job', 'user', 'value', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('id', 'user', 'created_at', 'updated_at')
+
+
+class ReactionSummarySerializer(serializers.Serializer):
+    user = serializers.ChoiceField(choices=['like', 'dislike', None], allow_null=True)
+    likes = serializers.IntegerField()
+    dislikes = serializers.IntegerField()
+
+
+class ShortCommentSerializer(serializers.ModelSerializer):
+    user_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShortComment
+        fields = [
+            'id', 'job', 'user', 'user_display', 'text', 'is_deleted', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('id', 'user', 'is_deleted', 'created_at', 'updated_at')
+
+    def get_user_display(self, obj):
+        u = obj.user
+        return getattr(u, 'username', None) or getattr(u, 'email', None) or str(getattr(u, 'id', ''))
 
 
 class ShortJobSerializer(serializers.ModelSerializer):

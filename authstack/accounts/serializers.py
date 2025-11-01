@@ -19,6 +19,7 @@ class MeSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
+            "is_staff",
             "roles",          # global groups
             "tenant_roles",   # per-tenant roles from Membership
             "permissions",

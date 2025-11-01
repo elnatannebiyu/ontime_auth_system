@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import RequireAdmin from './components/RequireAdmin';
 import { getAccessToken } from './services/api';
 
 const theme = createTheme({
@@ -44,7 +45,11 @@ function App() {
           />
           <Route 
             path="/dashboard" 
-            element={<Dashboard />} 
+            element={
+              <RequireAdmin>
+                <Dashboard />
+              </RequireAdmin>
+            } 
           />
           <Route 
             path="/" 

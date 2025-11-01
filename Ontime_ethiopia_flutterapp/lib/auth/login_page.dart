@@ -116,6 +116,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
@@ -132,8 +133,6 @@ class _LoginPageState extends State<LoginPage> {
         tenantId: widget.tenantId,
       );
 
-      // Verify login by checking user info
-      await widget.api.me();
       // Optionally show backend-provided first-login announcement (de-duped and saved to inbox)
       await _maybeShowFirstLoginAnnouncement();
 
@@ -143,7 +142,9 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // Register FCM token with backend now that we are authenticated
-      await FcmManager().ensureRegisteredWithBackend();
+      try {
+        await FcmManager().ensureRegisteredWithBackend();
+      } catch (_) {}
 
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);

@@ -83,6 +83,11 @@ Goal: Ingest permitted YouTube Shorts, transcode to HLS, store locally first (ex
 
 Status: Verified end-to-end on macOS dev. Ingested OfZ-x7dxnlA → READY (73s). HLS served via local Nginx at `/media/videos/shorts/ontime/<job_id>/master.m3u8`.
 
+Next Up (checkpoint)
+- [ ] Implement auto-download scheduler (imports) and Celery beat
+- [ ] Admin frontend to manage shorts (playlists, queue N, monitor READY, scheduler controls)
+- [ ] Optional Flutter polish: comment count badge, error toasts
+
 ## 5) Storage Strategy
 - [ ] Local-first: `MEDIA_ROOT` (`/srv/media/short/videos`) hosts `shorts/{tenant}/{job_id}/...`; Nginx serves `/media/` publicly (no signed URLs for now)
 - [ ] Keep path stable even if you move pools; use per-short directory fan-out
@@ -134,9 +139,16 @@ Status: Verified end-to-end on macOS dev. Ingested OfZ-x7dxnlA → READY (73s). 
 - [ ] YouTube/Platform compliance: ingest only permitted content
 
 ## 11) App Integration
-- [ ] Player consumes our HLS master URL
+- [x] Player consumes our HLS master URL
+- [x] Flutter: Randomized READY feed endpoint wired
+- [x] Flutter: Reactions (like/dislike) wired to backend
+- [x] Flutter: Comments sheet (list/create/delete) wired to backend
 - [ ] Handle retiring/deleted gracefully (skip/notify)
 - [ ] Optional: pre-warm CDN for Pinned/Preferred content
+
+Flutter polish (optional)
+- [ ] Show total comments count on button
+- [ ] Toast errors for reaction/comment failures
 
 ## 12) Testing
 - [ ] Unit tests: admission control, reservation conversion, ladder presets
@@ -167,6 +179,43 @@ Status Update (2025-10-29)
 - [x] Celery broker/result: Redis at `redis://localhost:6379/2` with key prefix `celery-shorts:*`
 - [ ] Nginx location `/media/` alias to `MEDIA_ROOT` parent (`/srv/media/short/`); HLS MIME types + CORS/cache
 - [ ] Optional: Storage provider configs for S3/MinIO if enabled later
+
+## 14) App Social/Search — Backend
+- [ ] Save/Bookmark (deferred)
+- [ ] Search UI wiring (Flutter) — after backend
+
+Backend endpoints (DRF):
+- [x] Reactions (like/dislike): models, views, URLs
+- [x] Comments CRUD: models, views, URLs
+- [x] Search READY shorts: view, URL
+- [ ] Tests for the above
+
+## 15) Scheduler (Auto-Download & Maintenance)
+- [ ] Implement `schedule_shorts_imports(tenant, target_ready, per_channel_limit)`
+  - [ ] Use active `is_shorts=True` and `is_active=True` playlists as sources
+  - [ ] Dedupe against existing READY/IN-PROGRESS jobs
+  - [ ] Respect capacity checks and duration caps
+- [ ] Celery beat: run imports every 10 minutes (configurable)
+- [ ] Celery beat: schedule low-water eviction periodically (e.g., every 15 minutes)
+ - [ ] Decide: Target READY pool size (e.g., 200)
+ - [ ] Decide: Per-playlist import limit per run (e.g., 10)
+ - [ ] Decide: Beat frequency for imports (e.g., every 10 min)
+
+## 16) Admin Frontend (/frontend)
+- [ ] Shorts dashboard
+  - [ ] READY/QUEUED/FAILED counts, disk usage, metrics.json surface
+  - [ ] List playlists (is_shorts & active), per-playlist "Queue latest N" action
+  - [ ] Global "Queue latest N per active playlist" action
+  - [ ] Scheduler controls: target_ready, per_playlist_limit, run-now
+  - [ ] Eviction run-now button and thresholds view
+- [ ] Job list views
+  - [ ] Queued/Failed tables with retry action
+  - [ ] READY list with play/open HLS
+- [ ] Auth/permissions: admin-only access
+
+Actions required:
+- [ ] Run migrations: `python manage.py makemigrations onchannels && python manage.py migrate`
+- [ ] Add API tests (pytest) for reactions/comments/search
 
 Yt-dlp/ffmpeg runtime:
 - [x] Default yt-dlp client/headers: `--extractor-args youtube:player_client=android`, Android UA, and `Referer: https://www.youtube.com`

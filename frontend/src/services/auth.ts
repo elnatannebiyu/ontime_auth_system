@@ -6,12 +6,17 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  is_staff: boolean;
   roles: string[];
   permissions: string[];
 }
 
 export const login = async (username: string, password: string) => {
-  const { data } = await api.post("/token/", { username, password });
+  const { data } = await api.post(
+    "/token/",
+    { username, password },
+    { headers: { "X-Admin-Login": "1" } }
+  );
   setAccessToken(data.access);
   return data;
 };

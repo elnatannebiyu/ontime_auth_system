@@ -192,23 +192,34 @@ class _HomePageState extends State<HomePage> {
       builder: (_, __) => DefaultTabController(
         length: 4,
         child: Scaffold(
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () {
-              // Open full player directly (Option A)
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PlayerPage(
-                    api: widget.api,
-                    tenantId: widget.tenantId,
-                    episodeId: 31, // TODO: replace with real live episode id
-                    seasonId: null,
-                    title: 'Live',
-                  ),
-                ),
+          floatingActionButton: Builder(
+            builder: (ctx) {
+              final tc = DefaultTabController.of(ctx);
+              return AnimatedBuilder(
+                animation: tc,
+                builder: (_, __) {
+                  final onShorts = tc.index == 3; // Shorts tab
+                  if (onShorts) return const SizedBox.shrink();
+                  return FloatingActionButton.extended(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => PlayerPage(
+                            api: widget.api,
+                            tenantId: widget.tenantId,
+                            episodeId: 31,
+                            seasonId: null,
+                            title: 'Live',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.live_tv),
+                    label: Text(_t('go_live')),
+                  );
+                },
               );
             },
-            icon: const Icon(Icons.live_tv),
-            label: Text(_t('go_live')),
           ),
           appBar: AppBar(
             title: const BrandTitle(),
@@ -438,13 +449,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildPlaceholderTab(BuildContext context, String title) {
-    return Center(
-      child: Text('$title — ${_t('coming_soon')}',
-          style: Theme.of(context).textTheme.titleMedium),
     );
   }
 }

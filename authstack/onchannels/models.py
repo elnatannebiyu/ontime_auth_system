@@ -239,3 +239,36 @@ class ShortJob(models.Model):
 
     def __str__(self) -> str:
         return f"ShortJob {self.id} [{self.status}]"
+
+
+class ShortReaction(models.Model):
+    LIKE = 1
+    DISLIKE = -1
+
+    job = models.ForeignKey(ShortJob, on_delete=models.CASCADE, related_name='reactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='short_reactions')
+    value = models.SmallIntegerField(choices=((LIKE, 'like'), (DISLIKE, 'dislike')))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('job', 'user'),)
+        indexes = [
+            models.Index(fields=['job', 'user']),
+            models.Index(fields=['job', 'value']),
+        ]
+
+
+class ShortComment(models.Model):
+    job = models.ForeignKey(ShortJob, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='short_comments')
+    text = models.TextField()
+    is_deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['job', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+        ]

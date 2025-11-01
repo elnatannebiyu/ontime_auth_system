@@ -3,7 +3,8 @@ from django.urls import path
 from .views import (
     ChannelViewSet, PlaylistViewSet, VideoViewSet,
     ShortsPlaylistsView, ShortsFeedView,
-    ShortImportView, ShortImportStatusView, ShortImportRetryView, ShortImportPreviewView, ShortsBatchImportRecentView,
+    ShortImportView, ShortImportStatusView, ShortImportRetryView, ShortImportPreviewView, ShortsBatchImportRecentView, ShortsReadyView, ShortsReadyFeedView,
+    ShortsReactionView, ShortsCommentsView, ShortsCommentDetailView, ShortsSearchView,
     AdminShortsMetricsView,
 )
 from .admin_views import AdminShortsMetricsHtmlView
@@ -33,6 +34,13 @@ urlpatterns = [
     path('shorts/import/<uuid:job_id>/preview/', ShortImportPreviewView.as_view(), name='shorts_import_preview'),
     path('shorts/import/<uuid:job_id>/retry/', ShortImportRetryView.as_view(), name='shorts_import_retry'),
     path('shorts/import/batch/recent/', ShortsBatchImportRecentView.as_view(), name='shorts_import_batch_recent'),
+    path('shorts/ready/', ShortsReadyView.as_view(), name='shorts_ready'),
+    path('shorts/ready/feed/', ShortsReadyFeedView.as_view(), name='shorts_ready_feed'),
+    # Shorts social/search
+    path('shorts/<uuid:job_id>/reaction/', ShortsReactionView.as_view(), name='shorts_reaction'),
+    path('shorts/<uuid:job_id>/comments/', ShortsCommentsView.as_view(), name='shorts_comments'),
+    path('shorts/comments/<int:comment_id>/', ShortsCommentDetailView.as_view(), name='shorts_comment_detail'),
+    path('shorts/search/', ShortsSearchView.as_view(), name='shorts_search'),
     # Admin metrics (staff only)
     path('shorts/admin/metrics/', AdminShortsMetricsView.as_view(), name='shorts_admin_metrics'),
     path('shorts/admin/metrics/html/', AdminShortsMetricsHtmlView.as_view(), name='shorts_admin_metrics_html'),
