@@ -77,10 +77,18 @@ class _HomePageState extends State<HomePage> {
     });
     try {
       widget.api.setTenant(widget.tenantId);
-      final me = await widget.api.me();
-      setState(() {
-        _me = me;
-      });
+      // Prefer a fresh cached me to avoid duplicate call right after login/register
+      final cached = ApiClient().getFreshMe();
+      if (cached != null) {
+        setState(() {
+          _me = cached;
+        });
+      } else {
+        final me = await widget.api.me();
+        setState(() {
+          _me = me;
+        });
+      }
       // Load channel preview for bubbles (non-blocking for rest of UI)
       unawaited(_loadChannelBubbles());
     } catch (e) {

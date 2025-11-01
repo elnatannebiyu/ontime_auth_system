@@ -74,6 +74,10 @@ class ApiClient {
       seconds:
           60); // after a refresh (or attempt), skip preflight for this long
 
+  // Short-lived cache for current-user payload to avoid double fetching
+  Map<String, dynamic>? _lastMe;
+  DateTime? _lastMeAt;
+
   static final ApiClient _singleton = ApiClient._internal();
   factory ApiClient() => _singleton;
 
@@ -240,6 +244,18 @@ class ApiClient {
   }
 
   String? get tenant => _tenantSlug;
+
+  // --- Me cache helpers ---
+  void setLastMe(Map<String, dynamic> me) {
+    _lastMe = Map<String, dynamic>.from(me);
+    _lastMeAt = DateTime.now();
+  }
+
+  Map<String, dynamic>? getFreshMe({Duration ttl = const Duration(seconds: 5)}) {
+    if (_lastMe == null || _lastMeAt == null) return null;
+    if (DateTime.now().difference(_lastMeAt!) > ttl) return null;
+    return Map<String, dynamic>.from(_lastMe!);
+  }
 
   /// Register a callback invoked when we must force logout (e.g., missing refresh cookie or session revoked)
   void setForceLogoutHandler(void Function()? handler) {

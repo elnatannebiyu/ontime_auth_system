@@ -69,7 +69,9 @@ class _RegisterPageState extends State<RegisterPage> {
       }
       // Post-register guard: ensure membership/access to tenant
       try {
-        await widget.api.me();
+        final me = await widget.api.me();
+        // Seed short-lived cache to prevent immediate re-fetch on Home
+        ApiClient().setLastMe(me);
         if (mounted) {
           await NotificationPermissionManager().ensurePermissionFlow(context);
         }

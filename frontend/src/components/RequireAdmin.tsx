@@ -1,17 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getCurrentUser, User } from '../services/auth';
+import { getCurrentUser, User, refreshToken } from '../services/auth';
+import { getAccessToken, isLoggedOut } from '../services/api';
 import { Box, CircularProgress } from '@mui/material';
+
+// Module-level guard to avoid multiple redirects in rapid remounts
+let redirecting = false;
 
 const RequireAdmin: React.FC<{ children: React.ReactElement }>
   = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const triedRefresh = useRef(false);
   const location = useLocation();
 
   useEffect(() => {
     let mounted = true;
     const run = async () => {
+      try {
+        const hasAccess = !!getAccessToken();
+        console.debug('[guard] start', { hasAccess, loggedOut: isLoggedOut() });
+        if (!hasAccess) {
+          if (isLoggedOut()) {
+            console.debug('[guard] no access and loggedOut=true -> redirect');
+            if (mounted && !redirecting) {
+              redirecting = true;
+              setAllowed(false);
+              setLoading(false);
+              setShouldRedirect(true);
+            }
+            return;
+          }
+          if (!triedRefresh.current) {
+            triedRefresh.current = true;
+            try {
+              console.debug('[guard] no access -> try single refresh');
+              await refreshToken();
+            } catch (e) {
+              console.debug('[guard] refresh failed without access');
+            }
+          }
+        }
+      } catch {}
       try {
         const me: User = await getCurrentUser();
         // Require AdminFrontend group membership for admin FE
@@ -22,14 +53,39 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
           setLoading(false);
         }
       } catch (e: any) {
-        if (mounted) {
+        // On 401, try a single refresh, then retry /me
+        if (!triedRefresh.current) {
+          triedRefresh.current = true;
+          try {
+            if (isLoggedOut()) {
+              console.debug('[guard] loggedOut=true -> skip refresh on 401');
+              throw new Error('skip refresh due to loggedOut');
+            }
+            console.debug('[guard] 401 -> try refresh once');
+            await refreshToken();
+            const me: User = await getCurrentUser();
+            const roles = me.roles || [];
+            const ok = roles.includes('AdminFrontend');
+            if (mounted) {
+              setAllowed(ok);
+              setLoading(false);
+            }
+            return;
+          } catch (_) {
+            // fall through to redirect
+            console.debug('[guard] refresh failed after 401 -> redirect');
+          }
+        }
+        if (mounted && !redirecting) {
+          redirecting = true;
           setAllowed(false);
           setLoading(false);
+          setShouldRedirect(true);
         }
       }
     };
     run();
-    return () => { mounted = false; };
+    return () => { mounted = false; redirecting = false; };
   }, []);
 
   if (loading) {
@@ -40,9 +96,7 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
     );
   }
 
-  if (!allowed) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+  if (!allowed && shouldRedirect) return <Navigate to="/login" state={{ from: location }} replace />;
 
   return children;
 };

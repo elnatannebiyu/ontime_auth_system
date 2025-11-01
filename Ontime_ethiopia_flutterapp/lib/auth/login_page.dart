@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
@@ -41,6 +42,7 @@ class _LoginPageState extends State<LoginPage> {
   final _password = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
+  bool _inFlight = false; // guard against double submits
   String? _error;
 // deprecated in minimal UI (kept for potential future use)
 
@@ -60,6 +62,10 @@ class _LoginPageState extends State<LoginPage> {
         final data = me.data;
         if (data is Map && data['id'] is int) {
           userId = data['id'] as int;
+        }
+        // Seed short-lived cache to avoid immediate re-fetch on Home
+        if (data is Map<String, dynamic>) {
+          ApiClient().setLastMe(data);
         }
       } catch (_) {}
       final res = await ApiClient().get('/channels/announcements/first-login/');
@@ -116,12 +122,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    if (_loading) return;
+    if (_loading || _inFlight) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+    _inFlight = true;
 
     try {
       final sessionManager = SimpleSessionManager();
@@ -136,9 +143,11 @@ class _LoginPageState extends State<LoginPage> {
       // Optionally show backend-provided first-login announcement (de-duped and saved to inbox)
       await _maybeShowFirstLoginAnnouncement();
 
-      // Ask for notifications permission with enterprise-grade flow
+      // Ask for notifications permission with enterprise-grade flow (do not fail login if this throws)
       if (mounted) {
-        await NotificationPermissionManager().ensurePermissionFlow(context);
+        try {
+          await NotificationPermissionManager().ensurePermissionFlow(context);
+        } catch (_) {}
       }
 
       // Register FCM token with backend now that we are authenticated
@@ -154,12 +163,16 @@ class _LoginPageState extends State<LoginPage> {
       final detail = (data is Map && data['detail'] != null)
           ? '${data['detail']}'
           : (e.message ?? '');
+      if (kDebugMode) {
+        debugPrint(
+            '[login] DioException code=$code detail=$detail data=${e.response?.data}');
+      }
       String uiMsg = 'Login failed';
       if (detail == 'password_auth_not_set') {
         uiMsg =
             'This account was created with Google. Use “Continue with Google” or set a password first.';
       } else if (detail ==
-          'No active account found with the given credentials') {
+          'No active account found with incal given credentials') {
         uiMsg = 'Incorrect email or password.';
       } else if (code == 403 &&
           detail.contains('Not a member of this tenant')) {
@@ -172,11 +185,15 @@ class _LoginPageState extends State<LoginPage> {
         _error = uiMsg;
       });
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[login] non-Dio error: $e');
+      }
       setState(() {
-        _error = 'Something went wrong. Please try again.';
+        _error = kDebugMode ? '$e' : 'Something went wrong. Please try again.';
       });
     } finally {
       if (mounted) setState(() => _loading = false);
+      _inFlight = false;
     }
   }
 

@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -78,7 +79,7 @@ class LoginThrottle(AnonRateThrottle):
     scope = 'login'
 
 class RegisterThrottle(AnonRateThrottle):
-    rate = '3/hour'
+    rate = '30/hour' if settings.DEBUG else '3/hour'
     scope = 'register'
 
 @method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='dispatch')
@@ -369,7 +370,8 @@ class UserWriteView(APIView):
         return Response({"ok": True, "action": "Would write something"})
 
 
-@method_decorator(ratelimit(key='ip', rate='3/h', method='POST'), name='dispatch')
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(ratelimit(key='ip', rate=('30/h' if settings.DEBUG else '3/h'), method='POST'), name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [RegisterThrottle]

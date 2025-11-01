@@ -90,11 +90,11 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             if admin_login:
                 # Admin login path requires user to be in AdminFrontend group
                 if not is_admin_fe:
-                    raise AuthenticationFailed('admin_frontend_required')
+                    raise AuthenticationFailed('invalid username and password')
             else:
                 # Non-admin login path: if user is AdminFrontend, disallow normal login
                 if is_admin_fe:
-                    raise AuthenticationFailed('admin_frontend_only')
+                    raise AuthenticationFailed('invalid username and password')
             
             # Generate device ID if not provided
             device_id = request.META.get('HTTP_X_DEVICE_ID', '')

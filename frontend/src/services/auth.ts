@@ -1,4 +1,4 @@
-import api, { setAccessToken } from "./api";
+import api, { setAccessToken, setLoggedOut } from "./api";
 
 export interface User {
   id: number;
@@ -18,6 +18,7 @@ export const login = async (username: string, password: string) => {
     { headers: { "X-Admin-Login": "1" } }
   );
   setAccessToken(data.access);
+  setLoggedOut(false);
   return data;
 };
 
@@ -28,6 +29,9 @@ export const logout = async () => {
     // Ignore logout errors - we're logging out anyway
   }
   setAccessToken(null);
+  // Notify app to update auth state
+  window.dispatchEvent(new Event('admin_fe_logout'));
+  setLoggedOut(true);
 };
 
 export const getCurrentUser = async (): Promise<User> => {
