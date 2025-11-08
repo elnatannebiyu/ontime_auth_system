@@ -3,6 +3,7 @@ Custom validators for enhanced security
 """
 import re
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from django.utils.translation import gettext as _
 
 
@@ -55,7 +56,7 @@ class CustomPasswordValidator:
 
 def validate_email_domain(email):
     """
-    Validate email domain is not from temporary email services
+    Validate email domain is allowed and not from temporary email services
     """
     blocked_domains = [
         'tempmail.com', 'throwaway.email', '10minutemail.com',
@@ -68,6 +69,14 @@ def validate_email_domain(email):
             _("Registration with temporary email addresses is not allowed."),
             code='temporary_email',
         )
+    # If allowlist configured, enforce it
+    allowed = getattr(settings, 'EMAIL_ALLOWED_DOMAINS', []) or []
+    if allowed:
+        if domain not in {d.lower() for d in allowed}:
+            raise ValidationError(
+                _("Only emails from allowed domains are accepted."),
+                code='email_domain_not_allowed',
+            )
 
 
 def sanitize_input(text):

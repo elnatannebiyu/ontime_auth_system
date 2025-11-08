@@ -14,7 +14,7 @@ import json
 from django.conf import settings
 import time
 
-from onchannels.models import ScheduledNotification, ShortJob
+from onchannels.models import ScheduledNotification, ShortJob, Video
 from user_sessions.models import Device
 from common.fcm_sender import send_to_token, send_to_topic
 
@@ -722,3 +722,57 @@ def evict_shorts_low_water(self) -> dict:
 
     logger.info("shorts.evict.done", extra={"evicted": evicted, "used_bytes": used_total, "low_water": low_water})
     return {"evicted": evicted, "used_bytes": used_total, "low_water": low_water}
+
+
+# Helper to select recent shorts and enqueue ingestion jobs
+
+def select_and_enqueue_recent_shorts(tenant: str, limit: int = 10) -> list[dict]:
+    try:
+        limit = max(1, min(int(limit), 50))
+    except Exception:
+        limit = 10
+    vids = (
+        Video.objects.select_related("playlist", "channel")
+        .filter(playlist__is_shorts=True, playlist__is_active=True, channel__tenant=tenant)
+        .order_by("-published_at", "-position")[: limit]
+    )
+    results: list[dict] = []
+    for v in vids:
+        vid = getattr(v, "video_id", None)
+        if not vid:
+            continue
+        source_url = f"https://youtu.be/{vid}"
+        base_qs = ShortJob.objects.filter(tenant=tenant).exclude(status=ShortJob.STATUS_DELETED)
+        existing_ready = base_qs.filter(status=ShortJob.STATUS_READY, source_url__icontains=vid).order_by("-updated_at").first()
+        if existing_ready:
+            results.append({"video_id": vid, "job_id": str(existing_ready.id), "status": existing_ready.status, "deduped": True})
+            continue
+        existing_inprog = base_qs.filter(
+            status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING],
+            source_url__icontains=vid,
+        ).order_by("-updated_at").first()
+        if existing_inprog:
+            results.append({"video_id": vid, "job_id": str(existing_inprog.id), "status": existing_inprog.status, "deduped": True})
+            continue
+        job = ShortJob.objects.create(
+            tenant=tenant,
+            requested_by=None,
+            source_url=source_url,
+            status=ShortJob.STATUS_QUEUED,
+            ladder_profile="shorts_v1",
+            content_class=getattr(ShortJob, "CLASS_EPHEMERAL", "ephemeral"),
+        )
+        job.artifact_prefix = f"shorts/{tenant}/{job.id}"
+        job.save(update_fields=["artifact_prefix", "updated_at"])
+        try:
+            process_short_job.delay(str(job.id))
+        except Exception:
+            pass
+        results.append({"video_id": vid, "job_id": str(job.id), "status": job.status, "deduped": False})
+    return results
+
+
+@shared_task(bind=True)
+def batch_import_recent_shorts(self, tenant: str = "ontime", limit: int = 10) -> dict:
+    results = select_and_enqueue_recent_shorts(tenant=tenant, limit=limit)
+    return {"tenant": tenant, "count": len(results), "results": results}

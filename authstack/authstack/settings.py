@@ -13,6 +13,14 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 # Allow classic username/password flows when True. Set to False to enforce social-only login.
 AUTH_ALLOW_PASSWORD = os.environ.get("AUTH_ALLOW_PASSWORD", "True").lower() in ("1", "true", "yes")
 
+# Comma-separated list of allowed email domains for email/password auth (registration and optional login)
+# Default to Gmail domains; set to empty to disable allowlist enforcement in validators
+EMAIL_ALLOWED_DOMAINS = [
+    d.strip().lower()
+    for d in os.environ.get("EMAIL_ALLOWED_DOMAINS", "gmail.com,googlemail.com").split(",")
+    if d.strip()
+]
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
