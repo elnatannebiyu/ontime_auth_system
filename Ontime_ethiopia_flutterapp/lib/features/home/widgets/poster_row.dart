@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 class PosterRow extends StatelessWidget {
   final int count;
   final bool tall;
-  const PosterRow({super.key, this.count = 8, this.tall = false});
+  final List<Map<String, dynamic>>? items;
+  final void Function(Map<String, dynamic>)? onTap;
+  const PosterRow({super.key, this.count = 8, this.tall = false, this.items, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -13,9 +15,20 @@ class PosterRow extends StatelessWidget {
       height: size.height + 32,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: count,
+        itemCount: (items?.length ?? 0) > 0 ? items!.length : count,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
+          if ((items?.length ?? 0) > 0) {
+            final m = items![i];
+            final title = (m['title'] ?? '').toString();
+            final cover = (m['cover_image'] ?? '').toString();
+            return _PosterTile(
+              size: size,
+              title: title,
+              imageUrl: cover,
+              onTap: () => onTap?.call(m),
+            );
+          }
           return _PosterTile(size: size, title: 'Title');
         },
       ),
@@ -26,7 +39,9 @@ class PosterRow extends StatelessWidget {
 class _PosterTile extends StatefulWidget {
   final Size size;
   final String title;
-  const _PosterTile({required this.size, required this.title});
+  final String? imageUrl;
+  final VoidCallback? onTap;
+  const _PosterTile({required this.size, required this.title, this.imageUrl, this.onTap});
 
   @override
   State<_PosterTile> createState() => _PosterTileState();
@@ -51,7 +66,10 @@ class _PosterTileState extends State<_PosterTile> {
               child: InkWell(
                 onTapDown: (_) => setState(() => _pressed = true),
                 onTapCancel: () => setState(() => _pressed = false),
-                onTap: () => setState(() => _pressed = false),
+                onTap: () {
+                  setState(() => _pressed = false);
+                  widget.onTap?.call();
+                },
                 borderRadius: BorderRadius.circular(12),
                 child: Ink(
                   width: widget.size.width,
@@ -70,7 +88,11 @@ class _PosterTileState extends State<_PosterTile> {
                     borderRadius: BorderRadius.circular(12),
                     child: Stack(
                       children: [
-                        Positioned.fill(child: Container(color: Colors.black26)),
+                        Positioned.fill(
+                          child: widget.imageUrl != null && widget.imageUrl!.isNotEmpty
+                              ? Image.network(widget.imageUrl!, fit: BoxFit.cover)
+                              : Container(color: Colors.black26),
+                        ),
                         Positioned.fill(
                           child: DecoratedBox(
                             decoration: BoxDecoration(

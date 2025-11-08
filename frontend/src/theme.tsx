@@ -24,7 +24,14 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [mode, setMode] = useState<Mode>(getInitialMode);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, mode); } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY, mode);
+    } catch {}
+    try {
+      const root = document.documentElement;
+      if (mode === 'dark') root.classList.add('dark');
+      else root.classList.remove('dark');
+    } catch {}
   }, [mode]);
 
   const theme = useMemo(() => createTheme({

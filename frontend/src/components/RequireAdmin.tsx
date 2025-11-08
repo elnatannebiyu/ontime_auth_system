@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getCurrentUser, User, refreshToken } from '../services/auth';
 import { getAccessToken, isLoggedOut } from '../services/api';
 import { Box, CircularProgress } from '@mui/material';
@@ -14,6 +14,8 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
   const [shouldRedirect, setShouldRedirect] = useState(false);
   const triedRefresh = useRef(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const redirected = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -88,6 +90,14 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
     return () => { mounted = false; redirecting = false; };
   }, []);
 
+  // Perform a single imperative redirect when requested
+  useEffect(() => {
+    if (shouldRedirect && !redirected.current) {
+      redirected.current = true;
+      navigate('/login', { replace: true, state: { from: location } });
+    }
+  }, [shouldRedirect, navigate, location]);
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
@@ -96,7 +106,7 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
     );
   }
 
-  if (!allowed && shouldRedirect) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!allowed && shouldRedirect) return null;
 
   return children;
 };

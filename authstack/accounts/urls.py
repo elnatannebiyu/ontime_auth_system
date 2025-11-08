@@ -7,11 +7,17 @@ from .views import (
     AdminOnlyView,
     UserWriteView,
     RegisterView,
+    AdminUsersView,
+    AdminUserDetailView,
+    AdminUserRolesView,
 )
 from .views_sessions import (
     SessionListView,
     SessionDetailView,
     RevokeAllSessionsView,
+    AdminSessionsStatsView,
+    AdminSessionsListView,
+    AdminSessionRevokeView,
 )
 from .views_social import (
     social_login_view,
@@ -30,6 +36,11 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("admin-only/", AdminOnlyView.as_view(), name="admin_only"),
     path("users/", UserWriteView.as_view(), name="users"),
+    # Tenant-scoped admin users management
+    path('admin/users/', AdminUsersView.as_view(), name='admin_users'),
+    path('admin/users/<int:user_id>/', AdminUserDetailView.as_view(), name='admin_user_detail'),
+    path('admin/users/<int:user_id>/roles/', AdminUserRolesView.as_view(), name='admin_user_roles_add'),
+    path('admin/users/<int:user_id>/roles/<str:role_name>/', AdminUserRolesView.as_view(), name='admin_user_roles_delete'),
     
     # Social authentication
     path('social/login/', social_login_view, name='social_login'),
@@ -46,4 +57,7 @@ urlpatterns = [
     path('sessions/', SessionListView.as_view(), name='session_list'),
     path('sessions/<uuid:session_id>/', SessionDetailView.as_view(), name='session_detail'),
     path('sessions/revoke-all/', RevokeAllSessionsView.as_view(), name='revoke_all_sessions'),
+    path('sessions/admin/stats/', AdminSessionsStatsView.as_view(), name='admin_sessions_stats'),
+    path('sessions/admin/list/', AdminSessionsListView.as_view(), name='admin_sessions_list'),
+    path('sessions/admin/revoke/<uuid:session_id>/', AdminSessionRevokeView.as_view(), name='admin_session_revoke'),
 ]

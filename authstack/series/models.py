@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from onchannels.models import Channel
+from django.core.validators import RegexValidator
 
 
 class Show(models.Model):
@@ -16,6 +17,9 @@ class Show(models.Model):
     tags = models.JSONField(default=list, blank=True)
     channel = models.ForeignKey(Channel, on_delete=models.PROTECT, related_name="shows")
     is_active = models.BooleanField(default=True)
+    # Structured categories (dynamic). Optional; existing shows unaffected until assigned.
+    # Defined below as ManyToMany to Category.
+    categories = models.ManyToManyField("Category", related_name="shows", blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -32,6 +36,41 @@ class Show(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.slug})"
+
+
+class Category(models.Model):
+    tenant = models.CharField(max_length=64, db_index=True, default="ontime")
+    name = models.CharField(max_length=128)
+    slug = models.SlugField(max_length=128)
+    # Hex color in #RRGGBB or #RRGGBBAA
+    color = models.CharField(
+        max_length=9,
+        blank=True,
+        validators=[
+            RegexValidator(
+                regex=r"^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+                message="Color must be a hex value like #RRGGBB or #RRGGBBAA",
+            )
+        ],
+        help_text="Hex color (#RRGGBB or #RRGGBBAA)",
+    )
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["display_order", "name"]
+        unique_together = (("tenant", "slug"),)
+        indexes = [
+            models.Index(fields=["tenant", "slug"]),
+            models.Index(fields=["tenant", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.slug})"
 
 
 class Season(models.Model):

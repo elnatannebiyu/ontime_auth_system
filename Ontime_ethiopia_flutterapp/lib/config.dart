@@ -13,7 +13,7 @@ const String kDefaultTenant = String.fromEnvironment(
 /// Prefer HTTPS + domain in real production.
 const String kDefaultApiBase = String.fromEnvironment(
   'API_BASE',
-  defaultValue: 'http://75.119.138.31:8000',
+  defaultValue: 'http://10.0.2.2:8000',
 );
 
 /// Toggle verbose request header logging. Keep false in production.

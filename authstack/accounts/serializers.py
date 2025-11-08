@@ -114,3 +114,38 @@ class RegistrationSerializer(serializers.Serializer):
         password = self.validated_data["password"]
         user = User.objects.create_user(username=email, email=email, password=password)
         return user
+
+
+class UserAdminSerializer(serializers.ModelSerializer):
+    groups = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+    tenant_roles = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined', 'groups', 'tenant_roles'
+        ]
+        read_only_fields = ['id', 'username', 'is_staff', 'is_superuser', 'last_login', 'date_joined', 'groups']
+
+    def validate_email(self, value):
+        v = (value or '').lower().strip()
+        if not v:
+            raise serializers.ValidationError('Email is required')
+        # Ensure unique across username/email
+        qs = User.objects.filter(Q(username__iexact=v) | Q(email__iexact=v))
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return v
+
+    def get_tenant_roles(self, obj):
+        request = getattr(self, 'context', {}).get('request') if hasattr(self, 'context') else None
+        tenant = getattr(request, 'tenant', None) if request is not None else None
+        if tenant is None:
+            return []
+        member = Membership.objects.filter(user=obj, tenant=tenant).first()
+        if not member:
+            return []
+        return list(member.roles.values_list('name', flat=True))

@@ -17,6 +17,46 @@ class SeriesService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getTrendingShows() async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesShows(queryParameters: {'trending': 1});
+    } catch (e) {
+      debugPrint('[SeriesService] getTrendingShows error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNewReleases() async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesShows(queryParameters: {'new': 1});
+    } catch (e) {
+      debugPrint('[SeriesService] getNewReleases error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCategories() async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesCategories();
+    } catch (e) {
+      debugPrint('[SeriesService] getCategories error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getShowsByCategory(String slug) async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesShows(queryParameters: {'category': slug});
+    } catch (e) {
+      debugPrint('[SeriesService] getShowsByCategory error: $e');
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getSeasons(String showSlug) async {
     api.setTenant(tenantId);
     try {

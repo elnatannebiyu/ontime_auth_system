@@ -123,6 +123,15 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _login() async {
     if (_loading || _inFlight) return;
+    // Basic email validation to prevent typos like `gmail,com`
+    final email = _username.text.trim();
+    final emailOk = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$').hasMatch(email);
+    if (!emailOk) {
+      setState(() {
+        _error = 'Enter a valid email address.';
+      });
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
@@ -160,30 +169,29 @@ class _LoginPageState extends State<LoginPage> {
     } on DioException catch (e) {
       final code = e.response?.statusCode ?? 0;
       final data = e.response?.data;
-      final detail = (data is Map && data['detail'] != null)
+      final rawDetail = (data is Map && data['detail'] != null)
           ? '${data['detail']}'
           : (e.message ?? '');
+      final detail = rawDetail.toString();
       if (kDebugMode) {
-        debugPrint(
-            '[login] DioException code=$code detail=$detail data=${e.response?.data}');
+        debugPrint('[login] DioException code=$code detail=$detail data=${e.response?.data}');
       }
+      // Normalize common backend responses
       String uiMsg = 'Login failed';
       if (detail == 'password_auth_not_set') {
-        uiMsg =
-            'This account was created with Google. Use “Continue with Google” or set a password first.';
-      } else if (detail ==
-          'No active account found with incal given credentials') {
+        uiMsg = 'This account was created with Google. Use “Continue with Google” or set a password first.';
+      } else if (detail.contains('No active account found')) {
         uiMsg = 'Incorrect email or password.';
-      } else if (code == 403 &&
-          detail.contains('Not a member of this tenant')) {
-        uiMsg =
-            "Your account isn't a member of this tenant ('${widget.tenantId}'). Contact support or switch tenant.";
+      } else if (code == 403 && detail.contains('Not a member of this tenant')) {
+        uiMsg = "Your account isn't a member of this tenant ('${widget.tenantId}').";
+      } else if (code == 429 || detail.toLowerCase().contains('too many')) {
+        uiMsg = 'Too many attempts. Please wait a minute and try again.';
+      } else if (detail.toLowerCase().contains('locked')) {
+        uiMsg = 'Account temporarily locked due to failed attempts. Try again later.';
       } else if (detail.isNotEmpty) {
         uiMsg = detail;
       }
-      setState(() {
-        _error = uiMsg;
-      });
+      setState(() { _error = uiMsg; });
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[login] non-Dio error: $e');

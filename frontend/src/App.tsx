@@ -8,11 +8,14 @@ import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import AdminUsers from './components/AdminUsers';
+import AdminSessions from './components/AdminSessions';
 import RequireAdmin from './components/RequireAdmin';
 import { getAccessToken, isLoggedOut } from './services/api';
 import { AppThemeProvider, useThemeMode } from './theme';
@@ -53,6 +56,10 @@ function Shell({ children }: { children: React.ReactNode }) {
           <ListItemButton component={Link} to="/channels">
             <ListItemIcon><DnsIcon /></ListItemIcon>
             <ListItemText primary="Channels" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/profile">
+            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+            <ListItemText primary="My Profile" />
           </ListItemButton>
           <ListItemButton component={Link} to="/live">
             <ListItemIcon><LiveTvIcon /></ListItemIcon>
@@ -114,8 +121,10 @@ function App() {
         <Routes>
           <Route path="/login" element={ isAuthenticated && !isLoggedOut() ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} /> } />
           <Route path="/dashboard" element={<RequireAdmin><Shell><Dashboard /></Shell></RequireAdmin>} />
-          <Route path="/users" element={<RequireAdmin><Shell><Placeholder title="Users & Sessions" /></Shell></RequireAdmin>} />
+          <Route path="/users" element={<RequireAdmin><Shell><AdminUsers /></Shell></RequireAdmin>} />
           <Route path="/channels" element={<RequireAdmin><Shell><Placeholder title="Channels" /></Shell></RequireAdmin>} />
+          <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
+          <Route path="/profile" element={<RequireAdmin><Shell><Placeholder title="My Profile" /></Shell></RequireAdmin>} />
           <Route path="/live" element={<RequireAdmin><Shell><Placeholder title="Live" /></Shell></RequireAdmin>} />
           <Route path="/shorts/import" element={<RequireAdmin><Shell><Placeholder title="Shorts Import" /></Shell></RequireAdmin>} />
           <Route path="/shorts/metrics" element={<RequireAdmin><Shell><Placeholder title="Shorts Metrics" /></Shell></RequireAdmin>} />

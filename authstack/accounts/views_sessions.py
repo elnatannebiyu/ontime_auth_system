@@ -5,7 +5,11 @@ from rest_framework import status
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
-from .models import UserSession
+from django.db.models import Count
+from django.db.models.functions import TruncDate
+from datetime import timedelta
+from .models import UserSession, Membership
+from tenants.models import Tenant
 
 
 class SessionListView(APIView):
@@ -167,3 +171,168 @@ class RevokeAllSessionsView(APIView):
             'message': f'Revoked {count} session(s)',
             'revoked_count': count
         })
+
+
+class AdminSessionsStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        is_admin_fe = False
+        try:
+            is_admin_fe = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = user.is_staff
+        if not is_admin_fe:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant_slug = request.headers.get('X-Tenant-Id') or request.query_params.get('tenant') or 'ontime'
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return Response({'detail': f'Tenant not found: {tenant_slug}'}, status=status.HTTP_404_NOT_FOUND)
+
+        tenant_user_ids = Membership.objects.filter(tenant=tenant).values_list('user_id', flat=True)
+        now = timezone.now()
+        qs = UserSession.objects.filter(is_active=True, expires_at__gt=now, user_id__in=tenant_user_ids)
+
+        active_sessions = qs.count()
+        active_users = qs.values('user_id').distinct().count()
+
+        since = now - timedelta(days=6)
+        buckets = (
+            qs.filter(last_activity__date__gte=since.date())
+              .annotate(day=TruncDate('last_activity'))
+              .values('day')
+              .annotate(count=Count('id'))
+              .order_by('day')
+        )
+        by_day = [{'day': b['day'].isoformat(), 'count': b['count']} for b in buckets]
+
+        return Response({
+            'tenant': tenant_slug,
+            'active_sessions': active_sessions,
+            'active_users': active_users,
+            'by_day': by_day,
+        })
+
+
+class AdminSessionsListView(APIView):
+    """Tenant-scoped sessions list with pagination/search/ordering for AdminFrontend/staff"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            is_admin = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin = user.is_staff
+        if not is_admin:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant_slug = request.headers.get('X-Tenant-Id') or request.query_params.get('tenant') or 'ontime'
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return Response({'detail': f'Tenant not found: {tenant_slug}'}, status=status.HTTP_404_NOT_FOUND)
+
+        tenant_user_ids = Membership.objects.filter(tenant=tenant).values_list('user_id', flat=True)
+        qs = UserSession.objects.filter(user_id__in=tenant_user_ids)
+        qs = qs.select_related('user')
+
+        # Search across user email, device, os, ip
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(user__email__icontains=search) |
+                Q(device_type__icontains=search) |
+                Q(os_name__icontains=search) |
+                Q(os_version__icontains=search) |
+                Q(ip_address__icontains=search)
+            )
+
+        # Ordering whitelist
+        ordering = (request.query_params.get('ordering') or '').strip()
+        allowed = {'created_at', 'last_activity', 'expires_at', 'is_active', 'user__email', 'device_type', 'os_name', 'ip_address'}
+        order_fields = []
+        if ordering:
+            for raw in ordering.split(','):
+                f = raw.strip()
+                if not f:
+                    continue
+                name = f[1:] if f.startswith('-') else f
+                if name in allowed:
+                    order_fields.append(f)
+        if order_fields:
+            qs = qs.order_by(*order_fields)
+        else:
+            qs = qs.order_by('-last_activity')
+
+        total = qs.count()
+        # Pagination
+        try:
+            page = int(request.query_params.get('page') or 1)
+        except Exception:
+            page = 1
+        try:
+            page_size = int(request.query_params.get('page_size') or 20)
+        except Exception:
+            page_size = 20
+        page_size = max(1, min(page_size, 100))
+        start = (page - 1) * page_size
+        end = start + page_size
+        items = qs[start:end]
+
+        def row(s: UserSession):
+            return {
+                'id': str(s.id),
+                'user_email': getattr(s.user, 'email', ''),
+                'device_type': s.device_type,
+                'os_name': s.os_name,
+                'os_version': s.os_version,
+                'ip_address': s.ip_address,
+                'is_active': s.is_active,
+                'created_at': s.created_at.isoformat(),
+                'last_activity': s.last_activity.isoformat(),
+                'expires_at': s.expires_at.isoformat(),
+            }
+
+        return Response({
+            'results': [row(s) for s in items],
+            'count': total,
+            'page': page,
+            'page_size': page_size,
+        })
+
+
+class AdminSessionRevokeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        user = request.user
+        try:
+            is_admin = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin = user.is_staff
+        if not is_admin:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return Response({'detail': 'Unknown tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            s = UserSession.objects.get(id=session_id)
+        except UserSession.DoesNotExist:
+            return Response({'detail': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the session's user belongs to this tenant
+        if not Membership.objects.filter(user=s.user, tenant=tenant).exists():
+            return Response({'detail': 'Session not in this tenant'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not s.is_active:
+            return Response({'detail': 'Session already revoked'}, status=status.HTTP_200_OK)
+
+        s.revoke(reason='Admin revoked')
+        return Response({'detail': 'Session revoked'}, status=status.HTTP_200_OK)

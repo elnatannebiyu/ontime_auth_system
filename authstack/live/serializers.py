@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Live, LiveSchedule
+from .models import Live, LiveSchedule, LiveRadio
 
 
 class LiveSerializer(serializers.ModelSerializer):
@@ -22,6 +22,9 @@ class LiveSerializer(serializers.ModelSerializer):
             "playback_url",
             "playback_type",
             "drm",
+            "listener_count",
+            "total_listens",
+            "added_by",
             "is_active",
             "is_previewable",
             "tags",
@@ -29,7 +32,7 @@ class LiveSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ("created_at", "updated_at")
+        read_only_fields = ("created_at", "updated_at", "added_by")
 
     def get_channel_slug(self, obj: Live) -> str:
         return getattr(obj.channel, "id_slug", "")
@@ -55,6 +58,43 @@ class LiveScheduleSerializer(serializers.ModelSerializer):
             "start_at",
             "end_at",
             "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ("created_at", "updated_at")
+
+
+class LiveRadioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LiveRadio
+        fields = [
+            "id",
+            "tenant",
+            "name",
+            "slug",
+            "description",
+            "language",
+            "country",
+            "city",
+            "category",
+            "stream_url",
+            "backup_stream_url",
+            "bitrate",
+            "format",
+            "is_active",
+            "is_verified",
+            "logo",
+            "banner_image",
+            "website_url",
+            "facebook_url",
+            "twitter_url",
+            "instagram_url",
+            "listener_count",
+            "total_listens",
+            "priority",
+            "last_check_ok",
+            "last_check_at",
+            "last_error",
             "created_at",
             "updated_at",
         ]

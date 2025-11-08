@@ -283,8 +283,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
     // Nested: m['thumbnails'] can be Map like YouTube ({medium: {url: ...}})
     final t = m['thumbnails'];
     if (t is Map) {
-      // try well-known sizes
-      for (final size in ['high', 'medium', 'default', 'standard']) {
+      // try well-known sizes (prefer highest quality first)
+      for (final size in ['maxres', 'standard', 'high', 'medium', 'default']) {
         final s = t[size];
         if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
           return s['url'] as String;

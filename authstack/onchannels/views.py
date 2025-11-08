@@ -846,7 +846,14 @@ class AdminShortsMetricsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        if not request.user.is_staff:
+        # Allow staff or members of the AdminFrontend group to view metrics
+        user = request.user
+        is_admin_fe = False
+        try:
+            is_admin_fe = user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = False
+        if not (user.is_staff or is_admin_fe):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
         # Read metrics file
@@ -1035,6 +1042,7 @@ class ShortsReadyFeedView(APIView):
             # Enrich title/channel best-effort
             title = ''
             channel_name = ''
+            thumb_url = ''
             try:
                 vid = _yt_video_id_from_url(getattr(j, 'source_url', '') or '')
                 if vid:
@@ -1044,6 +1052,17 @@ class ShortsReadyFeedView(APIView):
                         ch = getattr(v, 'channel', None)
                         if ch:
                             channel_name = getattr(ch, 'name_en', '') or getattr(ch, 'id_slug', '') or ''
+                        # Prefer best available YouTube thumbnail
+                        try:
+                            thumbs = getattr(v, 'thumbnails', {}) or {}
+                            for k in ['maxres', 'standard', 'high', 'medium', 'default']:
+                                t = thumbs.get(k) or {}
+                                u = t.get('url') if isinstance(t, dict) else None
+                                if u:
+                                    thumb_url = u
+                                    break
+                        except Exception:
+                            pass
             except Exception:
                 pass
             out.append({
@@ -1052,6 +1071,7 @@ class ShortsReadyFeedView(APIView):
                 "channel": channel_name,
                 "duration_seconds": int(getattr(j, 'duration_seconds', 0) or 0),
                 "absolute_hls": abs_url,
+                "thumbnail_url": thumb_url,
                 "updated_at": j.updated_at.isoformat() if getattr(j, 'updated_at', None) else None,
             })
         return Response({"count": len(out), "results": out, "seed_source": "device_or_user"})

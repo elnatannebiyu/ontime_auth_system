@@ -60,6 +60,7 @@ class ChannelSerializer(serializers.ModelSerializer):
 class PlaylistSerializer(serializers.ModelSerializer):
     channel = serializers.SlugRelatedField(slug_field="id_slug", read_only=True)
     channel_logo_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Playlist
@@ -68,12 +69,53 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "channel",
             "title",
             "thumbnails",
+            "thumbnail_url",
             "item_count",
             "is_active",
             "last_synced_at",
             "channel_logo_url",
         ]
         read_only_fields = ("last_synced_at",)
+
+    def get_channel_logo_url(self, obj: Playlist) -> str:
+        path = f"/api/channels/{obj.channel.id_slug}/logo/"
+        req = self.context.get("request") if hasattr(self, "context") else None
+        return req.build_absolute_uri(path) if req else path
+
+    def get_thumbnail_url(self, obj: Playlist) -> str | None:
+        # Prefer stored YouTube thumbnails on Playlist
+        try:
+            thumbs = getattr(obj, 'thumbnails', {}) or {}
+            if isinstance(thumbs, dict):
+                for k in ['maxres', 'standard', 'high', 'medium', 'default']:
+                    t = thumbs.get(k) or {}
+                    url = t.get('url') if isinstance(t, dict) else None
+                    if url:
+                        return url
+                # direct url key
+                url = thumbs.get('url')
+                if isinstance(url, str) and url:
+                    return url
+        except Exception:
+            pass
+        # Fallback: latest video's thumbnail in this playlist
+        try:
+            v = getattr(obj, 'videos', None)
+            vid = v.order_by('-published_at', '-last_synced_at').first() if v is not None else None
+            if vid and getattr(vid, 'thumbnails', None):
+                tmap = vid.thumbnails or {}
+                if isinstance(tmap, dict):
+                    for k in ['maxres', 'standard', 'high', 'medium', 'default']:
+                        t = tmap.get(k) or {}
+                        url = t.get('url') if isinstance(t, dict) else None
+                        if url:
+                            return url
+                    url = tmap.get('url')
+                    if isinstance(url, str) and url:
+                        return url
+        except Exception:
+            pass
+        return None
 
 
 class ShortReactionSerializer(serializers.ModelSerializer):
@@ -130,11 +172,6 @@ class CreateShortJobSerializer(serializers.Serializer):
         (ShortJob.CLASS_PINNED, 'pinned'),
         (ShortJob.CLASS_EPHEMERAL, 'ephemeral'),
     ], required=False, default=ShortJob.CLASS_NORMAL)
-
-    def get_channel_logo_url(self, obj: Playlist) -> str:
-        path = f"/api/channels/{obj.channel.id_slug}/logo/"
-        req = self.context.get("request") if hasattr(self, "context") else None
-        return req.build_absolute_uri(path) if req else path
 
 
 class VideoSerializer(serializers.ModelSerializer):

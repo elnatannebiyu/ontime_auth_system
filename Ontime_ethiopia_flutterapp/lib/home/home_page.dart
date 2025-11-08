@@ -4,6 +4,8 @@ import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import '../live/audio_controller.dart';
+import '../live/tv_controller.dart';
 import '../auth/tenant_auth_client.dart';
 import '../channels/channels_page.dart';
 import '../core/localization/l10n.dart';
@@ -12,6 +14,9 @@ import '../features/home/widgets/section_header.dart';
 import '../features/home/widgets/poster_row.dart';
 // import '../features/home/widgets/mini_player_bar.dart';
 import '../features/series/pages/player_page.dart';
+import '../features/series/series_service.dart';
+import '../features/series/pages/series_seasons_page.dart';
+import '../features/series/pages/series_episodes_page.dart';
 import '../features/home/widgets/channel_bubbles.dart';
 import '../core/widgets/brand_title.dart';
 import '../features/series/pages/series_shows_page.dart';
@@ -20,6 +25,7 @@ import '../core/cache/channel_cache.dart';
 import '../live/live_page.dart';
 import '../core/notifications/notification_permission_manager.dart';
 import '../shorts/shorts_page.dart';
+import '../shorts/shorts_player_page.dart';
 
 // Overflow menu actions for Home AppBar
 enum _HomeMenuAction { profile, settings, about, switchLanguage }
@@ -49,6 +55,11 @@ class _HomePageState extends State<HomePage> {
   bool _offline = false;
   // Preview list for channel bubbles: [{name, slug, thumbUrl}]
   List<Map<String, String>> _bubbleChannels = const [];
+  // For You data
+  late final SeriesService _series;
+  List<Map<String, dynamic>> _trendingShows = const [];
+  List<Map<String, dynamic>> _newShorts = const [];
+  bool _tabListenerAttached = false;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -67,6 +78,8 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationPermissionManager().ensurePermissionFlow(context);
     });
+    _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
+    _loadTrendingNew();
   }
 
   Future<void> _load() async {
@@ -121,6 +134,8 @@ class _HomePageState extends State<HomePage> {
       'logo_url',
       'poster',
       'poster_url',
+      'cover_image',
+      'channel_logo_url',
     ];
     for (final k in keys) {
       final v = m[k];
@@ -191,6 +206,75 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Load trending and new releases for For You
+  Future<void> _loadTrendingNew() async {
+    try {
+      final trending = await _series.getTrendingShows();
+      // Load shorts feed for "New releases"
+      widget.api.setTenant(widget.tenantId);
+      final client = ApiClient();
+      final res = await client.get('/channels/shorts/ready/feed/', queryParameters: {
+        'limit': '30',
+        'recent_bias_count': '15',
+      });
+      final raw = res.data;
+      final List<Map<String, dynamic>> shorts = raw is List
+          ? List<Map<String, dynamic>>.from(raw.map((e) => Map<String, dynamic>.from(e as Map)))
+          : (raw is Map && raw['results'] is List)
+              ? List<Map<String, dynamic>>.from((raw['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+              : const [];
+      if (mounted) {
+        setState(() {
+          _trendingShows = trending;
+          _newShorts = shorts;
+        });
+      }
+    } catch (_) {
+      // Non-fatal for home; leave placeholders if fetch fails
+    }
+  }
+
+  // Open a show: if single season, go to episodes; else go to seasons list
+  Future<void> _openShow(String slug, String title) async {
+    try {
+      final seasons = await _series.getSeasons(slug);
+      if (!mounted) return;
+      if (seasons.length == 1) {
+        final s = seasons.first;
+        final seasonId = s['id'] as int;
+        final number = s['number']?.toString() ?? '';
+        final rawTitle = (s['title'] as String?)?.trim() ?? '';
+        final seasonTitle = rawTitle.isNotEmpty ? rawTitle : 'Season $number';
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SeriesEpisodesPage(
+              api: widget.api,
+              tenantId: widget.tenantId,
+              seasonId: seasonId,
+              title: '$seasonTitle · $title',
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SeriesSeasonsPage(
+              api: widget.api,
+              tenantId: widget.tenantId,
+              showSlug: slug,
+              showTitle: title,
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to open show')),
+      );
+    }
+  }
+
   // (_logout removed – not used on Home streaming UI)
 
   @override
@@ -203,11 +287,22 @@ class _HomePageState extends State<HomePage> {
           floatingActionButton: Builder(
             builder: (ctx) {
               final tc = DefaultTabController.of(ctx);
+              if (!_tabListenerAttached) {
+                _tabListenerAttached = true;
+                tc.addListener(() {
+                  if (tc.index == 3) {
+                    // Shorts tab selected: stop radio and clear TV mini session
+                    AudioController.instance.stop();
+                    TvController.instance.clear();
+                  }
+                });
+              }
               return AnimatedBuilder(
                 animation: tc,
                 builder: (_, __) {
                   final onShorts = tc.index == 3; // Shorts tab
-                  if (onShorts) return const SizedBox.shrink();
+                  final onLiveTab = tc.index == 2; // Live tab
+                  if (onShorts || onLiveTab) return const SizedBox.shrink();
                   return FloatingActionButton.extended(
                     onPressed: () {
                       Navigator.of(context).push(
@@ -347,7 +442,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          // Global mini-player is handled by MiniPlayerManager overlay.
+          // Global mini-player is handled by inner pages (e.g., LivePage)
           bottomSheet: null,
         ),
       ),
@@ -357,7 +452,10 @@ class _HomePageState extends State<HomePage> {
   // For You main content with pull-to-refresh
   Widget _buildForYou(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () async {
+        await _load();
+        await _loadTrendingNew();
+      },
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
@@ -439,15 +537,52 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                         const SizedBox(height: 12),
-                        // Trending Now section (extracted header)
+                        // Trending Now
                         SectionHeader(title: _t('trending_now')),
                         const SizedBox(height: 8),
-                        const PosterRow(count: 10),
+                        PosterRow(
+                          items: List<Map<String, dynamic>>.generate(_trendingShows.length, (i) {
+                            final s = _trendingShows[i];
+                            return {
+                              'title': (s['title'] ?? '').toString(),
+                              'cover_image': _thumbFromMap(s) ?? '',
+                              'slug': (s['slug'] ?? '').toString(),
+                            };
+                          }),
+                          count: 10,
+                          onTap: (m) => _openShow(
+                            (m['slug'] ?? '').toString(),
+                            (m['title'] ?? '').toString(),
+                          ),
+                        ),
                         const SizedBox(height: 16),
-                        // New Releases section (extracted header)
+                        // New Releases (Shorts)
                         SectionHeader(title: _t('new_releases')),
                         const SizedBox(height: 8),
-                        const PosterRow(count: 12, tall: true),
+                        PosterRow(
+                          // Map shorts into poster items (title + cover_image)
+                          items: List<Map<String, dynamic>>.generate(_newShorts.length, (i) {
+                            final v = _newShorts[i];
+                            return {
+                              'title': (v['title'] ?? v['name'] ?? 'Short').toString(),
+                              'cover_image': _thumbFromMap(v) ?? '',
+                              'originalIndex': i,
+                            };
+                          }),
+                          count: 12,
+                          tall: true,
+                          onTap: (m) {
+                            final idx = (m['originalIndex'] ?? 0) as int;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ShortsPlayerPage(
+                                  videos: _newShorts,
+                                  initialIndex: idx,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                         const SizedBox(
                             height:
                                 70), // space for mini-player above FAB notch

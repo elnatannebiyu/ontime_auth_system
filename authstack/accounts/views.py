@@ -15,7 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation
 from .models import UserSession
-from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer
+from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer, UserAdminSerializer
 from .permissions import (
     HasAnyRole,
     DjangoPermissionRequired,
@@ -496,3 +496,223 @@ class RegisterView(APIView):
         resp = Response({"access": str(access)}, status=status.HTTP_201_CREATED)
         set_refresh_cookie(resp, str(refresh))
         return resp
+
+
+class AdminUsersView(APIView):
+    """Tenant-scoped Users admin: list and create members of current tenant.
+    Requires AdminFrontend role or is_staff.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _require_admin(self, request):
+        user = request.user
+        try:
+            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            return user.is_staff
+
+    def get(self, request):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return Response({'detail': 'Unknown tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import Membership
+        user_ids = Membership.objects.filter(tenant=tenant).values_list('user_id', flat=True)
+        qs = User.objects.filter(id__in=user_ids)
+        # Search
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(email__icontains=search) |
+                Q(username__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+        # Ordering (comma-separated), whitelist fields
+        ordering = (request.query_params.get('ordering') or '').strip()
+        allowed = {
+            'id', 'email', 'username', 'first_name', 'last_name', 'last_login', 'date_joined', 'is_active'
+        }
+        order_fields = []
+        if ordering:
+            for raw in ordering.split(','):
+                f = raw.strip()
+                if not f:
+                    continue
+                desc = f.startswith('-')
+                name = f[1:] if desc else f
+                if name in allowed:
+                    order_fields.append(f)
+        if order_fields:
+            qs = qs.order_by(*order_fields)
+        else:
+            qs = qs.order_by('id')
+
+        total = qs.count()
+        # Pagination
+        try:
+            page = int(request.query_params.get('page') or 1)
+        except Exception:
+            page = 1
+        try:
+            page_size = int(request.query_params.get('page_size') or 20)
+        except Exception:
+            page_size = 20
+        page_size = max(1, min(page_size, 100))
+        start = (page - 1) * page_size
+        end = start + page_size
+        items = qs[start:end]
+        data = UserAdminSerializer(items, many=True, context={"request": request}).data
+        return Response({'results': data, 'count': total, 'page': page, 'page_size': page_size})
+
+    def post(self, request):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return Response({'detail': 'Unknown tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Expected payload: { email, password, first_name?, last_name? }
+        email = (request.data.get('email') or '').strip().lower()
+        password = request.data.get('password') or ''
+        first = request.data.get('first_name') or ''
+        last = request.data.get('last_name') or ''
+        if not email or not password:
+            return Response({'detail': 'email and password are required'}, status=status.HTTP_400_BAD_REQUEST)
+        # Reuse RegistrationSerializer validations
+        ser = RegistrationSerializer(data={'email': email, 'password': password})
+        ser.is_valid(raise_exception=True)
+        user = ser.create_user()
+        if first:
+            user.first_name = first
+        if last:
+            user.last_name = last
+        user.save()
+        # Create tenant membership with Viewer role
+        from .models import Membership
+        membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
+        try:
+            viewer, _ = Group.objects.get_or_create(name='Viewer')
+            from django.contrib.auth.models import Permission
+            view_perms = Permission.objects.filter(codename__startswith='view_')
+            viewer.permissions.add(*view_perms)
+            membership.roles.add(viewer)
+        except Exception:
+            pass
+        return Response(UserAdminSerializer(user, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class AdminUserDetailView(APIView):
+    """Retrieve/Update/Delete a tenant member. Protect self from update/delete."""
+    permission_classes = [IsAuthenticated]
+
+    def _require_admin(self, request):
+        user = request.user
+        try:
+            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            return user.is_staff
+
+    def _get_tenant_user(self, request, user_id):
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return None, Response({'detail': 'Unknown tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import Membership
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return None, Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        is_member = Membership.objects.filter(user=user, tenant=tenant).exists()
+        if not is_member:
+            return None, Response({'detail': 'User not in this tenant'}, status=status.HTTP_404_NOT_FOUND)
+        return user, None
+
+    def get(self, request, user_id: int):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        user, err = self._get_tenant_user(request, user_id)
+        if err:
+            return err
+        return Response(UserAdminSerializer(user, context={"request": request}).data)
+
+    def patch(self, request, user_id: int):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        user, err = self._get_tenant_user(request, user_id)
+        if err:
+            return err
+        if user.id == request.user.id:
+            return Response({'detail': 'You cannot edit your own account via this endpoint.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Only allow updating basic profile and is_active
+        allowed = {'email', 'first_name', 'last_name', 'is_active'}
+        data = {k: v for k, v in request.data.items() if k in allowed}
+        ser = UserAdminSerializer(user, data=data, partial=True, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+
+    def delete(self, request, user_id: int):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        user, err = self._get_tenant_user(request, user_id)
+        if err:
+            return err
+        if user.id == request.user.id:
+            return Response({'detail': 'You cannot delete your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminUserRolesView(APIView):
+    """Add/Remove per-tenant roles for a user (Viewer/AdminFrontend)."""
+    permission_classes = [IsAuthenticated]
+
+    def _require_admin(self, request):
+        user = request.user
+        try:
+            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            return user.is_staff
+
+    def _get_member(self, request, user_id):
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return None, None, Response({'detail': 'Unknown tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import Membership
+        try:
+            u = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return None, None, Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        member = Membership.objects.filter(user=u, tenant=tenant).first()
+        if not member:
+            return None, None, Response({'detail': 'User not in this tenant'}, status=status.HTTP_404_NOT_FOUND)
+        return u, member, None
+
+    def post(self, request, user_id: int):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        target, member, err = self._get_member(request, user_id)
+        if err:
+            return err
+        role = (request.data.get('role') or '').strip()
+        if role not in ('Viewer', 'AdminFrontend'):
+            return Response({'detail': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        g, _ = Group.objects.get_or_create(name=role)
+        member.roles.add(g)
+        return Response(UserAdminSerializer(target, context={"request": request}).data)
+
+    def delete(self, request, user_id: int, role_name: str):
+        if not self._require_admin(request):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        if role_name not in ('Viewer', 'AdminFrontend'):
+            return Response({'detail': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        target, member, err = self._get_member(request, user_id)
+        if err:
+            return err
+        try:
+            g = Group.objects.get(name=role_name)
+            member.roles.remove(g)
+        except Group.DoesNotExist:
+            pass
+        return Response(UserAdminSerializer(target, context={"request": request}).data)

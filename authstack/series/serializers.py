@@ -1,9 +1,33 @@
 from rest_framework import serializers
-from .models import Show, Season, Episode
+from .models import Show, Season, Episode, Category
+
+
+class CategoryMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = [
+            "name",
+            "slug",
+            "color",
+        ]
+
+
+class CategoryListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = [
+            "name",
+            "slug",
+            "color",
+            "description",
+            "display_order",
+        ]
 
 
 class ShowSerializer(serializers.ModelSerializer):
     cover_image = serializers.SerializerMethodField()
+    channel_logo_url = serializers.SerializerMethodField()
+    categories = CategoryMiniSerializer(many=True, read_only=True)
 
     class Meta:
         model = Show
@@ -14,9 +38,11 @@ class ShowSerializer(serializers.ModelSerializer):
             "title",
             "synopsis",
             "cover_image",
+            "channel_logo_url",
             "default_locale",
             "tags",
             "channel",
+            "categories",
             "is_active",
             "created_at",
             "updated_at",
@@ -42,6 +68,58 @@ class ShowSerializer(serializers.ModelSerializer):
                 return self._abs_url(season.cover_image)
         except Exception:
             pass
+        # Fallback to latest episode thumbnail (best available size)
+        try:
+            from .models import Episode  # local import to avoid circulars in some contexts
+            ep = (
+                Episode.objects.filter(season__show=obj, visible=True, status=Episode.STATUS_PUBLISHED)
+                .order_by("-source_published_at", "-id")
+                .first()
+            )
+            if ep and getattr(ep, "thumbnails", None):
+                thumbs = ep.thumbnails or {}
+                if isinstance(thumbs, dict):
+                    for k in ["maxres", "standard", "high", "medium", "default"]:
+                        t = thumbs.get(k) or {}
+                        url = t.get("url") if isinstance(t, dict) else None
+                        if url:
+                            return self._abs_url(url)
+                    # direct url key if present
+                    url = thumbs.get("url")
+                    if isinstance(url, str) and url:
+                        return self._abs_url(url)
+        except Exception:
+            pass
+        # Fallback to onchannels.Video by Season.yt_playlist_id (when Episodes are not yet materialized)
+        try:
+            # Find the most recent enabled season having a YouTube playlist id
+            season2 = (
+                Season.objects.filter(show=obj, is_enabled=True)
+                .exclude(yt_playlist_id__isnull=True)
+                .exclude(yt_playlist_id="")
+                .order_by("-number")
+                .first()
+            )
+            if season2 and season2.yt_playlist_id:
+                from onchannels.models import Video as OCVideo  # type: ignore
+                v = (
+                    OCVideo.objects.filter(playlist_id=season2.yt_playlist_id)
+                    .order_by("-published_at", "-last_synced_at")
+                    .first()
+                )
+                if v and getattr(v, "thumbnails", None):
+                    tmap = v.thumbnails or {}
+                    if isinstance(tmap, dict):
+                        for k in ["maxres", "standard", "high", "medium", "default"]:
+                            t = tmap.get(k) or {}
+                            url = t.get("url") if isinstance(t, dict) else None
+                            if url:
+                                return self._abs_url(url)
+                        url = tmap.get("url")
+                        if isinstance(url, str) and url:
+                            return self._abs_url(url)
+        except Exception:
+            pass
         return None
 
     def _abs_url(self, url: str) -> str:
@@ -58,6 +136,18 @@ class ShowSerializer(serializers.ModelSerializer):
             except Exception:
                 return url
         return url
+
+    def get_channel_logo_url(self, obj: Show) -> str:
+        try:
+            ch = getattr(obj, 'channel', None)
+            slug = getattr(ch, 'id_slug', None)
+            if not slug:
+                return ""
+            path = f"/api/channels/{slug}/logo/"
+            request = self.context.get("request") if hasattr(self, "context") else None
+            return request.build_absolute_uri(path) if request is not None else path
+        except Exception:
+            return ""
 
 
 class SeasonSerializer(serializers.ModelSerializer):

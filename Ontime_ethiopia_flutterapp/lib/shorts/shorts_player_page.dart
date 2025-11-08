@@ -32,6 +32,33 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     return 'http://127.0.0.1:8080';
   }
 
+  /// Normalize HLS URLs to be reachable from real devices:
+  /// - If url host is 127.0.0.1 or localhost, replace host with the API base host.
+  /// - Preserve the original port if present; default to 8080 for media.
+  /// - If url is relative, prefix with platform media base.
+  String _normalizeHls(String url) {
+    if (url.isEmpty) return url;
+    try {
+      // Relative path -> prefix
+      if (!url.startsWith('http')) {
+        url = '$_mediaBase$url';
+      }
+      final u = Uri.parse(url);
+      // Determine desired host from ApiClient base
+      final api = Uri.parse(kApiBase);
+      final apiHost = api.host.isNotEmpty ? api.host : u.host;
+      final isLoopback = u.host == '127.0.0.1' || u.host == 'localhost';
+      if (isLoopback) {
+        final port = u.hasPort ? u.port : 8080;
+        final normalized = u.replace(host: apiHost, port: port);
+        return normalized.toString();
+      }
+      return url;
+    } catch (_) {
+      return url;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -48,12 +75,24 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     if (_hlsControllers[i] != null) return;
     final absFromItem = (widget.videos[i]['absolute_hls'] ?? '').toString();
     final rel = (widget.videos[i]['hls_master_url'] ?? '').toString();
-    final url = absFromItem.isNotEmpty
-        ? absFromItem
-        : (rel.isNotEmpty
-            ? (rel.startsWith('http') ? rel : '$_mediaBase$rel')
-            : '');
-    if (url.isEmpty) return;
+    String url = '';
+    if (absFromItem.isNotEmpty) {
+      url = _normalizeHls(absFromItem);
+    } else if (rel.isNotEmpty) {
+      url = _normalizeHls(rel);
+    }
+    if (url.isEmpty) {
+      // No HLS available for this short → skip ahead, never fallback to YouTube
+      if (mounted && i == _index) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('This short is not available. Skipping...'),
+              duration: Duration(seconds: 1)),
+        );
+        _jumpToNext();
+      }
+      return;
+    }
     final ctrl = VideoPlayerController.networkUrl(Uri.parse(url));
     _hlsControllers[i] = ctrl;
     try {
@@ -62,7 +101,15 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
       if (i == _index) ctrl.play();
       setState(() {});
     } catch (_) {
-      // keep UI; user can navigate manually
+      // Unplayable stream – move to next. Never fallback to YouTube.
+      if (mounted && i == _index) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Cannot play this short. Skipping...'),
+              duration: Duration(seconds: 1)),
+        );
+        _jumpToNext();
+      }
     }
   }
 
@@ -104,11 +151,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   String _shareUrlForIndex(int i) {
     final item = widget.videos[i];
     final abs = (item['absolute_hls'] ?? '').toString();
-    if (abs.isNotEmpty) return abs;
+    if (abs.isNotEmpty) return _normalizeHls(abs);
     final rel = (item['hls_master_url'] ?? '').toString();
-    if (rel.isNotEmpty) {
-      return rel.startsWith('http') ? rel : '$_mediaBase$rel';
-    }
+    if (rel.isNotEmpty) return _normalizeHls(rel);
     return '';
   }
 
@@ -139,35 +184,57 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   Future<void> _setReaction(int i, String? val) async {
     final jobId = _jobIdForIndex(i);
     if (jobId.isEmpty) return;
-    final cur = _reactions[jobId] ?? _Reaction(user: null, likes: 0, dislikes: 0);
+    final cur =
+        _reactions[jobId] ?? _Reaction(user: null, likes: 0, dislikes: 0);
     // Optimistic update
     _Reaction next = cur;
     if (val == null) {
       if (cur.user == 'like') {
-        next = _Reaction(user: null, likes: (cur.likes - 1).clamp(0, 1 << 31), dislikes: cur.dislikes);
+        next = _Reaction(
+            user: null,
+            likes: (cur.likes - 1).clamp(0, 1 << 31),
+            dislikes: cur.dislikes);
       } else if (cur.user == 'dislike') {
-        next = _Reaction(user: null, likes: cur.likes, dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
+        next = _Reaction(
+            user: null,
+            likes: cur.likes,
+            dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
       }
     } else if (val == 'like') {
       if (cur.user == 'like') {
-        next = _Reaction(user: null, likes: (cur.likes - 1).clamp(0, 1 << 31), dislikes: cur.dislikes);
+        next = _Reaction(
+            user: null,
+            likes: (cur.likes - 1).clamp(0, 1 << 31),
+            dislikes: cur.dislikes);
       } else if (cur.user == 'dislike') {
-        next = _Reaction(user: 'like', likes: cur.likes + 1, dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
+        next = _Reaction(
+            user: 'like',
+            likes: cur.likes + 1,
+            dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
       } else {
-        next = _Reaction(user: 'like', likes: cur.likes + 1, dislikes: cur.dislikes);
+        next = _Reaction(
+            user: 'like', likes: cur.likes + 1, dislikes: cur.dislikes);
       }
     } else if (val == 'dislike') {
       if (cur.user == 'dislike') {
-        next = _Reaction(user: null, likes: cur.likes, dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
+        next = _Reaction(
+            user: null,
+            likes: cur.likes,
+            dislikes: (cur.dislikes - 1).clamp(0, 1 << 31));
       } else if (cur.user == 'like') {
-        next = _Reaction(user: 'dislike', likes: (cur.likes - 1).clamp(0, 1 << 31), dislikes: cur.dislikes + 1);
+        next = _Reaction(
+            user: 'dislike',
+            likes: (cur.likes - 1).clamp(0, 1 << 31),
+            dislikes: cur.dislikes + 1);
       } else {
-        next = _Reaction(user: 'dislike', likes: cur.likes, dislikes: cur.dislikes + 1);
+        next = _Reaction(
+            user: 'dislike', likes: cur.likes, dislikes: cur.dislikes + 1);
       }
     }
     setState(() => _reactions[jobId] = next);
     try {
-      await ApiClient().post('/channels/shorts/$jobId/reaction/', data: {'value': val});
+      await ApiClient()
+          .post('/channels/shorts/$jobId/reaction/', data: {'value': val});
     } catch (_) {
       // On error, refetch to reconcile
       _reactions.remove(jobId);
@@ -371,8 +438,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                     setState(() {
                       _muted = !_muted;
                       for (final v in _hlsControllers.values) {
-                        if (v.value.isInitialized)
+                        if (v.value.isInitialized) {
                           v.setVolume(_muted ? 0.0 : 1.0);
+                        }
                       }
                     });
                   },
@@ -444,7 +512,8 @@ class _CircleIconButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color? color;
   final String? label;
-  const _CircleIconButton({required this.icon, required this.onTap, this.color, this.label});
+  const _CircleIconButton(
+      {required this.icon, required this.onTap, this.color, this.label});
   @override
   Widget build(BuildContext context) {
     final iconColor = color ?? Colors.white;
@@ -466,7 +535,8 @@ class _CircleIconButton extends StatelessWidget {
         ),
         if (hasLabel) ...[
           const SizedBox(height: 4),
-          Text(label!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(label!,
+              style: const TextStyle(color: Colors.white70, fontSize: 12)),
         ],
       ],
     );
@@ -477,7 +547,8 @@ class _Reaction {
   final String? user; // 'like' | 'dislike' | null
   final int likes;
   final int dislikes;
-  const _Reaction({required this.user, required this.likes, required this.dislikes});
+  const _Reaction(
+      {required this.user, required this.likes, required this.dislikes});
 }
 
 class _CommentsSheet extends StatefulWidget {
@@ -505,14 +576,17 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       _error = null;
     });
     try {
-      final res = await ApiClient().get('/channels/shorts/${widget.jobId}/comments/', queryParameters: {
+      final res = await ApiClient()
+          .get('/channels/shorts/${widget.jobId}/comments/', queryParameters: {
         'limit': '50',
       });
       final data = res.data;
       final List<Map<String, dynamic>> list = data is List
-          ? List<Map<String, dynamic>>.from(data.map((e) => Map<String, dynamic>.from(e as Map)))
+          ? List<Map<String, dynamic>>.from(
+              data.map((e) => Map<String, dynamic>.from(e as Map)))
           : (data is Map && data['results'] is List)
-              ? List<Map<String, dynamic>>.from((data['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+              ? List<Map<String, dynamic>>.from((data['results'] as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map)))
               : const [];
       setState(() => _items = list);
     } catch (e) {
@@ -526,10 +600,12 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     try {
-      final res = await ApiClient().post('/channels/shorts/${widget.jobId}/comments/', data: {
+      final res = await ApiClient()
+          .post('/channels/shorts/${widget.jobId}/comments/', data: {
         'text': text,
       });
-      final Map<String, dynamic> obj = Map<String, dynamic>.from(res.data as Map);
+      final Map<String, dynamic> obj =
+          Map<String, dynamic>.from(res.data as Map);
       setState(() {
         _items = [obj, ..._items];
         _ctrl.clear();
@@ -549,9 +625,16 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final body = _loading
-        ? const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+        ? const Center(
+            child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator()))
         : _error != null
-            ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: const TextStyle(color: Colors.red))))
+            ? Center(
+                child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(_error!,
+                        style: const TextStyle(color: Colors.red))))
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 itemBuilder: (_, i) {
@@ -562,21 +645,30 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const CircleAvatar(radius: 14, backgroundColor: Colors.white24, child: Icon(Icons.person, size: 16, color: Colors.white70)),
+                      const CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Colors.white24,
+                          child: Icon(Icons.person,
+                              size: 16, color: Colors.white70)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(user, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                            Text(user,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600)),
                             const SizedBox(height: 2),
-                            Text(text, style: const TextStyle(color: Colors.white70)),
+                            Text(text,
+                                style: const TextStyle(color: Colors.white70)),
                           ],
                         ),
                       ),
                       if (id != null)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 18),
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.white38, size: 18),
                           onPressed: () => _delete(id),
                         ),
                     ],
@@ -593,11 +685,19 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 6),
-            Container(height: 4, width: 48, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4))),
+            Container(
+                height: 4,
+                width: 48,
+                decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(4))),
             const SizedBox(height: 12),
             Expanded(child: body),
             Padding(
-              padding: EdgeInsets.only(left: 12, right: 12, bottom: MediaQuery.of(context).viewInsets.bottom + 8),
+              padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 8),
               child: Row(
                 children: [
                   Expanded(
@@ -609,15 +709,22 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         hintStyle: TextStyle(color: Colors.white54),
                         filled: true,
                         fillColor: Color(0x22000000),
-                        border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(24))),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        border: OutlineInputBorder(
+                            borderSide: BorderSide.none,
+                            borderRadius:
+                                BorderRadius.all(Radius.circular(24))),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: _send,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: const StadiumBorder()),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white24,
+                        foregroundColor: Colors.white,
+                        shape: const StadiumBorder()),
                     child: const Text('Send'),
                   )
                 ],

@@ -3,7 +3,7 @@ from django import forms
 from django.utils.text import slugify
 from django.http import JsonResponse
 from django.urls import path
-from .models import Show, Season, Episode
+from .models import Show, Season, Episode, Category
 from onchannels.models import Channel, Playlist
 
 
@@ -32,10 +32,11 @@ class ShowAdminForm(forms.ModelForm):
 class ShowAdmin(admin.ModelAdmin):
     form = ShowAdminForm
     list_display = ("title", "slug", "tenant", "channel", "is_active")
-    list_filter = ("tenant", "is_active", "channel")
+    list_filter = ("tenant", "is_active", "channel", "categories")
     search_fields = ("title", "slug")
     # Keep title-based prepopulation as a hint; we will also enforce channel-based default in save_model
     prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ("categories",)
 
     fieldsets = (
         (None, {
@@ -46,7 +47,7 @@ class ShowAdmin(admin.ModelAdmin):
             'description': "Upload a cover image or paste a URL. If both are set, the uploaded file URL will be used.",
         }),
         ("Metadata", {
-            'fields': ("default_locale", "tags"),
+            'fields': ("default_locale", "tags", "categories"),
         }),
     )
 
@@ -335,3 +336,22 @@ class EpisodeAdmin(admin.ModelAdmin):
     )
     list_filter = ("tenant", "status", "visible", "season__show")
     search_fields = ("title", "title_override", "source_video_id")
+
+
+# --- Category admin with native color picker ---
+class CategoryAdminForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = "__all__"
+        widgets = {
+            'color': forms.TextInput(attrs={'type': 'color'}),
+        }
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    form = CategoryAdminForm
+    list_display = ("name", "slug", "tenant", "color", "is_active", "display_order")
+    list_filter = ("tenant", "is_active")
+    search_fields = ("name", "slug")
+    ordering = ("tenant", "display_order", "name")

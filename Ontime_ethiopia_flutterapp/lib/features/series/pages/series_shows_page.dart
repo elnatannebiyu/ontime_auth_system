@@ -17,7 +17,10 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
   late final SeriesService _service;
   bool _loading = true;
   String? _error;
-  List<Map<String, dynamic>> _shows = const [];
+  List<Map<String, dynamic>> _categories = const [];
+  String? _selectedCategorySlug;
+  List<Map<String, dynamic>> _allShows = const [];
+  List<Map<String, dynamic>> _categoryShows = const [];
 
   @override
   void initState() {
@@ -29,8 +32,13 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await _service.getShows();
-      setState(() { _shows = data; });
+      final cats = await _service.getCategories();
+      final all = await _service.getShows();
+      setState(() { _categories = cats; _allShows = all; });
+      if (_selectedCategorySlug != null) {
+        final list = await _service.getShowsByCategory(_selectedCategorySlug!);
+        if (mounted) setState(() { _categoryShows = list; });
+      }
     } catch (e) {
       setState(() { _error = 'Failed to load shows'; });
     } finally {
@@ -79,40 +87,93 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
     }
   }
 
+  Color? _parseHexColor(String? hex) {
+    if (hex == null) return null;
+    final v = hex.trim();
+    if (v.isEmpty || !v.startsWith('#')) return null;
+    final h = v.substring(1);
+    if (h.length == 6) {
+      final val = int.tryParse('FF$h', radix: 16);
+      if (val == null) return null;
+      return Color(val);
+    }
+    if (h.length == 8) {
+      final val = int.tryParse(h, radix: 16);
+      if (val == null) return null;
+      return Color(val);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: _load,
       child: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? ListView(children: [
+          : ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: [
+                if (_error != null)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                  )
-                ])
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.7,
                   ),
-                  itemCount: _shows.length,
-                  itemBuilder: (context, i) {
-                    final s = _shows[i];
-                    final title = (s['title'] ?? '').toString();
-                    final slug = (s['slug'] ?? '').toString();
-                    final cover = (s['cover_image'] ?? '').toString();
-                    return _ShowCard(
-                      title: title,
-                      imageUrl: cover,
-                      onTap: () => _openShow(slug, title),
-                    );
-                  },
+                _Section(
+                  title: 'Categories',
+                  child: SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: _categories.length + 1,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
+                        if (i == 0) {
+                          final selected = _selectedCategorySlug == null;
+                          return ChoiceChip(
+                            label: const Text('All'),
+                            selected: selected,
+                            onSelected: (val) async {
+                              setState(() { _selectedCategorySlug = null; });
+                              // No extra load; grid uses _allShows
+                            },
+                          );
+                        }
+                        final c = _categories[i - 1];
+                        final name = (c['name'] ?? '').toString();
+                        final slug = (c['slug'] ?? '').toString();
+                        final color = _parseHexColor(c['color']?.toString());
+                        final selected = slug == _selectedCategorySlug;
+                        return ChoiceChip(
+                          label: Text(name),
+                          selected: selected,
+                          selectedColor: (color ?? Theme.of(context).colorScheme.primary).withOpacity(0.2),
+                          side: BorderSide(color: color ?? Theme.of(context).dividerColor),
+                          onSelected: (val) async {
+                            if (!val) {
+                              setState(() { _selectedCategorySlug = null; });
+                              return;
+                            }
+                            setState(() { _selectedCategorySlug = slug; });
+                            final list = await _service.getShowsByCategory(slug);
+                            if (!mounted) return;
+                            setState(() { _categoryShows = list; });
+                          },
+                        );
+                      },
+                    ),
+                  ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: _ShowsGrid(
+                    items: _selectedCategorySlug == null ? _allShows : _categoryShows,
+                    onTap: (s) => _openShow(s['slug']?.toString() ?? '', s['title']?.toString() ?? ''),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -151,6 +212,58 @@ class _ShowCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _Section({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+class _ShowsGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final void Function(Map<String, dynamic>) onTap;
+  const _ShowsGrid({required this.items, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.7,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final s = items[i];
+        final title = (s['title'] ?? '').toString();
+        final cover = (s['cover_image'] ?? '').toString();
+        final slug = (s['slug'] ?? '').toString();
+        return _ShowCard(
+          title: title,
+          imageUrl: cover,
+          onTap: () => onTap({'slug': slug, 'title': title}),
+        );
+      },
     );
   }
 }

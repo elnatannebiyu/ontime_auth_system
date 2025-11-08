@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../auth/tenant_auth_client.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PlayerPage extends StatefulWidget {
   final AuthApi api;
@@ -12,7 +13,6 @@ class PlayerPage extends StatefulWidget {
   final int? seasonId; // optional: used for Continue Watching per-season
   final String title;
   final void Function(int episodeId, String? title, String? thumb)? onPlayEpisode; // ask parent to play another ep
-  final YoutubePlayerController? controller; // reuse existing controller (e.g., from mini player)
   const PlayerPage({
     super.key,
     required this.api,
@@ -21,7 +21,6 @@ class PlayerPage extends StatefulWidget {
     this.seasonId,
     required this.title,
     this.onPlayEpisode,
-    this.controller,
   });
 
   @override
@@ -37,7 +36,8 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _showEndOverlay = false;
   Timer? _pauseTimer;
   List<Map<String, dynamic>> _seasonEpisodes = const [];
-  bool _ownsController = false; // only close if we created it here
+  bool _ownsController = true; // always owned here for flutter controller
+  String _videoId = '';
 
   @override
   void initState() {
@@ -82,8 +82,11 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> _init() async {
     widget.api.setTenant(widget.tenantId);
     final play = await widget.api.seriesEpisodePlay(widget.episodeId);
+    debugPrint('[PlayerPage] play payload for episode ${widget.episodeId}: $play');
     final raw = (play['video_id'] ?? '').toString();
     final videoId = _extractVideoId(raw);
+    debugPrint('[PlayerPage] resolved videoId: "$videoId" from "$raw"');
+    _videoId = videoId;
     _token = (play['playback_token'] ?? '').toString();
 
     if (_token.isNotEmpty) {
@@ -93,49 +96,61 @@ class _PlayerPageState extends State<PlayerPage> {
       );
       _viewId = (start['view_id'] ?? 0) as int;
     }
-
-    YoutubePlayerController controller;
-    if (widget.controller != null) {
-      controller = widget.controller!;
-      _ownsController = false;
-    } else {
-      controller = YoutubePlayerController(
-        params: const YoutubePlayerParams(
-          // UI controls
-          showControls: true,
-          showFullscreenButton: true,
-          playsInline: true,
-          // Minimize suggestions
-          strictRelatedVideos: true, // rel=0 → show related from same channel
-          enableCaption: false,
-        ),
-      );
-      controller.loadVideoById(videoId: videoId, startSeconds: 0);
-      _ownsController = true;
-    }
-
-    controller.listen((value) {
-      final state = value.playerState;
-      if (state == PlayerState.playing) {
+    // Create controller for youtube_player_flutter
+    final controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: false,
+        controlsVisibleAtStart: true,
+        enableCaption: false,
+        forceHD: false,
+      ),
+    );
+    // Listen to state changes
+    controller.addListener(() {
+      final v = controller.value;
+      final st = v.playerState;
+      debugPrint('[PlayerPage] state=$st');
+      if (st == PlayerState.playing) {
         _startHeartbeat();
         _showEndOverlay = false;
         _pauseTimer?.cancel();
-      } else if (state == PlayerState.paused || state == PlayerState.buffering) {
+      } else if (st == PlayerState.paused || st == PlayerState.buffering) {
         _stopHeartbeat();
-        // If paused for more than 2 seconds, show overlay to block suggestions grid
         _pauseTimer?.cancel();
         _pauseTimer = Timer(const Duration(seconds: 2), () {
           if (mounted) setState(() => _showEndOverlay = true);
         });
-      } else if (state == PlayerState.ended) {
+      } else if (st == PlayerState.ended) {
         _complete();
         _showEndOverlay = true;
       }
       if (mounted) setState(() {});
     });
 
-    setState(() {
-      _yt = controller;
+    setState(() => _yt = controller);
+    // Ensure unmuted shortly after init
+    Future.delayed(const Duration(milliseconds: 200), () {
+      try {
+        _yt?.unMute();
+      } catch (_) {}
+    });
+
+    // If playback doesn’t start shortly, surface a hint for diagnostics
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      // Heuristic: if overlay is showing or not in playing state yet
+      final st = _yt?.value.playerState;
+      if (st != PlayerState.playing) {
+        debugPrint('[PlayerPage] playback not started after 5s (state=$st). Possible embed restriction or network.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Video didn\'t start. Check network or embedding permissions.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     });
 
 
@@ -209,7 +224,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _complete();
     if (_ownsController) {
       try {
-        _yt?.close();
+        _yt?.dispose();
       } catch (_) {}
     }
     _pauseTimer?.cancel();
@@ -221,15 +236,35 @@ class _PlayerPageState extends State<PlayerPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
-        actions: const [],
+        actions: [
+          IconButton(
+            tooltip: 'Open in YouTube',
+            icon: const Icon(Icons.open_in_new),
+            onPressed: () async {
+              final id = _videoId.trim();
+              if (id.isEmpty) return;
+              final uri = Uri.parse('https://youtu.be/$id');
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+          ),
+        ],
       ),
       body: _yt == null
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                Positioned.fill(child: YoutubePlayer(controller: _yt!)),
-                // Top area is fully clickable now (removed tap blockers)
-                // Central overlay to block end-screen suggestion grid (keeps bottom controls clickable)
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: YoutubePlayer(
+                        controller: _yt!,
+                        showVideoProgressIndicator: true,
+                      ),
+                    ),
+                  ),
+                ),
                 if (_showEndOverlay)
                   Positioned(
                     top: 40,
@@ -241,7 +276,6 @@ class _PlayerPageState extends State<PlayerPage> {
                       child: Container(color: Colors.transparent),
                     ),
                   ),
-                // Our own suggestions overlay (device-agnostic), shown when paused long or ended
                 if (_showEndOverlay)
                   Positioned(
                     right: 12,

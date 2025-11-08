@@ -2,8 +2,10 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.conf import settings
-from .models import Show, Season, Episode
-from .serializers import ShowSerializer, SeasonSerializer, EpisodeSerializer
+from django.db.models import Max, F, Count, Q
+from django.utils import timezone
+from .models import Show, Season, Episode, Category
+from .serializers import ShowSerializer, SeasonSerializer, EpisodeSerializer, CategoryListSerializer
 import uuid
 
 
@@ -71,6 +73,26 @@ class ShowViewSet(BaseTenantReadOnlyViewSet):
         qs = super().get_queryset()
         tenant = self.tenant_slug()
         qs = qs.filter(tenant=tenant)
+        category_slug = self.request.query_params.get("category")
+        if category_slug:
+            qs = qs.filter(categories__slug=category_slug, categories__tenant=tenant, categories__is_active=True)
+        # Optional flags for basic sections
+        if self.request.query_params.get("trending"):
+            try:
+                days = int(self.request.query_params.get("days") or 7)
+            except Exception:
+                days = 7
+            since = timezone.now() - timezone.timedelta(days=days)
+            # Count EpisodeView rows per Show within the window
+            qs = qs.annotate(
+                recent_views=Count(
+                    "seasons__episodes__views",
+                    filter=Q(seasons__episodes__views__tenant=tenant, seasons__episodes__views__started_at__gte=since),
+                    distinct=False,
+                )
+            ).order_by("-recent_views", "-updated_at")
+        if self.request.query_params.get("new"):
+            qs = qs.annotate(latest_time=Max("seasons__episodes__source_published_at")).order_by("-latest_time", "-updated_at")
         # Only active shows for non-admins
         if not (self.request.user.is_staff or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(is_active=True)
@@ -142,3 +164,21 @@ class EpisodeViewSet(BaseTenantReadOnlyViewSet):
             "playback_token": playback_token,
             "player_params": {"start": 0},
         }, status=status.HTTP_200_OK)
+
+
+class CategoryViewSet(BaseTenantReadOnlyViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategoryListSerializer
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    ordering_fields = ["display_order", "name", "updated_at"]
+    search_fields = ["name", "slug"]
+
+    @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant = self.tenant_slug()
+        qs = qs.filter(tenant=tenant, is_active=True).order_by("display_order", "name")
+        return qs

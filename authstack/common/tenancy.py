@@ -114,12 +114,21 @@ class TenantResolverMiddleware(MiddlewareMixin):
         # This keeps other API routes strict to headers/subdomain.
         try:
             path = (request.path or "")
-            if path.startswith("/api/live/preview/") or path.startswith("/api/live/proxy/"):
+            if (
+                path.startswith("/api/live/preview/")
+                or path.startswith("/api/live/proxy/")
+                or path.startswith("/api/live/radio/preview/")
+            ):
                 qp_tenant = request.GET.get("tenant") or getattr(request, "query_params", {}).get("tenant")  # type: ignore[attr-defined]
                 if qp_tenant:
                     tenant = Tenant.objects.filter(slug=qp_tenant, active=True).first()
                     if tenant:
-                        which = "preview" if path.startswith("/api/live/preview/") else "proxy"
+                        if path.startswith("/api/live/radio/preview/"):
+                            which = "radio-preview"
+                        elif path.startswith("/api/live/preview/"):
+                            which = "preview"
+                        else:
+                            which = "proxy"
                         logger.debug("Tenant resolution via query param for %s: %s", which, tenant.slug)
                         return tenant
         except Exception:

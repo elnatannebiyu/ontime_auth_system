@@ -20,12 +20,19 @@ import 'auth/services/simple_session_manager.dart';
 import 'features/forms/pages/dynamic_form_page.dart';
 import 'core/notifications/fcm_manager.dart';
 import 'live/live_page.dart';
+import 'live/global_mini_bar.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/version/version_gate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'settings/notification_inbox_page.dart';
+
+// Global route observer to allow RouteAware widgets to pause/resume media
+final RouteObserver<ModalRoute<void>> appRouteObserver =
+    RouteObserver<ModalRoute<void>>();
+// Public navigator key to allow navigation from global widgets (e.g., mini player)
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -282,8 +289,24 @@ class _MyAppState extends State<MyApp> {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: themeController.themeMode,
-          navigatorKey: _navKey,
+          navigatorKey: appNavigatorKey,
           scaffoldMessengerKey: _smKey,
+          navigatorObservers: [appRouteObserver],
+          builder: (context, child) {
+            return Overlay(
+              initialEntries: [
+                OverlayEntry(builder: (_) => child ?? const SizedBox.shrink()),
+                OverlayEntry(
+                  builder: (_) => const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: GlobalMiniBar(),
+                  ),
+                ),
+              ],
+            );
+          },
           // Splash gate decides destination based on stored token
           initialRoute: '/',
           routes: {
