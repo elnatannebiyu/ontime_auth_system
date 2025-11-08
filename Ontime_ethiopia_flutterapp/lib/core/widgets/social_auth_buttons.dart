@@ -14,7 +14,6 @@ class SocialAuthButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -23,7 +22,7 @@ class SocialAuthButtons extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: onGoogle,
             icon: const Icon(Icons.g_mobiledata),
-            label: const Text('Continue with Google'),
+            label: const Text('Sign in or Sign up with Google'),
           ),
         ),
         if (showApple) ...[
@@ -33,19 +32,11 @@ class SocialAuthButtons extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onApple,
               icon: const Icon(Icons.apple),
-              label: const Text('Continue with Apple'),
+              label: const Text('Sign in or Sign up with Apple'),
             ),
           ),
         ],
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: Divider(color: theme.dividerColor.withOpacity(.4)) ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Text('or', style: theme.textTheme.bodySmall),
-          ),
-          Expanded(child: Divider(color: theme.dividerColor.withOpacity(.4)) ),
-        ])
       ],
     );
   }

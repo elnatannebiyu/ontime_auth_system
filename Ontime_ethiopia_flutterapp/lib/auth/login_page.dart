@@ -36,6 +36,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // Feature flag to show/hide legacy email/password login UX without deleting code
+  static const bool _kEnablePasswordLogin = false;
   final _formKey = GlobalKey<FormState>();
   final _username =
       TextEditingController(); // email-as-username supported by backend
@@ -210,7 +212,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: AuthLayout(
         title: 'Welcome back',
-        subtitle: 'Sign in to continue',
+        subtitle: 'Sign in with your Google or Apple account',
         actions: [
           IconButton(
             tooltip: 'Toggle dark mode',
@@ -218,13 +220,15 @@ class _LoginPageState extends State<LoginPage> {
             icon: const Icon(Icons.brightness_6_outlined),
           ),
         ],
-        footer: Center(
-          child: TextButton(
-            onPressed: () =>
-                Navigator.of(context).pushReplacementNamed('/register'),
-            child: const Text('Create an account'),
-          ),
-        ),
+        footer: _kEnablePasswordLogin
+            ? Center(
+                child: TextButton(
+                  onPressed: () =>
+                      Navigator.of(context).pushReplacementNamed('/register'),
+                  child: const Text('Create an account'),
+                ),
+              )
+            : null,
         bottom: const VersionBadge(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -358,64 +362,66 @@ class _LoginPageState extends State<LoginPage> {
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
             // Minimal email/password form
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _username,
-                    autofocus: true,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.alternate_email),
-                      labelText: 'Email or username',
-                      border: OutlineInputBorder(),
+            if (_kEnablePasswordLogin)
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _username,
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.alternate_email),
+                        labelText: 'Email or username',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Enter your email/username'
+                          : null,
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter your email/username'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: _obscure,
-                    onFieldSubmitted: (_) => _login(),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      labelText: 'Password',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                            _obscure ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _password,
+                      obscureText: _obscure,
+                      onFieldSubmitted: (_) => _login(),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                              _obscure ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'Enter password' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: _loading ? null : _login,
+                        child: _loading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Sign in'),
                       ),
                     ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Enter password' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: _loading ? null : _login,
-                      child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Sign in'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
             // Phone OTP entry point disabled (coming soon)
-            TextButton(
-              onPressed: null,
-              child: const Text('Use phone (coming soon)'),
-            ),
+            if (_kEnablePasswordLogin)
+              TextButton(
+                onPressed: null,
+                child: const Text('Use phone (coming soon)'),
+              ),
           ],
         ),
       ),

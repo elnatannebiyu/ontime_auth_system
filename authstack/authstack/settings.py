@@ -10,6 +10,9 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes")
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
+# Allow classic username/password flows when True. Set to False to enforce social-only login.
+AUTH_ALLOW_PASSWORD = os.environ.get("AUTH_ALLOW_PASSWORD", "True").lower() in ("1", "true", "yes")
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -317,12 +320,15 @@ APPLE_KEY_ID = os.environ.get('APPLE_KEY_ID', '')
 APPLE_PRIVATE_KEY = os.environ.get('APPLE_PRIVATE_KEY', '')
 
 # Explicit allowlist of Google Web OAuth client IDs for social login audience verification
-# Include staging/prod IDs here as needed (comma-separated via env or hardcoded set)
+# Include staging/prod IDs here as needed. You can also append via env var GOOGLE_WEB_CLIENT_IDS (comma-separated).
+_extra_google_web_ids = set(
+    s.strip() for s in os.environ.get('GOOGLE_WEB_CLIENT_IDS', '').split(',') if s.strip()
+)
 GOOGLE_WEB_CLIENT_IDS = {
     "59310140647-ks91sebo8ccbd9f6m8q065p7vp4uogvm.apps.googleusercontent.com",
     # iOS client ID so tokens issued on iOS are accepted by the backend verifier
     "59310140647-m77nbro0rb4i146mtcq5blpb0n1mn233.apps.googleusercontent.com",
-}
+} | _extra_google_web_ids
 
 # Production security settings (tuned via environment; safe defaults under HTTPS)
 # Respect reverse proxy SSL (Nginx) so request.is_secure() works

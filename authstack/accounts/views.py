@@ -105,6 +105,16 @@ class TokenObtainPairWithCookieView(TokenObtainPairView):
         tags=["Auth"],
     )
     def post(self, request, *args, **kwargs):
+        # Enforce social-only policy when disabled
+        try:
+            allow = getattr(settings, 'AUTH_ALLOW_PASSWORD', True)
+        except Exception:
+            allow = True
+        if not allow:
+            return Response(
+                {"detail": "Password-based login is disabled.", "error": "password_auth_disabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         res = super().post(request, *args, **kwargs)
         if res.status_code == 200 and "refresh" in res.data:
             refresh = res.data.pop("refresh")
@@ -382,6 +392,16 @@ class RegisterView(APIView):
         tags=["Auth"],
     )
     def post(self, request):
+        # Enforce social-only policy when disabled
+        try:
+            allow = getattr(settings, 'AUTH_ALLOW_PASSWORD', True)
+        except Exception:
+            allow = True
+        if not allow:
+            return Response(
+                {"detail": "Registration via email/password is disabled.", "error": "registration_disabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         tenant = getattr(request, "tenant", None)
         if tenant is None:
             return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
