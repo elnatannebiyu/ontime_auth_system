@@ -326,6 +326,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         channel = self.get_object()
         created = 0
         updated_count = 0
+        limit = int(request.query_params.get("limit", 20))
         try:
             cid = channel.youtube_channel_id
             if not cid and channel.youtube_handle:
@@ -336,9 +337,18 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
             if not cid:
                 return Response({"detail": "Missing youtube_channel_id (and handle could not resolve)."}, status=status.HTTP_400_BAD_REQUEST)
             page = None
+            processed = 0
             while True:
-                data = youtube_api.list_playlists(cid, page_token=page, max_results=50)
-                for it in data.get("items", []):
+                # request as many as needed up to remaining limit, capped at API max 50
+                page_limit = min(50, max(1, (limit - processed) if limit else 50))
+                data = youtube_api.list_playlists(cid, page_token=page, max_results=page_limit)
+                items = data.get("items", [])
+                # Sort by publishedAt desc when available for recency
+                try:
+                    items.sort(key=lambda x: x.get("publishedAt") or "", reverse=True)
+                except Exception:
+                    pass
+                for it in items:
                     pid = it.get("id")
                     title = it.get("title")
                     thumbs = it.get("thumbnails") or {}
@@ -348,14 +358,17 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                         defaults={
                             "channel": channel,
                             "title": title or "",
-                           "thumbnails": thumbs,
+                            "thumbnails": thumbs,
                             "item_count": count,
                         },
                     )
+                    processed += 1
                     if was_created:
                         created += 1
                     else:
                         updated_count += 1
+                    if limit and processed >= limit:
+                        return Response({"created": created, "updated": updated_count})
                 page = data.get("nextPageToken")
                 if not page:
                     break
@@ -388,10 +401,18 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     channel.save(update_fields=["youtube_channel_id", "updated_at"])
             if not cid:
                 return Response({"detail": "Missing youtube_channel_id (and handle could not resolve)."}, status=status.HTTP_400_BAD_REQUEST)
+            limit = int(request.query_params.get("limit", 20))
             page = None
+            processed = 0
             while True:
-                data = youtube_api.list_playlists(cid, page_token=page, max_results=50)
-                for it in data.get("items", []):
+                page_limit = min(50, max(1, (limit - processed) if limit else 50))
+                data = youtube_api.list_playlists(cid, page_token=page, max_results=page_limit)
+                items = data.get("items", [])
+                try:
+                    items.sort(key=lambda x: x.get("publishedAt") or "", reverse=True)
+                except Exception:
+                    pass
+                for it in items:
                     pid = it.get("id")
                     title = it.get("title")
                     thumbs = it.get("thumbnails") or {}
@@ -405,10 +426,16 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                             "item_count": count,
                         },
                     )
+                    processed += 1
                     if was_created:
                         playlists_created += 1
                     else:
                         playlists_updated += 1
+                    if limit and processed >= limit:
+                        page = None
+                        break
+                if not page:
+                    break
                 page = data.get("nextPageToken")
                 if not page:
                     break

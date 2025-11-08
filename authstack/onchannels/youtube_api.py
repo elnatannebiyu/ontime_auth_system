@@ -111,6 +111,7 @@ def list_playlists(channel_id: str, page_token: Optional[str] = None, max_result
             {
                 "id": it.get("id"),
                 "title": it.get("snippet", {}).get("title"),
+                "publishedAt": it.get("snippet", {}).get("publishedAt"),
                 "thumbnails": it.get("snippet", {}).get("thumbnails", {}),
                 "itemCount": it.get("contentDetails", {}).get("itemCount"),
             }
