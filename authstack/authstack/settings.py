@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'tenants',
     'series',
     'live.apps.LiveConfig',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -114,6 +115,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 60.0 * 15,  # every 15 minutes
     },
 }
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 # Cache configuration for rate limiting
 CACHES = {

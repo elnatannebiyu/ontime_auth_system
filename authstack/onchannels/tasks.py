@@ -14,11 +14,40 @@ import json
 from django.conf import settings
 import time
 
-from onchannels.models import ScheduledNotification, ShortJob, Video
+from onchannels.models import ScheduledNotification, ShortJob, Video, Playlist
 from user_sessions.models import Device
 from common.fcm_sender import send_to_token, send_to_topic
 
 logger = logging.getLogger("shorts.ingest")
+
+# Module-level helpers needed by multiple tasks
+def _parse_cap_env(name: str, default_bytes: int) -> int:
+    try:
+        val = os.environ.get(name)
+        if not val:
+            return default_bytes
+        val = val.strip().lower()
+        mul = 1
+        if val.endswith('gb'):
+            mul = 1024**3
+            val = val[:-2]
+        elif val.endswith('mb'):
+            mul = 1024**2
+            val = val[:-2]
+        elif val.endswith('kb'):
+            mul = 1024
+            val = val[:-2]
+        return int(float(val) * mul)
+    except Exception:
+        return default_bytes
+
+
+def _tenant_caps(tenant: str) -> tuple[int, int]:
+    # Per-tenant env override, else global tenant defaults
+    tkey = (tenant or '').strip().upper().replace('-', '_')
+    soft = _parse_cap_env(f'SHORTS_TENANT_{tkey}_SOFT', _parse_cap_env('SHORTS_TENANT_SOFT', 3 * 1024**3))
+    hard = _parse_cap_env(f'SHORTS_TENANT_{tkey}_HARD', _parse_cap_env('SHORTS_TENANT_HARD', 4 * 1024**3))
+    return soft, hard
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def enqueue_notification(self, notification_id: int) -> bool:
@@ -726,17 +755,53 @@ def evict_shorts_low_water(self) -> dict:
 
 # Helper to select recent shorts and enqueue ingestion jobs
 
-def select_and_enqueue_recent_shorts(tenant: str, limit: int = 10) -> list[dict]:
+def select_and_enqueue_recent_shorts(tenant: str, limit: int = 10, per_playlist_limit: int | None = None) -> list[dict]:
     try:
         limit = max(1, min(int(limit), 50))
     except Exception:
         limit = 10
-    vids = (
-        Video.objects.select_related("playlist", "channel")
-        .filter(playlist__is_shorts=True, playlist__is_active=True, channel__tenant=tenant)
-        .order_by("-published_at", "-position")[: limit]
-    )
     results: list[dict] = []
+
+    if per_playlist_limit and per_playlist_limit > 0:
+        # Fair distribution: collect recent videos per playlist, then round-robin up to overall limit
+        pls = (
+            Playlist.objects.filter(is_shorts=True, is_active=True, channel__tenant=tenant)
+            .order_by("-latest_video_published_at", "-last_synced_at")
+        )
+        per_lists: list[list[Video]] = []
+        for pl in pls:
+            pv = list(
+                Video.objects.select_related("playlist", "channel")
+                .filter(playlist=pl)
+                .order_by("-published_at", "-position")[: per_playlist_limit]
+            )
+            if pv:
+                per_lists.append(pv)
+
+        picked: list[Video] = []
+        idx = 0
+        # Round-robin pick
+        while len(picked) < limit and per_lists:
+            removed = []
+            for li, lst in enumerate(per_lists):
+                if idx < len(lst):
+                    picked.append(lst[idx])
+                    if len(picked) >= limit:
+                        break
+                else:
+                    removed.append(li)
+            # Trim exhausted lists
+            if removed:
+                per_lists = [lst for i, lst in enumerate(per_lists) if i not in removed]
+            idx += 1
+        vids = picked
+    else:
+        vids = (
+            Video.objects.select_related("playlist", "channel")
+            .filter(playlist__is_shorts=True, playlist__is_active=True, channel__tenant=tenant)
+            .order_by("-published_at", "-position")[: limit]
+        )
+
     for v in vids:
         vid = getattr(v, "video_id", None)
         if not vid:
@@ -773,6 +838,6 @@ def select_and_enqueue_recent_shorts(tenant: str, limit: int = 10) -> list[dict]
 
 
 @shared_task(bind=True)
-def batch_import_recent_shorts(self, tenant: str = "ontime", limit: int = 10) -> dict:
-    results = select_and_enqueue_recent_shorts(tenant=tenant, limit=limit)
+def batch_import_recent_shorts(self, tenant: str = "ontime", limit: int = 10, per_playlist_limit: int | None = None) -> dict:
+    results = select_and_enqueue_recent_shorts(tenant=tenant, limit=limit, per_playlist_limit=per_playlist_limit)
     return {"tenant": tenant, "count": len(results), "results": results}

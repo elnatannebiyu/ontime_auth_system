@@ -9,11 +9,18 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--tenant", type=str, default="ontime", help="Tenant id (default: ontime)")
         parser.add_argument("--limit", type=int, default=10, help="Max videos to import (1-50). Default 10")
+        parser.add_argument(
+            "--per-playlist-limit",
+            type=int,
+            default=None,
+            help="Fair distribution: import up to N per playlist (round-robin) up to overall --limit",
+        )
 
     def handle(self, *args, **options):
         tenant: str = options.get("tenant") or "ontime"
         limit: int = int(options.get("limit") or 10)
-        results = select_and_enqueue_recent_shorts(tenant=tenant, limit=limit)
+        ppl = options.get("per_playist_limit") or options.get("per_playlist_limit")
+        results = select_and_enqueue_recent_shorts(tenant=tenant, limit=limit, per_playlist_limit=ppl)
         count = len(results)
         self.stdout.write(self.style.SUCCESS(f"Enqueued {count} short(s) for tenant='{tenant}'"))
         for it in results:
