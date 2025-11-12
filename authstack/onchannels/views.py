@@ -577,6 +577,32 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     "yt_published_at": yt_pub_dt,
                 },
             )
+            try:
+                latest_item_dt = None
+                items_data = youtube_api.list_playlist_items(obj.id, max_results=50)
+                for it in items_data.get("items", []):
+                    published_at = it.get("publishedAt")
+                    if not published_at:
+                        continue
+                    dt = None
+                    try:
+                        from datetime import datetime, timezone
+                        s = published_at.replace("Z", "+00:00")
+                        dt = datetime.fromisoformat(s)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        try:
+                            dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                        except Exception:
+                            dt = None
+                    if dt and (latest_item_dt is None or dt > latest_item_dt):
+                        latest_item_dt = dt
+                if latest_item_dt:
+                    obj.yt_last_item_published_at = latest_item_dt
+                    obj.save(update_fields=["yt_last_item_published_at", "updated_at"])
+            except Exception:
+                pass
             return Response({
                 "id": obj.id,
                 "title": obj.title,
