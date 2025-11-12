@@ -19,7 +19,7 @@ const ChannelDetail: React.FC = () => {
   const [vidPage, setVidPage] = useState(1);
   const [vidCount, setVidCount] = useState(0);
   const pageSize = 24;
-  const plOrdering = '-updated_at';
+  const plOrdering = '-last_synced_at';
   const vidOrdering = '-published_at';
   const [loading, setLoading] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
