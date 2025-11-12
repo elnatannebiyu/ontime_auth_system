@@ -575,8 +575,8 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     # Allow searching by playlist title or channel name/slug
-    search_fields = ["title", "channel__name_en", "channel__name_am", "channel__id_slug", "id"]
-    ordering_fields = ["updated_at", "item_count", "title", "last_synced_at", "channel__id_slug"]
+    search_fields = ["title", "channel__name_en", "channel__name_am", "channel__id_slug"]
+    ordering_fields = ["updated_at", "item_count", "title"]
 
     PARAM_TENANT = openapi.Parameter(
         name="X-Tenant-Id",
