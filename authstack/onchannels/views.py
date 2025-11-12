@@ -367,9 +367,15 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     if yt_pub:
                         try:
                             from datetime import datetime, timezone
-                            yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            s = yt_pub.replace("Z", "+00:00")
+                            yt_pub_dt = datetime.fromisoformat(s)
+                            if yt_pub_dt.tzinfo is None:
+                                yt_pub_dt = yt_pub_dt.replace(tzinfo=timezone.utc)
                         except Exception:
-                            yt_pub_dt = None
+                            try:
+                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            except Exception:
+                                yt_pub_dt = None
                     obj, was_created = Playlist.objects.update_or_create(
                         id=pid,
                         defaults={
@@ -552,9 +558,15 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
             if yt_pub:
                 try:
                     from datetime import datetime, timezone
-                    yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    s = yt_pub.replace("Z", "+00:00")
+                    yt_pub_dt = datetime.fromisoformat(s)
+                    if yt_pub_dt.tzinfo is None:
+                        yt_pub_dt = yt_pub_dt.replace(tzinfo=timezone.utc)
                 except Exception:
-                    yt_pub_dt = None
+                    try:
+                        yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    except Exception:
+                        yt_pub_dt = None
             obj, created = Playlist.objects.update_or_create(
                 id=meta.get("id") or playlist_id,
                 defaults={
@@ -572,6 +584,9 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                 "item_count": obj.item_count,
                 "is_active": obj.is_active,
                 "created": created,
+                # Diagnostics
+                "raw_publishedAt": yt_pub,
+                "saved_yt_published_at": obj.yt_published_at,
             })
         except youtube_api.YouTubeAPIError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
