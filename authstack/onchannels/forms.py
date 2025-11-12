@@ -114,4 +114,12 @@ class PlaylistAdminForm(forms.ModelForm):
             self.instance.title = meta.get("title") or self.cleaned_data.get("title") or ""
             self.instance.thumbnails = meta.get("thumbnails") or {}
             self.instance.item_count = int(meta.get("itemCount") or 0)
+            # Minimal: set YouTube published timestamp if available
+            try:
+                yt_pub = meta.get("publishedAt")
+                if yt_pub:
+                    from datetime import datetime, timezone
+                    self.instance.yt_published_at = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
         return super().save(commit=commit)
