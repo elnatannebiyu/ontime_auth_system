@@ -57,7 +57,7 @@ const Playlists: React.FC = () => {
     const key = `${pl.id}-${next?'act':'deact'}`;
     setBusyIds(prev => new Set(prev).add(key));
     try {
-      await api.post(`/playlists/${encodeURIComponent(pl.id)}/${next? 'activate':'deactivate'}/`);
+      await api.post(`/channels/playlists/${encodeURIComponent(pl.id)}/${next? 'activate':'deactivate'}/`);
       await load();
     } catch (e:any) {
       setErr(e?.response?.data?.detail || 'Failed to update playlist');
@@ -70,7 +70,7 @@ const Playlists: React.FC = () => {
     <Stack spacing={2}>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap:'wrap' }}>
         <Typography variant="h5" sx={{ flexGrow: 1 }}>Playlists</Typography>
-        <TextField size="small" label="Search title" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); }} onKeyDown={(e)=>{ if (e.key==='Enter') load(); }} />
+        <TextField size="small" label="Search title or channel name" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); }} onKeyDown={(e)=>{ if (e.key==='Enter') load(); }} />
         <TextField size="small" label="Channel slug" value={channel} onChange={e=>setChannel(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <FormControl size="small">
           <InputLabel id="status-label">Status</InputLabel>
@@ -88,6 +88,8 @@ const Playlists: React.FC = () => {
             <MenuItem value="-last_synced_at">Recently synced</MenuItem>
             <MenuItem value="title">Title</MenuItem>
             <MenuItem value="item_count">Item count</MenuItem>
+            <MenuItem value="channel__name_en">Channel name (A→Z)</MenuItem>
+            <MenuItem value="-channel__name_en">Channel name (Z→A)</MenuItem>
           </Select>
         </FormControl>
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>

@@ -68,7 +68,7 @@ const ChannelDetail: React.FC = () => {
     const key = `${pl.id}-${next?'act':'deact'}`;
     setBusyIds(prev => new Set(prev).add(key));
     try {
-      await api.post(`/playlists/${encodeURIComponent(pl.id)}/${next? 'activate':'deactivate'}/`);
+      await api.post(`/channels/playlists/${encodeURIComponent(pl.id)}/${next? 'activate':'deactivate'}/`);
       await load();
     } catch (e:any) {
       setErr(e?.response?.data?.detail || 'Failed to update playlist');

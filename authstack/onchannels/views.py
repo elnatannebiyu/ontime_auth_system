@@ -655,8 +655,22 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["title", "id", "channel__id_slug"]
-    ordering_fields = ["title", "last_synced_at", "item_count", "yt_published_at", "yt_last_item_published_at"]
+    search_fields = [
+        "title",
+        "id",
+        "channel__id_slug",
+        "channel__name_en",
+        "channel__name_am",
+    ]
+    ordering_fields = [
+        "title",
+        "last_synced_at",
+        "item_count",
+        "yt_published_at",
+        "yt_last_item_published_at",
+        "channel__name_en",
+        "channel__name_am",
+    ]
 
     PARAM_TENANT = openapi.Parameter(
         name="X-Tenant-Id",
