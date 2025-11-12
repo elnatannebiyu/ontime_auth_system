@@ -20,6 +20,7 @@ from django.utils.safestring import mark_safe
 import logging
 from django import forms
 from datetime import datetime
+from datetime import timezone as dt_timezone
 try:
     from PIL import Image
     _PIL_AVAILABLE = True
@@ -408,7 +409,7 @@ class ChannelAdmin(admin.ModelAdmin):
                         yt_pub_dt = None
                         if yt_pub:
                             try:
-                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc)
                             except Exception:
                                 yt_pub_dt = None
                         if yt_pub_dt:
