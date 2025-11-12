@@ -251,7 +251,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="activate")
-    def activate(self, request, pk=None):
+    def activate(self, request, pk=None, **kwargs):
         # Require change permission explicitly for this custom action
         if not request.user.has_perm("onchannels.change_channel"):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
@@ -262,7 +262,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="deactivate")
-    def deactivate(self, request, pk=None):
+    def deactivate(self, request, pk=None, **kwargs):
         # Require change permission explicitly for this custom action
         if not request.user.has_perm("onchannels.change_channel"):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
@@ -301,7 +301,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="playlists/cascade-activate")
-    def cascade_activate_playlists(self, request, pk=None):
+    def cascade_activate_playlists(self, request, pk=None, **kwargs):
         if not request.user.has_perm("onchannels.change_channel"):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         channel = self.get_object()
@@ -310,7 +310,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="playlists/cascade-deactivate")
-    def cascade_deactivate_playlists(self, request, pk=None):
+    def cascade_deactivate_playlists(self, request, pk=None, **kwargs):
         if not request.user.has_perm("onchannels.change_channel"):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         channel = self.get_object()
@@ -319,7 +319,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="yt/sync-playlists")
-    def sync_playlists(self, request, pk=None):
+    def sync_playlists(self, request, pk=None, **kwargs):
         """Sync (create/update) all public playlists for this channel from YouTube."""
         if not request.user.has_perm("onchannels.change_channel"):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
@@ -378,7 +378,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
     @action(detail=True, methods=["post"], url_path="yt/sync-all")
-    def sync_all(self, request, pk=None):
+    def sync_all(self, request, pk=None, **kwargs):
         """Sync playlists first, then videos for this channel in a single call.
 
         - Requires `onchannels.change_channel` permission.
@@ -494,7 +494,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         ]
     )
     @action(detail=True, methods=["post"], url_path="yt/upsert-playlist")
-    def upsert_playlist(self, request, pk=None):
+    def upsert_playlist(self, request, pk=None, **kwargs):
         """Upsert a specific playlist into this channel by playlist_id or playlist_url."""
         # Require change permission explicitly
         if not request.user.has_perm("onchannels.change_channel"):
