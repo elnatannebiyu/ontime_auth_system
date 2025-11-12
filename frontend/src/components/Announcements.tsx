@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Stack, Typography, IconButton, Tooltip } from '@mui/material';
+import { Card, CardContent, Stack, Typography, IconButton, Tooltip } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../services/api';
 
