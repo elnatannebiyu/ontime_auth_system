@@ -553,7 +553,7 @@ class ChannelAdmin(admin.ModelAdmin):
                     if latest_item_dt:
                         try:
                             pl.yt_last_item_published_at = latest_item_dt
-                            pl.save(update_fields=["yt_last_item_published_at", "updated_at"])
+                            pl.save(update_fields=["yt_last_item_published_at"])
                         except Exception:
                             pass
             except Exception as exc:  # noqa: BLE001

@@ -600,7 +600,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                         latest_item_dt = dt
                 if latest_item_dt:
                     obj.yt_last_item_published_at = latest_item_dt
-                    obj.save(update_fields=["yt_last_item_published_at", "updated_at"])
+                    obj.save(update_fields=["yt_last_item_published_at"])
             except Exception:
                 pass
             return Response({
@@ -714,7 +714,7 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         pl = self.get_object()
         pl.is_active = True
-        pl.save(update_fields=["is_active", "updated_at"])
+        pl.save(update_fields=["is_active"])
         return Response({"id": pl.id, "is_active": pl.is_active})
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
@@ -727,7 +727,7 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         pl = self.get_object()
         pl.is_active = False
-        pl.save(update_fields=["is_active", "updated_at"])
+        pl.save(update_fields=["is_active"])
         return Response({"id": pl.id, "is_active": pl.is_active})
 
 
