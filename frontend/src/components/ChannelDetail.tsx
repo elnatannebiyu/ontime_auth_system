@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, Grid, Stack, Tab, Tabs, Typography, IconButton, Tooltip } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Grid, Stack, Tab, Tabs, Typography, IconButton, Tooltip, TextField, Pagination, Snackbar, Alert } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
@@ -14,8 +14,15 @@ const ChannelDetail: React.FC = () => {
   const [channel, setChannel] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
+  const [plPage, setPlPage] = useState(1);
+  const [plCount, setPlCount] = useState(0);
+  const [vidPage, setVidPage] = useState(1);
+  const [vidCount, setVidCount] = useState(0);
+  const pageSize = 24;
   const [loading, setLoading] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [err, setErr] = useState<string | null>(null);
 
   const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
 
@@ -27,16 +34,20 @@ const ChannelDetail: React.FC = () => {
     try {
       const [ch, pls, vids] = await Promise.all([
         api.get(`/channels/${encodeURIComponent(slug)}/`).catch(()=>({data:null})),
-        api.get('/channels/playlists/', { params: { channel: slug } }).catch(()=>({data:{results:[]}})),
-        api.get('/channels/videos/', { params: { channel: slug } }).catch(()=>({data:{results:[]}})),
+        api.get('/channels/playlists/', { params: { channel: slug, page: plPage } }).catch(()=>({data:{results:[], count: 0}})),
+        api.get('/channels/videos/', { params: { channel: slug, page: vidPage } }).catch(()=>({data:{results:[], count: 0}})),
       ]);
       setChannel(ch.data);
-      setPlaylists(Array.isArray(pls.data) ? pls.data : (pls.data?.results || []));
-      setVideos(Array.isArray(vids.data) ? vids.data : (vids.data?.results || []));
+      const plsList = Array.isArray(pls.data) ? pls.data : (pls.data?.results || []);
+      const vidsList = Array.isArray(vids.data) ? vids.data : (vids.data?.results || []);
+      setPlaylists(plsList);
+      setVideos(vidsList);
+      setPlCount(typeof pls.data?.count === 'number' ? pls.data.count : plsList.length);
+      setVidCount(typeof vids.data?.count === 'number' ? vids.data.count : vidsList.length);
     } finally { setLoading(false); }
   };
 
-  useEffect(()=>{ load(); }, [slug]);
+  useEffect(()=>{ load(); }, [slug, plPage, vidPage]);
 
   const syncPlaylists = async () => {
     if (!slug) return; setSyncBusy(true);
@@ -45,6 +56,32 @@ const ChannelDetail: React.FC = () => {
   const syncAll = async () => {
     if (!slug) return; setSyncBusy(true);
     try { await api.post(`/channels/${encodeURIComponent(slug)}/yt/sync-all/`); await load(); } finally { setSyncBusy(false); }
+  };
+
+  const togglePlaylist = async (pl: any, next: boolean) => {
+    const key = `${pl.id}-${next?'act':'deact'}`;
+    setBusyIds(prev => new Set(prev).add(key));
+    try {
+      await api.post(`/playlists/${encodeURIComponent(pl.id)}/${next? 'activate':'deactivate'}/`);
+      await load();
+    } catch (e:any) {
+      setErr(e?.response?.data?.detail || 'Failed to update playlist');
+    } finally {
+      setBusyIds(prev => { const n = new Set(prev); n.delete(key); return n; });
+    }
+  };
+
+  const [upsertVal, setUpsertVal] = useState('');
+  const [upserting, setUpserting] = useState(false);
+  const upsertPlaylist = async () => {
+    if (!slug || !upsertVal.trim()) return; setUpserting(true);
+    try {
+      await api.post(`/channels/${encodeURIComponent(slug)}/yt/upsert-playlist/`, null, { params: { playlist_url: upsertVal.trim() } });
+      setUpsertVal('');
+      await load();
+    } catch (e:any) {
+      setErr(e?.response?.data?.detail || 'Failed to upsert playlist');
+    } finally { setUpserting(false); }
   };
 
   return (
@@ -83,6 +120,14 @@ const ChannelDetail: React.FC = () => {
 
       {tab === 0 && (
         <Grid container spacing={2}>
+          {isStaff && (
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <TextField size="small" fullWidth placeholder="Playlist URL or ID" value={upsertVal} onChange={e=>setUpsertVal(e.target.value)} />
+                <Button size="small" variant="contained" startIcon={<PlaylistAddIcon/>} disabled={!upsertVal.trim() || upserting} onClick={upsertPlaylist}>Add/Update</Button>
+              </Stack>
+            </Grid>
+          )}
           {playlists.map((pl:any) => (
             <Grid item xs={12} sm={6} md={4} lg={3} key={pl.id}>
               <Card>
@@ -97,14 +142,28 @@ const ChannelDetail: React.FC = () => {
                 <CardContent>
                   <Typography variant="subtitle1" noWrap title={pl.title}>{pl.title}</Typography>
                   <Typography variant="caption" color="text.secondary">{pl.channel}</Typography>
-                  <Box sx={{ mt: 1, display:'flex', gap:1, alignItems:'center' }}>
-                    <Chip size="small" label={`${pl.item_count}`} />
-                    <Chip size="small" color={pl.is_active ? 'success' : 'default'} label={pl.is_active ? 'Active' : 'Inactive'} />
+                  <Box sx={{ mt: 1, display:'flex', gap:1, alignItems:'center', justifyContent:'space-between' }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip size="small" label={`${pl.item_count}`} />
+                      <Chip size="small" color={pl.is_active ? 'success' : 'default'} label={pl.is_active ? 'Active' : 'Inactive'} />
+                    </Stack>
+                    {isStaff && (
+                      <span>
+                        <Button size="small" variant={pl.is_active? 'outlined':'contained'} color={pl.is_active? 'warning':'primary'} disabled={busyIds.has(`${pl.id}-${pl.is_active?'deact':'act'}`)} onClick={()=>togglePlaylist(pl, !pl.is_active)}>
+                          {pl.is_active? 'Deactivate':'Activate'}
+                        </Button>
+                      </span>
+                    )}
                   </Box>
                 </CardContent>
               </Card>
             </Grid>
           ))}
+          <Grid item xs={12}>
+            <Box sx={{ display:'flex', justifyContent:'center', my:2 }}>
+              <Pagination page={plPage} onChange={(_,p)=>setPlPage(p)} count={Math.max(1, Math.ceil(plCount / pageSize))} color="primary" />
+            </Box>
+          </Grid>
         </Grid>
       )}
 
@@ -132,8 +191,17 @@ const ChannelDetail: React.FC = () => {
               </Card>
             </Grid>
           ))}
+          <Grid item xs={12}>
+            <Box sx={{ display:'flex', justifyContent:'center', my:2 }}>
+              <Pagination page={vidPage} onChange={(_,p)=>setVidPage(p)} count={Math.max(1, Math.ceil(vidCount / pageSize))} color="primary" />
+            </Box>
+          </Grid>
         </Grid>
       )}
+
+      <Snackbar open={!!err} autoHideDuration={4000} onClose={()=>setErr(null)}>
+        <Alert severity="error" variant="filled" onClose={()=>setErr(null)} sx={{ width:'100%' }}>{err}</Alert>
+      </Snackbar>
     </Stack>
   );
 };
