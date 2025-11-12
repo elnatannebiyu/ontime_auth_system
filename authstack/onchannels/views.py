@@ -185,9 +185,12 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         filename either from the Channel.images JSON (kind=logo, path), or
         defaults to icon.jpg/png. Returns 404 JSON if not found.
         """
-        # DRF will pass id_slug as kwarg when lookup_field = 'id_slug'
-        # self.get_object() respects lookup_field automatically
-        channel = self.get_object()
+        # DRF passes id_slug; fetch without is_active filtering so inactive channels still resolve
+        tenant = request.headers.get("X-Tenant-Id") or request.query_params.get("tenant") or "ontime"
+        try:
+            channel = Channel.objects.get(tenant=tenant, id_slug=id_slug)
+        except Channel.DoesNotExist:
+            return Response({"detail": "No Channel matches the given query."}, status=status.HTTP_404_NOT_FOUND)
         base_root = Path(settings.BASE_DIR) / "youtube_channels"
         if not base_root.exists():
             return Response({"detail": "Channel media root not found."}, status=status.HTTP_404_NOT_FOUND)
