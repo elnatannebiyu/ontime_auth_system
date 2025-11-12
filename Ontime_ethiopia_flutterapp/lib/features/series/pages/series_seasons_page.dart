@@ -34,14 +34,23 @@ class _SeriesSeasonsPageState extends State<SeriesSeasonsPage> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final data = await _service.getSeasons(widget.showSlug);
-      setState(() { _seasons = data; });
+      setState(() {
+        _seasons = data;
+      });
     } catch (e) {
-      setState(() { _error = 'Failed to load seasons'; });
+      setState(() {
+        _error = 'Failed to load seasons';
+      });
     } finally {
-      setState(() { _loading = false; });
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
@@ -57,7 +66,8 @@ class _SeriesSeasonsPageState extends State<SeriesSeasonsPage> {
                 ? ListView(children: [
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!,
+                          style: const TextStyle(color: Colors.red)),
                     )
                   ])
                 : ListView.separated(
@@ -69,17 +79,20 @@ class _SeriesSeasonsPageState extends State<SeriesSeasonsPage> {
                       final id = s['id'] as int;
                       final number = s['number']?.toString() ?? '';
                       final title = (s['title'] as String?)?.trim();
-                      final display = (title != null && title.isNotEmpty) ? title : 'Season $number';
+                      final display = (title != null && title.isNotEmpty)
+                          ? title
+                          : 'Season $number';
                       final cover = (s['cover_image'] ?? '').toString();
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         leading: cover.isNotEmpty
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(cover, width: 56, height: 56, fit: BoxFit.cover),
+                                child: Image.network(cover,
+                                    width: 56, height: 56, fit: BoxFit.cover),
                               )
-                            : const CircleAvatar(child: Icon(Icons.tv))
-                                ,
+                            : const CircleAvatar(child: Icon(Icons.tv)),
                         title: Text(display),
                         subtitle: Text('S$number'),
                         trailing: const Icon(Icons.chevron_right),

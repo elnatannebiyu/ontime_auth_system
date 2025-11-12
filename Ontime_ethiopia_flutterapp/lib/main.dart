@@ -223,7 +223,6 @@ class _MyAppState extends State<MyApp> {
       _showUpdateDialog(ctx, message, storeUrl);
     });
 
-    // Mini player disabled: no attachment
 
     // Initialize Firebase Cloud Messaging (mobile only)
     WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -1,51 +1,343 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import '../mini_player/mini_player_manager.dart';
+import '../mini_player/series_now_playing.dart';
 import '../../../auth/tenant_auth_client.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PlayerPage extends StatefulWidget {
   final AuthApi api;
   final String tenantId;
   final int episodeId;
-  final int? seasonId; // optional: used for Continue Watching per-season
   final String title;
-  final void Function(int episodeId, String? title, String? thumb)? onPlayEpisode; // ask parent to play another ep
+  final String? thumbnailUrl;
+
   const PlayerPage({
     super.key,
     required this.api,
     required this.tenantId,
     required this.episodeId,
-    this.seasonId,
     required this.title,
-    this.onPlayEpisode,
+    this.thumbnailUrl,
   });
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> {
+class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   YoutubePlayerController? _yt;
-  Timer? _hb;
-  int _viewId = 0;
-  String _token = '';
-  int _accum = 0;
-  bool _showEndOverlay = false;
-  Timer? _pauseTimer;
-  List<Map<String, dynamic>> _seasonEpisodes = const [];
-  bool _ownsController = true; // always owned here for flutter controller
-  String _videoId = '';
+  VoidCallback? _ytListener;
+  bool _isFull = false;
+  bool _showUi = true;
+  Timer? _hideTimer;
+  bool? _lastLandscape;
+  Timer? _rotateDebounce;
+  bool _autoRotate = true; // toggle: auto-enter/exit fullscreen on orientation
+  bool _suppressUi = false; // hide overlays during rotation window
+  DateTime? _lastToggleAt; // min interval guard
+  String? _videoId; // for stability mode rebuilds
+  final bool _useNativeControls = true;
+
+  String _fmt(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return h > 0 ? '${h}:${two(m)}:${two(s)}' : '${m}:${two(s)}';
+  }
 
   @override
   void initState() {
     super.initState();
-    _init();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
   }
 
-  // Extract a single YouTube video ID from various URL formats; ignore playlist/list params.
+  @override
+  void dispose() {
+    try {
+      if (_ytListener != null && _yt != null) _yt!.removeListener(_ytListener!);
+      _yt?.pause();
+      _yt?.dispose();
+    } catch (_) {}
+    try {
+      _hideTimer?.cancel();
+    } catch (_) {}
+    try {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (_) {}
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
+    try {
+      _rotateDebounce?.cancel();
+    } catch (_) {}
+    try {
+      MiniPlayerManager.I.clear();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // Debounce orientation-driven fullscreen sync to avoid surface churn
+    try {
+      _rotateDebounce?.cancel();
+    } catch (_) {}
+    setState(() => _suppressUi = true);
+    _rotateDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (!mounted) return;
+      await _rebuildForOrientation(context);
+      if (mounted) setState(() => _suppressUi = false);
+    });
+  }
+
+  Future<void> _rebuildForOrientation(BuildContext ctx) async {
+    if (!_autoRotate) return;
+    final c = _yt;
+    if (c == null) return;
+    // Require stable orientation across two frames
+    final o1 = MediaQuery.of(ctx).orientation;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+    final o2 = MediaQuery.of(ctx).orientation;
+    if (o1 != o2) return; // not stable yet
+    final isLand = o2 == Orientation.landscape;
+    if (_lastLandscape == isLand && _isFull == isLand) return;
+    // Min interval guard
+    final now = DateTime.now();
+    if (_lastToggleAt != null &&
+        now.difference(_lastToggleAt!) < const Duration(milliseconds: 800)) {
+      _lastLandscape = isLand;
+      return;
+    }
+
+    // Capture state
+    Duration pos = Duration.zero;
+    bool wasPlaying = false;
+    try {
+      pos = c.value.position;
+      wasPlaying = c.value.isPlaying;
+    } catch (_) {}
+
+    try {
+      c.pause();
+    } catch (_) {}
+    try {
+      c.removeListener(_ytListener!);
+    } catch (_) {}
+    try {
+      c.dispose();
+    } catch (_) {}
+    setState(() {
+      _yt = null;
+    });
+
+    // Recreate after short delay
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (!mounted || _videoId == null || _videoId!.isEmpty) return;
+
+    final nc = YoutubePlayerController(
+      initialVideoId: _videoId!,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        controlsVisibleAtStart: true,
+        hideControls: false,
+        forceHD: false,
+        enableCaption: false,
+      ),
+    );
+    _ytListener = () {
+      final fs = nc.value.isFullScreen;
+      if (fs != _isFull) {
+        setState(() => _isFull = fs);
+        try {
+          if (fs) {
+            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+          } else {
+            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+          }
+        } catch (_) {}
+      }
+      try {
+        final pos = nc.value.position;
+        final dur = nc.value.metaData.duration;
+        final playing = nc.value.isPlaying;
+        final current = MiniPlayerManager.I.nowPlaying.value;
+        if (current == null || current.episodeId != widget.episodeId) {
+          MiniPlayerManager.I.setNowPlaying(
+            SeriesNowPlaying(
+              episodeId: widget.episodeId,
+              title: widget.title,
+              thumbnailUrl: widget.thumbnailUrl,
+              position: pos,
+              duration: dur,
+              isPlaying: playing,
+              onTogglePlayPause: () {
+                try {
+                  if (nc.value.isPlaying) {
+                    nc.pause();
+                  } else {
+                    nc.play();
+                  }
+                } catch (_) {}
+              },
+              onExpand: () {},
+            ),
+          );
+        } else {
+          MiniPlayerManager.I.update(
+            position: pos,
+            duration: dur,
+            isPlaying: playing,
+            onTogglePlayPause: () {
+              try {
+                if (nc.value.isPlaying) {
+                  nc.pause();
+                } else {
+                  nc.play();
+                }
+              } catch (_) {}
+            },
+          );
+        }
+      } catch (_) {}
+    };
+    nc.addListener(_ytListener!);
+    setState(() {
+      _yt = nc;
+      _lastLandscape = isLand;
+      _lastToggleAt = DateTime.now();
+    });
+
+    // Wait a frame, then seek and set fullscreen to match orientation
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        _yt?.seekTo(pos);
+      } catch (_) {}
+      if (wasPlaying) {
+        try {
+          _yt?.play();
+        } catch (_) {}
+      }
+      final fs = _yt?.value.isFullScreen ?? false;
+      try {
+        if (isLand && !fs) {
+          _yt?.toggleFullScreenMode();
+        } else if (!isLand && fs) {
+          _yt?.toggleFullScreenMode();
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _load() async {
+    widget.api.setTenant(widget.tenantId);
+    try {
+      final play = await widget.api.seriesEpisodePlay(widget.episodeId);
+      final raw = (play['video_id'] ?? '').toString();
+      final vid = _extractVideoId(raw);
+      final c = YoutubePlayerController(
+        initialVideoId: vid,
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
+          controlsVisibleAtStart: true,
+          hideControls: false,
+          forceHD: false,
+          enableCaption: false,
+        ),
+      );
+      _videoId = vid;
+      _lastLandscape = null; // reset guard on new controller
+      _ytListener = () {
+        final fs = c.value.isFullScreen;
+        if (fs != _isFull) {
+          setState(() => _isFull = fs);
+          try {
+            if (fs) {
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+            } else {
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+            }
+          } catch (_) {}
+        }
+        try {
+          final pos = c.value.position;
+          final dur = c.value.metaData.duration;
+          final playing = c.value.isPlaying;
+          final current = MiniPlayerManager.I.nowPlaying.value;
+          if (current == null || current.episodeId != widget.episodeId) {
+            MiniPlayerManager.I.setNowPlaying(
+              SeriesNowPlaying(
+                episodeId: widget.episodeId,
+                title: widget.title,
+                thumbnailUrl: widget.thumbnailUrl,
+                position: pos,
+                duration: dur,
+                isPlaying: playing,
+                onTogglePlayPause: () {
+                  try {
+                    if (c.value.isPlaying) {
+                      c.pause();
+                    } else {
+                      c.play();
+                    }
+                  } catch (_) {}
+                },
+                onExpand: () {},
+              ),
+            );
+          } else {
+            MiniPlayerManager.I.update(
+              position: pos,
+              duration: dur,
+              isPlaying: playing,
+              onTogglePlayPause: () {
+                try {
+                  if (c.value.isPlaying) {
+                    c.pause();
+                  } else {
+                    c.play();
+                  }
+                } catch (_) {}
+              },
+            );
+          }
+        } catch (_) {}
+      };
+      c.addListener(_ytListener!);
+      setState(() => _yt = c);
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _rebuildForOrientation(context));
+    } catch (_) {}
+  }
+
+  void _showUiTemp() {
+    setState(() => _showUi = true);
+    try {
+      _hideTimer?.cancel();
+    } catch (_) {}
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showUi = false);
+    });
+  }
+
+  void _seekBy(int s) {
+    final c = _yt;
+    if (c == null) return;
+    try {
+      final pos = c.value.position;
+      final dur = c.value.metaData.duration;
+      var t = pos + Duration(seconds: s);
+      if (t < Duration.zero) t = Duration.zero;
+      if (dur != Duration.zero && t > dur) t = dur;
+      c.seekTo(t);
+    } catch (_) {}
+  }
+
   String _extractVideoId(String input) {
     String s = input.trim();
     if (s.isEmpty) return '';
@@ -66,291 +358,173 @@ class _PlayerPageState extends State<PlayerPage> {
     return s;
   }
 
-  String _pickThumb(Map<String, dynamic>? thumbs) {
-    if (thumbs == null) return '';
-    const order = ['maxres', 'standard', 'high', 'medium', 'default'];
-    for (final k in order) {
-      final t = thumbs[k];
-      if (t is Map && t['url'] is String && (t['url'] as String).isNotEmpty) {
-        return t['url'] as String;
-      }
-    }
-    if (thumbs['url'] is String) return thumbs['url'] as String;
-    return '';
-  }
-
-  Future<void> _init() async {
-    widget.api.setTenant(widget.tenantId);
-    final play = await widget.api.seriesEpisodePlay(widget.episodeId);
-    debugPrint('[PlayerPage] play payload for episode ${widget.episodeId}: $play');
-    final raw = (play['video_id'] ?? '').toString();
-    final videoId = _extractVideoId(raw);
-    debugPrint('[PlayerPage] resolved videoId: "$videoId" from "$raw"');
-    _videoId = videoId;
-    _token = (play['playback_token'] ?? '').toString();
-
-    if (_token.isNotEmpty) {
-      final start = await widget.api.viewStart(
-        episodeId: widget.episodeId,
-        playbackToken: _token,
-      );
-      _viewId = (start['view_id'] ?? 0) as int;
-    }
-    // Create controller for youtube_player_flutter
-    final controller = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        controlsVisibleAtStart: true,
-        enableCaption: false,
-        forceHD: false,
-      ),
-    );
-    // Listen to state changes
-    controller.addListener(() {
-      final v = controller.value;
-      final st = v.playerState;
-      debugPrint('[PlayerPage] state=$st');
-      if (st == PlayerState.playing) {
-        _startHeartbeat();
-        _showEndOverlay = false;
-        _pauseTimer?.cancel();
-      } else if (st == PlayerState.paused || st == PlayerState.buffering) {
-        _stopHeartbeat();
-        _pauseTimer?.cancel();
-        _pauseTimer = Timer(const Duration(seconds: 2), () {
-          if (mounted) setState(() => _showEndOverlay = true);
-        });
-      } else if (st == PlayerState.ended) {
-        _complete();
-        _showEndOverlay = true;
-      }
-      if (mounted) setState(() {});
-    });
-
-    setState(() => _yt = controller);
-    // Ensure unmuted shortly after init
-    Future.delayed(const Duration(milliseconds: 200), () {
-      try {
-        _yt?.unMute();
-      } catch (_) {}
-    });
-
-    // If playback doesn’t start shortly, surface a hint for diagnostics
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      // Heuristic: if overlay is showing or not in playing state yet
-      final st = _yt?.value.playerState;
-      if (st != PlayerState.playing) {
-        debugPrint('[PlayerPage] playback not started after 5s (state=$st). Possible embed restriction or network.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Video didn\'t start. Check network or embedding permissions.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    });
-
-
-    // Preload season episodes for suggestions overlay
-    if (widget.seasonId != null) {
-      try {
-        final results = await widget.api.seriesEpisodesForSeason(widget.seasonId!);
-        if (mounted) setState(() => _seasonEpisodes = results);
-      } catch (_) {}
-    }
-  }
-
-  void _startHeartbeat() {
-    _hb ??= Timer.periodic(const Duration(seconds: 15), (_) async {
-      _accum += 15;
-      if (_viewId > 0 && _token.isNotEmpty) {
-        try {
-          await widget.api.viewHeartbeat(
-            viewId: _viewId,
-            playbackToken: _token,
-            secondsWatched: 15,
-            state: 'playing',
-          );
-        } catch (_) {}
-      }
-      // Save Continue Watching marker locally (dev-friendly, fast)
-      _saveContinueWatching();
-    });
-  }
-
-  void _stopHeartbeat() {
-    _hb?.cancel();
-    _hb = null;
-  }
-
-  Future<void> _complete() async {
-    _stopHeartbeat();
-    if (_viewId > 0 && _token.isNotEmpty) {
-      try {
-        await widget.api.viewComplete(
-          viewId: _viewId,
-          playbackToken: _token,
-          totalSeconds: _accum,
-        );
-      } catch (_) {}
-    }
-    await _saveContinueWatching();
-  }
-
-  Future<void> _saveContinueWatching() async {
-    final sid = widget.seasonId;
-    if (sid == null) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'cw_season_$sid';
-      // Minimal payload
-      final payload = {
-        'episode_id': widget.episodeId,
-        'title': widget.title,
-        'season_id': sid,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-      // Store as JSON string
-      final jsonStr = jsonEncode(payload);
-      await prefs.setString(key, jsonStr);
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _complete();
-    if (_ownsController) {
-      try {
-        _yt?.dispose();
-      } catch (_) {}
-    }
-    _pauseTimer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          IconButton(
-            tooltip: 'Open in YouTube',
-            icon: const Icon(Icons.open_in_new),
-            onPressed: () async {
-              final id = _videoId.trim();
-              if (id.isEmpty) return;
-              final uri = Uri.parse('https://youtu.be/$id');
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            },
-          ),
-        ],
-      ),
-      body: _yt == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
+    return WillPopScope(
+      onWillPop: () async {
+        final v = _yt?.value;
+        if (v != null && v.isFullScreen) {
+          try {
+            _yt?.toggleFullScreenMode();
+          } catch (_) {}
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _showUiTemp,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: YoutubePlayer(
-                        controller: _yt!,
-                        showVideoProgressIndicator: true,
+                if (_yt != null)
+                  YoutubePlayer(
+                    controller: _yt!,
+                    showVideoProgressIndicator: true,
+                  )
+                else
+                  const Center(child: CircularProgressIndicator()),
+
+                // Back button (top-left), visible when UI is shown and not suppressed
+                if (_showUi && !_suppressUi)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Material(
+                          color: Colors.black45,
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                            onPressed: () {
+                              try {
+                                _yt?.pause();
+                              } catch (_) {}
+                              Navigator.of(context).maybePop();
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (_showEndOverlay)
-                  Positioned(
-                    top: 40,
-                    left: 0,
-                    right: 0,
-                    bottom: 60,
-                    child: AbsorbPointer(
-                      absorbing: true,
-                      child: Container(color: Colors.transparent),
+
+                // Center controls (disabled when using native controls)
+                if (!_useNativeControls && _showUi && !_suppressUi)
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ctrlBtn(Icons.skip_previous, () => _seekBy(-30)),
+                        const SizedBox(width: 14),
+                        _ctrlBtn(Icons.replay_10, () => _seekBy(-10)),
+                        const SizedBox(width: 14),
+                        _ctrlBtn(
+                          (_yt?.value.isPlaying ?? false)
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_fill,
+                          () {
+                            final c = _yt;
+                            if (c == null) return;
+                            if (c.value.isPlaying) {
+                              c.pause();
+                            } else {
+                              c.play();
+                            }
+                          },
+                          size: 36,
+                        ),
+                        const SizedBox(width: 14),
+                        _ctrlBtn(Icons.forward_10, () => _seekBy(10)),
+                        const SizedBox(width: 14),
+                        _ctrlBtn(Icons.skip_next, () => _seekBy(30)),
+                      ],
                     ),
                   ),
-                if (_showEndOverlay)
+
+                // Timeline bottom (disabled when using native controls)
+                if (!_useNativeControls && _showUi && !_suppressUi)
                   Positioned(
+                    left: 12,
                     right: 12,
-                    bottom: 76,
-                    child: _buildOurSuggestions(),
+                    bottom: 12,
+                    child: Builder(
+                      builder: (context) {
+                        final c = _yt;
+                        final pos = c?.value.position ?? Duration.zero;
+                        final dur = c?.value.metaData.duration ?? Duration.zero;
+                        final max =
+                            dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
+                        final value =
+                            pos.inSeconds.clamp(0, dur.inSeconds).toDouble();
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(_fmt(pos),
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12)),
+                                Text(_fmt(dur),
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12)),
+                              ],
+                            ),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 2,
+                                thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 6),
+                                overlayShape: SliderComponentShape.noOverlay,
+                              ),
+                              child: Slider(
+                                min: 0,
+                                max: max,
+                                value: value.isFinite ? value : 0,
+                                activeColor: Colors.white,
+                                inactiveColor: Colors.white24,
+                                onChanged: (v) {
+                                  _showUiTemp();
+                                },
+                                onChangeEnd: (v) {
+                                  try {
+                                    _yt?.seekTo(Duration(seconds: v.round()));
+                                  } catch (_) {}
+                                  _showUiTemp();
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
               ],
             ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildOurSuggestions() {
-    if (_seasonEpisodes.isEmpty || widget.onPlayEpisode == null || widget.seasonId == null) {
-      return const SizedBox.shrink();
-    }
-    final idx = _seasonEpisodes.indexWhere((e) => e['id'] == widget.episodeId);
-    final next = <Map<String, dynamic>>[];
-    if (idx >= 0) {
-      if (idx + 1 < _seasonEpisodes.length) next.add(_seasonEpisodes[idx + 1]);
-      if (idx + 2 < _seasonEpisodes.length) next.add(_seasonEpisodes[idx + 2]);
-    } else {
-      next.addAll(_seasonEpisodes.take(2));
-    }
-    if (next.isEmpty) return const SizedBox.shrink();
-
+  Widget _ctrlBtn(IconData icon, VoidCallback onPressed, {double size = 28}) {
     return Material(
-      color: Colors.black.withOpacity(0.6),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: next.map((e) {
-            final id = e['id'] as int;
-            final title = (e['display_title'] ?? e['title'] ?? '').toString();
-            final thumbs = e['thumbnails'] as Map<String, dynamic>?;
-            final thumb = _pickThumb(thumbs);
-            return GestureDetector(
-              onTap: () {
-                Navigator.of(context).maybePop();
-                final cb = widget.onPlayEpisode;
-                if (cb != null) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => cb(id, title, thumb));
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        thumb,
-                        width: 150,
-                        height: 84,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      width: 150,
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
+      color: Colors.black45,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Icon(icon, color: Colors.white, size: size),
         ),
       ),
     );

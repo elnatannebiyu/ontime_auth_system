@@ -191,6 +191,14 @@ class AuthApi {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
+  Future<void> seriesEpisodeLike(int episodeId) async {
+    await _client.post('/series/episodes/$episodeId/like/');
+  }
+
+  Future<void> seriesEpisodeUnlike(int episodeId) async {
+    await _client.post('/series/episodes/$episodeId/unlike/');
+  }
+
   // ---- Dev utilities (development only) ----
   Future<void> devReset({String? baseUrl}) async {
     if (baseUrl != null && baseUrl.isNotEmpty) {

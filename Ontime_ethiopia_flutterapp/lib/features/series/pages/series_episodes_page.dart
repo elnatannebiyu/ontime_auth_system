@@ -1,12 +1,11 @@
-// ignore_for_file: unused_field
-
+import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-
+// Inline player mode only
 import '../../../auth/tenant_auth_client.dart';
 import '../series_service.dart';
 
@@ -30,31 +29,69 @@ class SeriesEpisodesPage extends StatefulWidget {
   State<SeriesEpisodesPage> createState() => _SeriesEpisodesPageState();
 }
 
-class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> {
+class _PlayerHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double minExtentHeight;
+  final double maxExtentHeight;
+  final WidgetBuilder builder;
+
+  _PlayerHeaderDelegate({
+    required this.minExtentHeight,
+    required this.maxExtentHeight,
+    required this.builder,
+  });
+
+  @override
+  double get minExtent => minExtentHeight;
+
+  @override
+  double get maxExtent => maxExtentHeight;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Material(
+      color: Colors.transparent,
+      child: builder(context),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PlayerHeaderDelegate oldDelegate) {
+    return oldDelegate.minExtentHeight != minExtentHeight ||
+        oldDelegate.maxExtentHeight != maxExtentHeight ||
+        oldDelegate.builder != builder;
+  }
+}
+
+class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBindingObserver {
   late final SeriesService _service;
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _episodes = const [];
-
-  int? _resumeEpisodeId;
-  String? _resumeTitle;
-
-  int? _nowPlayingEpisodeId;
-  String? _nowPlayingTitle;
-  String? _currentVideoKey;
-  String? _heroImageUrl;
-  // removed _ytListenerAttached; using a single listener reference instead
-  bool _autoNextEnabled = true;
+  final Set<int> _likedEpisodes = <int>{};
 
   YoutubePlayerController? _yt;
-  bool _isFullScreen = false;
   VoidCallback? _ytListener;
+  String? _currentVideoId;
+  bool _isFullScreen = false;
+  int? _currentEpisodeId;
+  bool _showFsControls = true;
+  Timer? _controlsHideTimer;
+  bool? _lastLandscape; // guard to avoid repeated toggles
+
+  String _fmt(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return h > 0 ? '${h}:${two(m)}:${two(s)}' : '${m}:${two(s)}';
+  }
 
   @override
   void initState() {
     super.initState();
     _service = SeriesService(api: widget.api, tenantId: widget.tenantId);
-    _allowBothOrientations();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
@@ -62,27 +99,44 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> {
   void dispose() {
     try {
       if (_ytListener != null && _yt != null) _yt!.removeListener(_ytListener!);
-      try {
-        _yt?.pause();
-      } catch (_) {}
+      _yt?.pause();
       _yt?.dispose();
     } catch (_) {}
-
-    // Safety reset: allow both orientations and restore UI mode when leaving
-    _allowBothOrientations();
+    // Restore system UI when leaving page
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
+    try {
+      _controlsHideTimer?.cancel();
+    } catch (_) {}
+    try { WidgetsBinding.instance.removeObserver(this); } catch (_) {}
     super.dispose();
   }
 
-  void _allowBothOrientations() {
+  // Robust rotation handling: when metrics change, sync fullscreen to orientation.
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // Post-frame to ensure MediaQuery updated
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncFullscreenWithOrientation(context);
+    });
+  }
+
+  void _syncFullscreenWithOrientation(BuildContext context) {
+    final c = _yt;
+    if (c == null) return;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    if (_lastLandscape == isLandscape) return; // unchanged, skip
+    _lastLandscape = isLandscape;
+    final fs = c.value.isFullScreen;
     try {
-      SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+      if (isLandscape && !fs) {
+        c.toggleFullScreenMode();
+      } else if (!isLandscape && fs) {
+        c.toggleFullScreenMode();
+      }
     } catch (_) {}
   }
 
@@ -93,59 +147,614 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> {
     });
     try {
       final data = await _service.getEpisodes(widget.seasonId);
+      // Initialize liked set if backend provides a flag
+      final liked = <int>{};
+      for (final e in data) {
+        final id = e['id'] as int?;
+        final isLiked = (e['liked'] ?? e['is_liked'] ?? e['favorite']) as bool?;
+        if (id != null && (isLiked ?? false)) liked.add(id);
+      }
       setState(() {
         _episodes = data;
+        _likedEpisodes
+          ..clear()
+          ..addAll(liked);
       });
-      if (mounted) {
-        final img = (widget.coverImage != null && widget.coverImage!.isNotEmpty)
-            ? widget.coverImage!
-            : _episodes.isNotEmpty
-                ? _pickThumb(
-                    _episodes.first['thumbnails'] as Map<String, dynamic>?)
-                : '';
-        setState(() => _heroImageUrl = img);
-      }
-      await _loadContinueWatching();
-    } catch (e) {
+    } catch (_) {
       setState(() => _error = 'Failed to load episodes');
     } finally {
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _loadContinueWatching() async {
+  void _playInline(int episodeId, {String? title}) async {
+    widget.api.setTenant(widget.tenantId);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'cw_season_${widget.seasonId}';
-      final jsonStr = prefs.getString(key);
-      if (jsonStr != null && jsonStr.isNotEmpty) {
-        final obj = jsonDecode(jsonStr) as Map<String, dynamic>;
-        final epId = obj['episode_id'] as int?;
-        final title = (obj['title'] ?? '') as String;
-        if (epId != null && _episodes.any((e) => e['id'] == epId)) {
-          setState(() {
-            _resumeEpisodeId = epId;
-            _resumeTitle = title;
-          });
+      final play = await widget.api.seriesEpisodePlay(episodeId);
+      final raw = (play['video_id'] ?? '').toString();
+      final vid = _extractVideoId(raw);
+      final old = _yt;
+      final c = YoutubePlayerController(
+        initialVideoId: vid,
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
+          controlsVisibleAtStart: false,
+          hideControls: true,
+          forceHD: false,
+          enableCaption: false,
+        ),
+      );
+      // listener: track fullscreen and toggle immersive system UI
+      _ytListener = () {
+        final fs = c.value.isFullScreen;
+        if (fs != _isFullScreen) {
+          if (mounted) setState(() => _isFullScreen = fs);
+          try {
+            if (fs) {
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+              // Ensure free rotation in fullscreen
+              SystemChrome.setPreferredOrientations(const [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.portraitDown,
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ]);
+            } else {
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+              // Restore free rotation after exiting fullscreen as well
+              SystemChrome.setPreferredOrientations(const [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.portraitDown,
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ]);
+            }
+          } catch (_) {}
         }
+      };
+      c.addListener(_ytListener!);
+      setState(() {
+        _currentVideoId = vid;
+        _currentEpisodeId = episodeId;
+        _yt = c;
+      });
+      Future.microtask(() {
+        try {
+          old?.pause();
+        } catch (_) {}
+        try {
+          old?.removeListener(_ytListener!);
+        } catch (_) {}
+        try {
+          old?.dispose();
+        } catch (_) {}
+      });
+      // Optional: persist continue watching lightweight marker
+      _saveContinueWatching(episodeId: episodeId, title: title ?? widget.title);
+    } catch (_) {}
+  }
+
+  int _indexOfEpisode(int id) {
+    for (var i = 0; i < _episodes.length; i++) {
+      if ((_episodes[i]['id'] as int) == id) return i;
+    }
+    return -1;
+  }
+
+  void _playNext() {
+    final cur = _currentEpisodeId;
+    if (cur == null) return;
+    final idx = _indexOfEpisode(cur);
+    if (idx >= 0 && idx + 1 < _episodes.length) {
+      final e = _episodes[idx + 1];
+      final id = e['id'] as int;
+      final t = (e['display_title'] ?? e['title'] ?? '').toString();
+      _playInline(id, title: t);
+    }
+  }
+
+  void _playPrev() {
+    final cur = _currentEpisodeId;
+    if (cur == null) return;
+    final idx = _indexOfEpisode(cur);
+    if (idx > 0) {
+      final e = _episodes[idx - 1];
+      final id = e['id'] as int;
+      final t = (e['display_title'] ?? e['title'] ?? '').toString();
+      _playInline(id, title: t);
+    }
+  }
+
+  void _seekBy(int seconds) {
+    final c = _yt;
+    if (c == null) return;
+    try {
+      final pos = c.value.position;
+      final dur = c.value.metaData.duration;
+      final target = pos + Duration(seconds: seconds);
+      final clamped = target < Duration.zero
+          ? Duration.zero
+          : (dur != Duration.zero && target > dur ? dur : target);
+      c.seekTo(clamped);
+    } catch (_) {}
+  }
+
+  void _togglePlayPause() {
+    final c = _yt;
+    if (c == null) return;
+    try {
+      if (c.value.isPlaying) {
+        c.pause();
+      } else {
+        c.play();
       }
     } catch (_) {}
   }
 
-  String _pickThumb(Map<String, dynamic>? thumbs) {
-    if (thumbs == null) return '';
-    const order = ['maxres', 'standard', 'high', 'medium', 'default'];
-    for (final k in order) {
-      final t = thumbs[k];
-      if (t is Map && t['url'] is String && (t['url'] as String).isNotEmpty) {
-        return t['url'] as String;
-      }
-    }
-    if (thumbs['url'] is String) return thumbs['url'] as String;
-    return '';
+  void _showControlsTemporarily() {
+    setState(() => _showFsControls = true);
+    try { _controlsHideTimer?.cancel(); } catch (_) {}
+    _controlsHideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showFsControls = false);
+    });
   }
 
-  String _extractVideoId(String input) {
+  Future<void> _saveContinueWatching(
+      {required int episodeId, required String title}) async {
+    final sid = widget.seasonId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'cw_season_$sid',
+          jsonEncode({
+            'episode_id': episodeId,
+            'title': title,
+            'season_id': sid,
+            'updated_at': DateTime.now().toIso8601String(),
+          }));
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Do not force orientation or system UI. Let the player/plugin handle fullscreen transitions.
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(
+            title: Text(widget.title),
+            backgroundColor: Colors.transparent,
+            elevation: 0),
+        body: Center(
+            child: Text(_error!, style: const TextStyle(color: Colors.red))),
+      );
+    }
+
+    // Ensure orientation sync also at build time (first frame after rebuild)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncFullscreenWithOrientation(context);
+    });
+
+    // Inline-only mode: no mini player wiring
+
+    return WillPopScope(
+      onWillPop: () async {
+        final v = _yt?.value;
+        if (v != null && v.isFullScreen) {
+          try {
+            _yt?.toggleFullScreenMode();
+          } catch (_) {}
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              slivers: [
+                if (_yt != null)
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _PlayerHeaderDelegate(
+                      minExtentHeight: math.min(
+                          MediaQuery.of(context).size.width * 9 / 16,
+                          MediaQuery.of(context).size.height),
+                      maxExtentHeight: math.min(
+                          MediaQuery.of(context).size.width * 9 / 16,
+                          MediaQuery.of(context).size.height),
+                      builder: (ctx) {
+                        final mq = MediaQuery.of(ctx);
+                        final widthDerivedHeight = mq.size.width * 9 / 16;
+                        final availableHeight = mq.size.height;
+                        final playerHeight = math.min(widthDerivedHeight, availableHeight);
+                        final pos = _yt?.value.position ?? Duration.zero;
+                        final dur = _yt?.value.metaData.duration ?? Duration.zero;
+                        return SizedBox(
+                          height: playerHeight,
+                          child: KeyedSubtree(
+                            key: ValueKey(_currentVideoId ?? ''),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                YoutubePlayer(
+                                  controller: _yt!,
+                                  showVideoProgressIndicator: true,
+                                ),
+                                      // Tap to show controls (portrait and fullscreen)
+                                      Positioned.fill(
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: _showControlsTemporarily,
+                                          child: const SizedBox.shrink(),
+                                        ),
+                                      ),
+                                      // Back button: in fullscreen draw without SafeArea for true full bleed
+                                      if (!(_yt?.value.isFullScreen ?? false) ||
+                                          (_isFullScreen && _showFsControls))
+                                        Positioned(
+                                          top: 0,
+                                          left: 0,
+                                          child: (_isFullScreen
+                                              ? Padding(
+                                                  padding: const EdgeInsets.all(8.0),
+                                                  child: Material(
+                                                    color: Colors.black45,
+                                                    shape: const CircleBorder(),
+                                                    child: IconButton(
+                                                      icon: const Icon(
+                                                          Icons.arrow_back,
+                                                          color: Colors.white),
+                                                      tooltip: 'Back',
+                                                      onPressed: () {
+                                                        final v = _yt?.value;
+                                                        try { _yt?.pause(); } catch (_) {}
+                                                        if (v != null && v.isFullScreen) {
+                                                          try { _yt?.toggleFullScreenMode(); } catch (_) {}
+                                                        }
+                                                        // Close player (hide header) but stay on page
+                                                        final old = _yt;
+                                                        setState(() {
+                                                          _yt = null;
+                                                          _currentVideoId = null;
+                                                        });
+                                                        try { old?.dispose(); } catch (_) {}
+                                                      },
+                                                    ),
+                                                  ),
+                                                )
+                                              : SafeArea(
+                                                  bottom: false,
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(8.0),
+                                                    child: Material(
+                                                      color: Colors.black45,
+                                                      shape: const CircleBorder(),
+                                                      child: IconButton(
+                                                        icon: const Icon(
+                                                            Icons.arrow_back,
+                                                            color: Colors.white),
+                                                        tooltip: 'Back',
+                                                        onPressed: () {
+                                                          // Close player (hide header) but stay on page
+                                                          try { _yt?.pause(); } catch (_) {}
+                                                          final old = _yt;
+                                                          setState(() {
+                                                            _yt = null;
+                                                            _currentVideoId = null;
+                                                          });
+                                                          try { old?.dispose(); } catch (_) {}
+                                                        },
+                                                      ),
+                                                    ),
+                                                  ),
+                                                )),
+                                      ),
+                                      // Controls bar (portrait and fullscreen) - centered and smaller icons
+                                      if (_showFsControls)
+                                        Positioned.fill(
+                                          child: IgnorePointer(
+                                            ignoring: false,
+                                            child: Center(
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    _FsIcon(
+                                                      icon: Icons.skip_previous,
+                                                      size: 28,
+                                                      onPressed: _playPrev,
+                                                    ),
+                                                    const SizedBox(width: 14),
+                                                    _FsIcon(
+                                                      icon: Icons.replay_10,
+                                                      size: 28,
+                                                      onPressed: () => _seekBy(-10),
+                                                    ),
+                                                    const SizedBox(width: 14),
+                                                    _FsIcon(
+                                                      icon: (_yt?.value.isPlaying ?? false)
+                                                          ? Icons.pause_circle_filled
+                                                          : Icons.play_circle_fill,
+                                                      size: 36,
+                                                      onPressed: _togglePlayPause,
+                                                    ),
+                                                    const SizedBox(width: 14),
+                                                    _FsIcon(
+                                                      icon: Icons.forward_10,
+                                                      size: 28,
+                                                      onPressed: () => _seekBy(10),
+                                                    ),
+                                                    const SizedBox(width: 14),
+                                                    _FsIcon(
+                                                      icon: Icons.skip_next,
+                                                      size: 28,
+                                                      onPressed: _playNext,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                // Back button: in fullscreen draw without SafeArea for true full bleed
+                                if (!(_yt?.value.isFullScreen ?? false) ||
+                                    (_isFullScreen && _showFsControls))
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    child: (_isFullScreen
+                                        ? Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Material(
+                                              color: Colors.black45,
+                                              shape: const CircleBorder(),
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                    Icons.arrow_back,
+                                                    color: Colors.white),
+                                                tooltip: 'Back',
+                                                onPressed: () {
+                                                  final v = _yt?.value;
+                                                  try { _yt?.pause(); } catch (_) {}
+                                                  if (v != null && v.isFullScreen) {
+                                                    try { _yt?.toggleFullScreenMode(); } catch (_) {}
+                                                  }
+                                                  // Close player (hide header) but stay on page
+                                                  final old = _yt;
+                                                  setState(() {
+                                                    _yt = null;
+                                                    _currentVideoId = null;
+                                                  });
+                                                  try { old?.dispose(); } catch (_) {}
+                                                },
+                                              ),
+                                            ),
+                                          )
+                                        : SafeArea(
+                                            bottom: false,
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
+                                              child: Material(
+                                                color: Colors.black45,
+                                                shape: const CircleBorder(),
+                                                child: IconButton(
+                                                  icon: const Icon(
+                                                      Icons.arrow_back,
+                                                      color: Colors.white),
+                                                  tooltip: 'Back',
+                                                  onPressed: () {
+                                                    // Close player (hide header) but stay on page
+                                                    try { _yt?.pause(); } catch (_) {}
+                                                    final old = _yt;
+                                                    setState(() {
+                                                      _yt = null;
+                                                      _currentVideoId = null;
+                                                    });
+                                                    try { old?.dispose(); } catch (_) {}
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                          )),
+                                  ),
+                                // Controls bar (portrait and fullscreen) - centered and smaller icons
+                                if (_showFsControls)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      ignoring: false,
+                                      child: Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _FsIcon(
+                                                icon: Icons.skip_previous,
+                                                size: 28,
+                                                onPressed: _playPrev,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.replay_10,
+                                                size: 28,
+                                                onPressed: () => _seekBy(-10),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: (_yt?.value.isPlaying ?? false)
+                                                    ? Icons.pause_circle_filled
+                                                    : Icons.play_circle_fill,
+                                                size: 36,
+                                                onPressed: _togglePlayPause,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.forward_10,
+                                                size: 28,
+                                                onPressed: () => _seekBy(10),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.skip_next,
+                                                size: 28,
+                                                onPressed: _playNext,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                // (removed drag scrub overlay)
+                                // Timeline at the bottom (time + seek bar) in both modes
+                                if (_showFsControls)
+                                  Positioned(
+                                    left: 12,
+                                    right: 12,
+                                    bottom: 12,
+                                    child: Builder(
+                                      builder: (context) {
+                                        final c = _yt;
+                                        final pos = c?.value.position ?? Duration.zero;
+                                        final dur = c?.value.metaData.duration ?? Duration.zero;
+                                        final max = dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
+                                        final value = pos.inSeconds.clamp(0, dur.inSeconds).toDouble();
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(_fmt(pos), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                                Text(_fmt(dur), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                              ],
+                                            ),
+                                            SliderTheme(
+                                              data: SliderTheme.of(context).copyWith(
+                                                trackHeight: 2,
+                                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                                overlayShape: SliderComponentShape.noOverlay,
+                                              ),
+                                              child: Slider(
+                                                min: 0,
+                                                max: max,
+                                                value: value.isFinite ? value : 0,
+                                                activeColor: Colors.white,
+                                                inactiveColor: Colors.white24,
+                                                onChanged: (v) {
+                                                  // show UI only; seek onChangeEnd
+                                                  _showControlsTemporarily();
+                                                },
+                                                onChangeEnd: (v) {
+                                                  try { _yt?.seekTo(Duration(seconds: v.round())); } catch (_) {}
+                                                  _showControlsTemporarily();
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                // Fullscreen toggle overlay (no extra time labels)
+                                Positioned(
+                                  right: 8,
+                                  bottom: 8,
+                                  child: Material(
+                                    color: Colors.black45,
+                                    shape: const CircleBorder(),
+                                    child: IconButton(
+                                      tooltip: 'Fullscreen',
+                                      icon: Icon(
+                                        (_yt?.value.isFullScreen ?? false)
+                                            ? Icons.fullscreen_exit
+                                            : Icons.fullscreen,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () {
+                                        try { _yt?.toggleFullScreenMode(); } catch (_) {}
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                SliverSafeArea(
+                  top: false,
+                  bottom: true,
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final e = _episodes[i];
+                        final id = e['id'] as int;
+                        final title =
+                            (e['display_title'] ?? e['title'] ?? '').toString();
+                        final desc = (e['description_override'] ??
+                                e['description'] ??
+                                '')
+                            .toString();
+                        final thumbs = e['thumbnails'] as Map<String, dynamic>?;
+                        final cover = _pickThumb(thumbs);
+                        return Padding(
+                          padding:
+                              EdgeInsets.fromLTRB(12, i == 0 ? 4 : 8, 12, 8),
+                          child: EpisodeCard(
+                            title: title,
+                            subtitle: e['episode_number'] != null
+                                ? 'Episode ${e['episode_number']}'
+                                : null,
+                            description: desc,
+                            imageUrl: cover,
+                            liked: _likedEpisodes.contains(id),
+                            onPlay: () => _playInline(id, title: title),
+                            onToggleLike: () async {
+                              try {
+                                if (_likedEpisodes.contains(id)) {
+                                  await widget.api.seriesEpisodeUnlike(id);
+                                  if (mounted)
+                                    setState(() => _likedEpisodes.remove(id));
+                                } else {
+                                  await widget.api.seriesEpisodeLike(id);
+                                  if (mounted)
+                                    setState(() => _likedEpisodes.add(id));
+                                }
+                              } catch (_) {}
+                            },
+                          ),
+                        );
+                      },
+                      childCount: _episodes.length,
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                      height: 60 + MediaQuery.of(context).padding.bottom),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _extractVideoId(String input) {
     String s = input.trim();
     if (s.isEmpty) return '';
     final idLike = RegExp(r'^[A-Za-z0-9_-]{11}$');
@@ -165,370 +774,17 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> {
     return s;
   }
 
-  Future<void> _playInline(int episodeId,
-      {String? title, String? thumb}) async {
-    if (!mounted) return;
-    widget.api.setTenant(widget.tenantId);
-    try {
-      final play = await widget.api.seriesEpisodePlay(episodeId);
-      final raw = (play['video_id'] ?? '').toString();
-      final videoId = _extractVideoId(raw);
-      debugPrint('[EpisodesPage] inline play: ep=$episodeId videoId=$videoId');
-      _nowPlayingEpisodeId = episodeId;
-      _nowPlayingTitle = title ?? widget.title;
-
-      final oldCtrl = _yt;
-      final newCtrl = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
-          mute: false,
-          controlsVisibleAtStart: true,
-          enableCaption: false,
-          forceHD: false,
-          loop: false,
-        ),
-      );
-
-      // remove listener from old controller if present
-      try {
-        if (_ytListener != null && _yt != null) {
-          _yt!.removeListener(_ytListener!);
-        }
-      } catch (_) {}
-
-      // create and attach listener to update fullscreen state and auto-next
-      _ytListener = () {
-        if (!mounted) return;
-        final isFs = newCtrl.value.isFullScreen;
-        if (isFs != _isFullScreen) {
-          setState(() {
-            _isFullScreen = isFs;
-          });
-        }
-        final v = newCtrl.value;
-        if (v.playerState == PlayerState.ended &&
-            _nowPlayingEpisodeId != null &&
-            _autoNextEnabled) {
-          _autoPlayNext(fromEpisodeId: _nowPlayingEpisodeId!);
-        }
-      };
-      newCtrl.addListener(_ytListener!);
-
-      setState(() {
-        _currentVideoKey = videoId;
-        _yt = newCtrl;
-      });
-      Future.microtask(() {
-        try {
-          oldCtrl?.pause();
-        } catch (_) {}
-        try {
-          oldCtrl?.dispose();
-        } catch (_) {}
-      });
-      // No delayed calls; will start playback in onReady.
-    } catch (e) {
-      setState(() {
-        _yt = null;
-      });
+  static String _pickThumb(Map<String, dynamic>? thumbs) {
+    if (thumbs == null) return '';
+    const order = ['maxres', 'standard', 'high', 'medium', 'default'];
+    for (final k in order) {
+      final t = thumbs[k];
+      if (t is Map && t['url'] is String && (t['url'] as String).isNotEmpty) {
+        return t['url'] as String;
+      }
     }
-  }
-
-  void _autoPlayNext({required int fromEpisodeId}) {
-    final idx = _episodes.indexWhere((e) => e['id'] == fromEpisodeId);
-    if (idx == -1 || idx + 1 >= _episodes.length) return;
-    final next = _episodes[idx + 1];
-    final nextId = next['id'] as int;
-    final title = (next['display_title'] ?? next['title'] ?? '').toString();
-    final thumbs = next['thumbnails'] as Map<String, dynamic>?;
-    final thumb = _pickThumb(thumbs);
-    _playInline(nextId, title: title, thumb: thumb);
-  }
-
-  void _playPrev({required int fromEpisodeId}) {
-    final idx = _episodes.indexWhere((e) => e['id'] == fromEpisodeId);
-    if (idx <= 0) return;
-    final prev = _episodes[idx - 1];
-    final prevId = prev['id'] as int;
-    final title = (prev['display_title'] ?? prev['title'] ?? '').toString();
-    final thumbs = prev['thumbnails'] as Map<String, dynamic>?;
-    final thumb = _pickThumb(thumbs);
-    _playInline(prevId, title: title, thumb: thumb);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final heroImage =
-        (widget.coverImage != null && widget.coverImage!.isNotEmpty)
-            ? widget.coverImage!
-            : (_heroImageUrl ?? '');
-
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_error != null) {
-      return Scaffold(
-        body: ListView(children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(_error!, style: const TextStyle(color: Colors.red)),
-          )
-        ]),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: _yt != null
-                      ? KeyedSubtree(
-                          key: ValueKey(_currentVideoKey ?? ''),
-                          child: YoutubePlayerBuilder(
-                            player: YoutubePlayer(
-                              controller: _yt!,
-                              bottomActions: const [
-                                SizedBox(width: 8),
-                                CurrentPosition(),
-                                ProgressBar(isExpanded: true),
-                                RemainingDuration(),
-                                FullScreenButton(),
-                              ],
-                            ),
-                            builder: (context, playerWidget) {
-                              // We already wrap with ClipRRect + AspectRatio here, just return the player
-                              return playerWidget;
-                            },
-                          ),
-                        )
-                      : Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (heroImage.isNotEmpty)
-                              Image.network(heroImage, fit: BoxFit.cover)
-                            else
-                              Container(color: Colors.black12),
-                            Positioned.fill(
-                              child: Center(
-                                child: FilledButton.icon(
-                                  onPressed: () {
-                                    if (_episodes.isNotEmpty) {
-                                      final e = _episodes.first;
-                                      final id = e['id'] as int;
-                                      final t = (e['display_title'] ??
-                                              e['title'] ??
-                                              '')
-                                          .toString();
-                                      final thumbs = e['thumbnails']
-                                          as Map<String, dynamic>?;
-                                      final th = _pickThumb(thumbs);
-                                      _playInline(id, title: t, thumb: th);
-                                    }
-                                  },
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: const Text('Play'),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-            ),
-
-            // Controls row
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-              child: Material(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(24),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 4,
-                    spacing: 6,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.skip_previous),
-                        tooltip: 'Previous episode',
-                        onPressed: () {
-                          final cur = _nowPlayingEpisodeId;
-                          if (cur == null) return;
-                          _playPrev(fromEpisodeId: cur);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.replay_10),
-                        tooltip: 'Back 10s',
-                        onPressed: () {
-                          try {
-                            final c = _yt;
-                            if (c == null) return;
-                            final pos = c.value.position;
-                            final newPos = pos - const Duration(seconds: 10);
-                            c.seekTo(newPos < Duration.zero
-                                ? Duration.zero
-                                : newPos);
-                          } catch (_) {}
-                        },
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Auto next'),
-                          const SizedBox(width: 6),
-                          Switch(
-                            value: _autoNextEnabled,
-                            onChanged: (v) =>
-                                setState(() => _autoNextEnabled = v),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.forward_10),
-                        tooltip: 'Forward 10s',
-                        onPressed: () {
-                          try {
-                            final c = _yt;
-                            if (c == null) return;
-                            final pos = c.value.position;
-                            final total = c.value.metaData.duration;
-                            final newPos = pos + const Duration(seconds: 10);
-                            c.seekTo(newPos > total ? total : newPos);
-                          } catch (_) {}
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next),
-                        tooltip: 'Next episode',
-                        onPressed: () {
-                          final cur = _nowPlayingEpisodeId;
-                          if (cur == null) return;
-                          _autoPlayNext(fromEpisodeId: cur);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.fullscreen),
-                        tooltip: 'Fullscreen',
-                        onPressed: () {
-                          try {
-                            _yt?.toggleFullScreenMode();
-                          } catch (_) {}
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Next up
-            Builder(builder: (context) {
-              final cur = _nowPlayingEpisodeId;
-              if (cur == null) return const SizedBox.shrink();
-              final idx = _episodes.indexWhere((e) => e['id'] == cur);
-              if (idx == -1 || idx + 1 >= _episodes.length)
-                return const SizedBox.shrink();
-              final next = _episodes[idx + 1];
-              final title =
-                  (next['display_title'] ?? next['title'] ?? '').toString();
-              final thumbs = next['thumbnails'] as Map<String, dynamic>?;
-              final thumb = _pickThumb(thumbs);
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                child: Card(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    leading: thumb.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(thumb,
-                                width: 72, height: 40, fit: BoxFit.cover),
-                          )
-                        : const SizedBox(width: 72, height: 40),
-                    title: const Text('Next up'),
-                    subtitle: Text(title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: FilledButton.icon(
-                      onPressed: () => _autoPlayNext(fromEpisodeId: cur),
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Play'),
-                    ),
-                  ),
-                ),
-              );
-            }),
-
-            if (_resumeEpisodeId != null) const SizedBox(height: 8),
-            if (_resumeEpisodeId != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: _buildContinueWatchingCard(),
-              ),
-
-            // Episodes list
-            ...List.generate(_episodes.length, (i) {
-              final e = _episodes[i];
-              final id = e['id'] as int;
-              final title = (e['display_title'] ?? e['title'] ?? '').toString();
-              final desc = (e['description_override'] ?? e['description'] ?? '')
-                  .toString();
-              final thumbs = e['thumbnails'] as Map<String, dynamic>?;
-              final cover = _pickThumb(thumbs);
-              final epNum = e['episode_number'];
-              return Padding(
-                padding: EdgeInsets.fromLTRB(12, i == 0 ? 8 : 8, 12, 8),
-                child: EpisodeCard(
-                  title: title,
-                  subtitle: epNum != null ? 'Episode $epNum' : null,
-                  description: desc,
-                  imageUrl: cover,
-                  onPlay: () => _playInline(id, title: title, thumb: cover),
-                ),
-              );
-            }),
-            const SizedBox(height: 90),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContinueWatchingCard() {
-    return Card(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: ListTile(
-        leading: const Icon(Icons.history),
-        title: Text('Continue watching'),
-        subtitle: Text(_resumeTitle ?? ''),
-        trailing: const Icon(Icons.play_arrow),
-        onTap: () {
-          final epId = _resumeEpisodeId;
-          if (epId != null) {
-            _playInline(epId);
-          }
-        },
-      ),
-    );
+    if (thumbs['url'] is String) return thumbs['url'] as String;
+    return '';
   }
 }
 
@@ -537,7 +793,9 @@ class EpisodeCard extends StatelessWidget {
   final String? subtitle;
   final String description;
   final String imageUrl;
+  final bool liked;
   final VoidCallback onPlay;
+  final VoidCallback onToggleLike;
 
   const EpisodeCard({
     super.key,
@@ -545,7 +803,9 @@ class EpisodeCard extends StatelessWidget {
     this.subtitle,
     required this.description,
     required this.imageUrl,
+    required this.liked,
     required this.onPlay,
+    required this.onToggleLike,
   });
 
   @override
@@ -556,65 +816,118 @@ class EpisodeCard extends StatelessWidget {
         elevation: 6,
         color: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail with like button overlay
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    Text(
-                      title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 6),
-                    if (description.isNotEmpty)
-                      Text(
-                        description,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        FilledButton.icon(
-                          onPressed: onPlay,
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Play'),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                          ),
+                    imageUrl.isNotEmpty
+                        ? Image.network(imageUrl, fit: BoxFit.cover)
+                        : Container(color: Colors.black12),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Material(
+                        color: Colors.black45,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: liked ? 'Unfavorite' : 'Favorite',
+                          icon: Icon(
+                              liked ? Icons.favorite : Icons.favorite_border,
+                              color: liked ? Colors.redAccent : Colors.white),
+                          onPressed: onToggleLike,
                         ),
-                        IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.info_outline),
-                          tooltip: 'Details',
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              )
-            ],
-          ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  Text(
+                    title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: onPlay,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Play'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: onToggleLike,
+                        icon: Icon(
+                            liked ? Icons.favorite : Icons.favorite_border),
+                        tooltip: liked ? 'Unfavorite' : 'Favorite',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FsIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+  const _FsIcon({required this.icon, required this.onPressed, this.size = 40});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black45,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Icon(icon, color: Colors.white, size: size),
         ),
       ),
     );

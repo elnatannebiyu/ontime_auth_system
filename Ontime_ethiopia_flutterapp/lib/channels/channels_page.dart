@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import '../api_client.dart';
 import '../core/widgets/brand_title.dart';
 import '../core/localization/l10n.dart';
@@ -27,6 +28,9 @@ class _ChannelsPageState extends State<ChannelsPage> {
   final Map<String, Future<void>> _videosFetching = {};
   final Set<String> _expandedChannels = <String>{};
   bool _offline = false;
+  // Playlist counts per channel, set when that channel's playlists are fetched
+  final Map<String, int> _playlistCounts = {};
+  bool _hideEmpty = false;
 
   // Simple in-memory cache of last successful channels fetch (per app session)
   static List<dynamic> _cachedChannels = const [];
@@ -34,6 +38,22 @@ class _ChannelsPageState extends State<ChannelsPage> {
   LocalizationController get _lc =>
       widget.localizationController ?? LocalizationController();
   String _t(String key) => _lc.t(key);
+  String get _langCode {
+    try {
+      return Localizations.localeOf(context).languageCode.toLowerCase();
+    } catch (_) {
+      return 'en';
+    }
+  }
+  String _channelDisplayName(Map<String, dynamic> ch) {
+    final am = (ch['name_am'] ?? '').toString().trim();
+    final en = (ch['name_en'] ?? '').toString().trim();
+    final slug = (ch['id_slug'] ?? '').toString();
+    if (_langCode == 'am' && am.isNotEmpty) return am;
+    if (en.isNotEmpty) return en;
+    if (am.isNotEmpty) return am;
+    return slug;
+  }
 
   @override
   void initState() {
@@ -87,7 +107,22 @@ class _ChannelsPageState extends State<ChannelsPage> {
     );
   }
 
+  void _logChannelDetails(Map<String, dynamic> ch) {
+    if (!kDebugMode) return;
+    final slug = (ch['id_slug'] ?? '').toString();
+    final pretty = const JsonEncoder.withIndent('  ').convert(ch);
+    const max = 800;
+    int parts = (pretty.length / max).ceil();
+    if (parts == 0) parts = 1;
+    for (int i = 0; i < parts; i++) {
+      final start = i * max;
+      final end = start + max > pretty.length ? pretty.length : start + max;
+      debugPrint('[ChannelsPage] channel:$slug part ${i + 1}/$parts\n${pretty.substring(start, end)}');
+    }
+  }
+
   void _showChannelDetails(Map<String, dynamic> ch) {
+    _logChannelDetails(ch);
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -402,6 +437,12 @@ class _ChannelsPageState extends State<ChannelsPage> {
       } catch (_) {}
       if (kDebugMode) {
         debugPrint('[ChannelsPage] Loaded channels: count=${all.length}');
+        final int sample = all.length < 3 ? all.length : 3;
+        for (int i = 0; i < sample; i++) {
+          final ch = all[i] as Map<String, dynamic>;
+          debugPrint('[ChannelsPage] ch[$i] slug=${ch['id_slug']} name_en=${ch['name_en']} name_am=${ch['name_am']} lang=${ch['language']} active=${ch['is_active']}');
+          debugPrint('[ChannelsPage] ch[$i] images=${ch['images']} sources=${ch['sources']} handle=${ch['handle']} yt_handle=${ch['youtube_handle']}');
+        }
       }
       // After channels reload, for any channels currently expanded,
       // force-clear and re-fetch their playlists so UI shows fresh data
@@ -484,9 +525,15 @@ class _ChannelsPageState extends State<ChannelsPage> {
       }
       setState(() {
         _playlistsByChannel[channelSlug] = data;
+        _playlistCounts[channelSlug] = data.length;
       });
       if (kDebugMode) {
         debugPrint('[ChannelsPage] Playlists loaded for $channelSlug: count=${data.length}');
+        final int sample = data.length < 3 ? data.length : 3;
+        for (int i = 0; i < sample; i++) {
+          final p = data[i] as Map<String, dynamic>;
+          debugPrint('[ChannelsPage] pl[$i] id=${p['id']} title=${p['title']} thumbs=${p['thumbnails'] ?? p['thumbnail'] ?? p['image']}');
+        }
       }
     } catch (e) {
       if (kDebugMode) {
@@ -532,6 +579,11 @@ class _ChannelsPageState extends State<ChannelsPage> {
       });
       if (kDebugMode) {
         debugPrint('[ChannelsPage] Videos loaded for $playlistId: count=${data.length}');
+        final int sample = data.length < 3 ? data.length : 3;
+        for (int i = 0; i < sample; i++) {
+          final v = data[i] as Map<String, dynamic>;
+          debugPrint('[ChannelsPage] v[$i] video_id=${v['video_id']} title=${v['title']} thumbs=${v['thumbnails'] ?? v['thumbnail'] ?? v['image']}');
+        }
       }
     } catch (e) {
       if (kDebugMode) {
@@ -551,9 +603,24 @@ class _ChannelsPageState extends State<ChannelsPage> {
       appBar: AppBar(
         title: BrandTitle(section: _t('channels')),
         actions: [
-          IconButton(
-            onPressed: _loading ? null : () => _loadChannels(clearCaches: true),
-            icon: const Icon(Icons.refresh),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'toggle_hide_empty') {
+                setState(() => _hideEmpty = !_hideEmpty);
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem<String>(
+                value: 'toggle_hide_empty',
+                child: Row(
+                  children: [
+                    Icon(_hideEmpty ? Icons.check_box : Icons.check_box_outline_blank),
+                    const SizedBox(width: 8),
+                    Text(_t('hide_empty_channels')),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -563,140 +630,94 @@ class _ChannelsPageState extends State<ChannelsPage> {
               ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
               : RefreshIndicator(
                   onRefresh: () => _loadChannels(clearCaches: true),
-                  child: ListView.builder(
-                      itemCount: _channels.length + (_offline ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (_offline) {
-                          if (index == 0) {
-                            return _buildOfflineCard();
-                          }
-                          index -= 1;
-                        }
-                        final ch = _channels[index] as Map<String, dynamic>;
+                  child: Builder(builder: (context) {
+                    // Prepare visible channels with optional hide-empty filtering
+                    final List<Map<String, dynamic>> allCh = _channels.cast<Map<String, dynamic>>();
+                    List<Map<String, dynamic>> visible = allCh;
+                    if (_hideEmpty) {
+                      visible = allCh.where((ch) {
                         final slug = (ch['id_slug'] ?? '').toString();
-                        final title = (ch['name_en'] ?? ch['name_am'] ?? slug).toString();
-                        final isActive = ch['is_active'] == true;
-                        String? thumbUrlPrimary = _thumbFromMap(ch);
-                        String thumbUrl = thumbUrlPrimary ?? '$kApiBase/api/channels/$slug/logo/';
-                        if (kDebugMode && thumbUrlPrimary == null) {
-                          debugPrint('[ChannelsPage] Using logo fallback for channel=$slug -> $thumbUrl');
+                        if (_playlistsByChannel.containsKey(slug)) {
+                          return (_playlistCounts[slug] ?? 0) > 0;
                         }
-                        return ExpansionTile(
-                          key: PageStorageKey('ch:$slug'),
-                          title: Row(
-                            children: [
-                              _buildThumb(thumbUrl, size: 36, radius: BorderRadius.circular(18)),
-                              const SizedBox(width: 12),
-                              Expanded(child: Text(title)),
-                            ],
-                          ),
-                          subtitle: Text(slug + (isActive ? '' : ' (inactive)')),
-                          initiallyExpanded: _expandedChannels.contains(slug),
-                          onExpansionChanged: (expanded) {
-                            setState(() {
-                              if (expanded) {
-                                _expandedChannels.add(slug);
-                              } else {
-                                _expandedChannels.remove(slug);
-                              }
-                            });
-                          },
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: _t('info'),
-                                icon: const Icon(Icons.info_outline),
-                                onPressed: () => _showChannelDetails(ch),
-                              ),
-                              IconButton(
-                                tooltip: _t('refresh_playlists'),
-                                icon: const Icon(Icons.refresh),
-                                onPressed: () async {
-                                  setState(() {
-                                    _playlistsByChannel.remove(slug);
-                                    _videosByPlaylist.clear(); // clear dependent videos cache
-                                  });
-                                  await _ensurePlaylists(slug);
-                                },
-                              ),
-                            ],
-                          ),
-                          children: [
-                            FutureBuilder(
-                              future: _ensurePlaylists(slug),
-                              builder: (context, snapshot) {
-                                final playlists = _playlistsByChannel[slug];
-                                if (playlists == null) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: LinearProgressIndicator(),
-                                  );
-                                }
-                                if (playlists.isEmpty) {
-                                  return ListTile(title: Text(_t('no_playlists')));
-                                }
-                                return Column(
-                                  children: playlists.map((pl) {
-                                    final p = pl as Map<String, dynamic>;
-                                    final pid = (p['id'] ?? '').toString();
-                                    final ptitle = (p['title'] ?? pid).toString();
-                                    final pthumb = _thumbFromMap(p);
-                                    final String channelLogo =
-                                        (p['channel_logo_url'] is String && (p['channel_logo_url'] as String).isNotEmpty)
-                                            ? p['channel_logo_url'] as String
-                                            : '$kApiBase/api/channels/$slug/logo/';
-                                    return ExpansionTile(
-                                      key: PageStorageKey('pl:$pid'),
-                                      title: Row(
+                        return true;
+                      }).toList();
+                    }
+                    return ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      children: [
+                        if (_offline) _buildOfflineCard(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.82,
+                            ),
+                            itemCount: visible.length,
+                            itemBuilder: (context, i) {
+                              final ch = visible[i];
+                              final slug = (ch['id_slug'] ?? '').toString();
+                              final title = _channelDisplayName(ch);
+                              String? thumbUrlPrimary = _thumbFromMap(ch);
+                              String thumbUrl = thumbUrlPrimary ?? '$kApiBase/api/channels/$slug/logo/';
+                              final int? count = _playlistCounts[slug];
+                              final lang = (ch['language'] ?? '').toString();
+                              return InkWell(
+                                onTap: () {},
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Theme.of(context).dividerColor),
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
                                         children: [
-                                          _buildThumb(channelLogo, size: 24, radius: BorderRadius.circular(12)),
-                                          const SizedBox(width: 8),
-                                          _buildThumb(pthumb, size: 32),
-                                          const SizedBox(width: 10),
-                                          Expanded(child: Text(ptitle)),
+                                          Expanded(
+                                            child: _buildThumb(thumbUrl, size: double.infinity, radius: BorderRadius.zero),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                                if (lang.isNotEmpty)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 4),
+                                                    child: Text(lang.toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                      children: [
-                                        FutureBuilder(
-                                          future: _ensureVideos(pid),
-                                          builder: (context, snapshot) {
-                                            final vids = _videosByPlaylist[pid];
-                                            if (vids == null) {
-                                              return const Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: LinearProgressIndicator(),
-                                              );
-                                            }
-                                            if (vids.isEmpty) {
-                                              return ListTile(title: Text(_t('no_videos')));
-                                            }
-                                            return Column(
-                                              children: vids.map((v) {
-                                                final vv = v as Map<String, dynamic>;
-                                                final vid = (vv['video_id'] ?? '').toString();
-                                                final vtitle = (vv['title'] ?? vid).toString();
-                                                final vthumb = _thumbFromMap(vv);
-                                                return ListTile(
-                                                  dense: true,
-                                                  leading: _buildThumb(vthumb, size: 44, radius: BorderRadius.circular(6)),
-                                                  title: Text(vtitle),
-                                                  subtitle: Text(vid),
-                                                );
-                                              }).toList(),
-                                            );
-                                          },
+                                      if (count != null)
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                            child: Text('$count', style: const TextStyle(fontSize: 11)),
+                                          ),
                                         ),
-                                      ],
-                                    );
-                                  }).toList(),
-                                );
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                  ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
                 ),
       ),
     );

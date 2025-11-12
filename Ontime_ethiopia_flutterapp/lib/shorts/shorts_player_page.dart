@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter/services.dart';
 import '../api_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
@@ -25,7 +26,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   final Map<String, _Reaction> _reactions = {}; // by job_id
   // In-app HLS playback using video_player only
   final Map<int, VideoPlayerController> _hlsControllers = {};
-  bool _muted = true;
+  bool _muted = false; // default sound ON
   static String get _mediaBase {
     if (Platform.isAndroid) return 'http://10.0.2.2:8080';
     if (Platform.isIOS || Platform.isMacOS) return 'http://127.0.0.1:8080';
@@ -62,6 +63,14 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   @override
   void initState() {
     super.initState();
+    // Show system safe zones (status/navigation bars)
+    try {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (_) {}
+    // Lock orientation to portrait while on Shorts
+    try {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    } catch (_) {}
     _index = widget.initialIndex.clamp(0, widget.videos.length - 1);
     _pageCtrl = PageController(initialPage: _index);
     // Always use our stored HLS (absolute_hls or hls_master_url)
@@ -97,6 +106,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     _hlsControllers[i] = ctrl;
     try {
       await ctrl.initialize();
+      await ctrl.setLooping(true); // loop on finish
       await ctrl.setVolume(_muted ? 0.0 : 1.0);
       if (i == _index) ctrl.play();
       setState(() {});
@@ -115,6 +125,18 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
 
   @override
   void dispose() {
+    // Restore normal system UI when leaving Shorts
+    try {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (_) {}
+    try {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } catch (_) {}
     for (final v in _hlsControllers.values) {
       v.dispose();
     }
@@ -265,50 +287,37 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Top header
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _GlassChip(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.play_circle_fill, size: 18, color: Colors.white),
-                    SizedBox(width: 6),
-                    Text('Shorts',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+        // Full-bleed video with safe overlays
         ColoredBox(
           color: Colors.black,
-          child: Center(
-            child: (vc == null || !vc.value.isInitialized)
-                ? const CircularProgressIndicator()
-                : GestureDetector(
-                    onTap: () {
-                      if (!vc.value.isInitialized) return;
-                      if (vc.value.isPlaying) {
-                        vc.pause();
-                      } else {
-                        vc.play();
-                      }
-                      setState(() {});
-                    },
-                    child: AspectRatio(
-                      aspectRatio: vc.value.aspectRatio == 0
-                          ? 9 / 16
-                          : vc.value.aspectRatio,
-                      child: VideoPlayer(vc),
-                    ),
+          child: (vc == null || !vc.value.isInitialized)
+              ? const Center(child: CircularProgressIndicator())
+              : GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (!vc.value.isInitialized) return;
+                    if (vc.value.isPlaying) {
+                      vc.pause();
+                    } else {
+                      vc.play();
+                    }
+                    setState(() {});
+                  },
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Cover-fit rendering for edge-to-edge video
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: vc.value.size.width == 0 ? 1 : vc.value.size.width,
+                          height: vc.value.size.height == 0 ? 1 : vc.value.size.height,
+                          child: VideoPlayer(vc),
+                        ),
+                      ),
+                    ],
                   ),
-          ),
+                ),
         ),
         const Positioned.fill(
           child: IgnorePointer(
@@ -328,126 +337,187 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
             ),
           ),
         ),
+        // Center play icon when paused
+        if (vc != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: true,
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: vc,
+                builder: (_, value, __) {
+                  final show = value.isInitialized && !value.isPlaying;
+                  return AnimatedOpacity(
+                    opacity: show ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Center(
+                      child: Icon(Icons.play_circle_filled,
+                          color: Colors.white70, size: 72),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        // Bottom column: title then time/slider (auto adjusts height)
         Positioned(
           left: 12,
           right: 12,
-          bottom: 96,
-          child: Text(
-            title.isEmpty ? 'Untitled' : title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ),
-        if (vc != null)
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 60,
-            child: ValueListenableBuilder<VideoPlayerValue>(
-              valueListenable: vc,
-              builder: (_, value, __) {
-                final pos = value.position;
-                final dur = value.duration;
-                final max = dur.inMilliseconds.clamp(1, 1 << 31);
-                final cur = pos.inMilliseconds.clamp(0, max);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Slider(
-                      value: cur.toDouble(),
-                      min: 0,
-                      max: max.toDouble(),
-                      onChanged: (v) {
-                        final ms = v.round();
-                        vc.seekTo(Duration(milliseconds: ms));
-                      },
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_formatDuration(pos),
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12)),
-                        Text(_formatDuration(dur),
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12)),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        Positioned(
-          right: 12,
-          bottom: 24,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          bottom: 16,
+          child: SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _CircleIconButton(
-                  icon: Icons.favorite_border,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Save coming soon')),
-                    );
-                  },
+                Text(
+                  title.isEmpty ? 'Untitled' : title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 12),
-                _CircleIconButton(
-                  icon: (_reactions[_jobIdForIndex(i)]?.user == 'like')
-                      ? Icons.thumb_up
-                      : Icons.thumb_up_alt_outlined,
-                  color: (_reactions[_jobIdForIndex(i)]?.user == 'like')
-                      ? Colors.lightBlueAccent
-                      : Colors.white,
-                  label: (_reactions[_jobIdForIndex(i)]?.likes ?? 0).toString(),
-                  onTap: () {
-                    final current = _reactions[_jobIdForIndex(i)]?.user;
-                    _setReaction(i, current == 'like' ? null : 'like');
-                  },
-                ),
-                const SizedBox(height: 12),
-                _CircleIconButton(
-                  icon: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
-                      ? Icons.thumb_down
-                      : Icons.thumb_down_alt_outlined,
-                  color: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
-                      ? Colors.redAccent
-                      : Colors.white,
-                  label:
-                      (_reactions[_jobIdForIndex(i)]?.dislikes ?? 0).toString(),
-                  onTap: () {
-                    final current = _reactions[_jobIdForIndex(i)]?.user;
-                    _setReaction(i, current == 'dislike' ? null : 'dislike');
-                  },
-                ),
-                const SizedBox(height: 12),
-                _CircleIconButton(
-                  icon: Icons.chat_bubble_outline,
-                  onTap: () => _openComments(i),
-                ),
-                const SizedBox(height: 12),
-                _CircleIconButton(
-                  icon: _muted ? Icons.volume_off : Icons.volume_up,
-                  onTap: () {
-                    setState(() {
-                      _muted = !_muted;
-                      for (final v in _hlsControllers.values) {
-                        if (v.value.isInitialized) {
-                          v.setVolume(_muted ? 0.0 : 1.0);
-                        }
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                _CircleIconButton(icon: Icons.ios_share, onTap: _share),
+                const SizedBox(height: 8),
+                if (vc != null)
+                  ValueListenableBuilder<VideoPlayerValue>(
+                    valueListenable: vc,
+                    builder: (_, value, __) {
+                      final pos = value.position;
+                      final dur = value.duration;
+                      final max = dur.inMilliseconds.clamp(1, 1 << 31);
+                      final cur = pos.inMilliseconds.clamp(0, max);
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Slider(
+                            value: cur.toDouble(),
+                            min: 0,
+                            max: max.toDouble(),
+                            onChanged: (v) {
+                              final ms = v.round();
+                              vc.seekTo(Duration(milliseconds: ms));
+                            },
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_formatDuration(pos),
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12)),
+                              Text(_formatDuration(dur),
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12)),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
               ],
+            ),
+          ),
+        ),
+        // Side action column centered vertically on the right, above navigator
+        Positioned.fill(
+          child: SafeArea(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CircleIconButton(
+                      icon: Icons.favorite_border,
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Save coming soon')),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _CircleIconButton(
+                      icon: (_reactions[_jobIdForIndex(i)]?.user == 'like')
+                          ? Icons.thumb_up
+                          : Icons.thumb_up_alt_outlined,
+                      color: (_reactions[_jobIdForIndex(i)]?.user == 'like')
+                          ? Colors.lightBlueAccent
+                          : Colors.white,
+                      label:
+                          (_reactions[_jobIdForIndex(i)]?.likes ?? 0).toString(),
+                      onTap: () {
+                        final current = _reactions[_jobIdForIndex(i)]?.user;
+                        _setReaction(i, current == 'like' ? null : 'like');
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _CircleIconButton(
+                      icon: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
+                          ? Icons.thumb_down
+                          : Icons.thumb_down_alt_outlined,
+                      color: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
+                          ? Colors.redAccent
+                          : Colors.white,
+                      label: (_reactions[_jobIdForIndex(i)]?.dislikes ?? 0)
+                          .toString(),
+                      onTap: () {
+                        final current = _reactions[_jobIdForIndex(i)]?.user;
+                        _setReaction(i, current == 'dislike' ? null : 'dislike');
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _CircleIconButton(
+                      icon: _muted ? Icons.volume_off : Icons.volume_up,
+                      onTap: () {
+                        setState(() {
+                          _muted = !_muted;
+                          for (final v in _hlsControllers.values) {
+                            if (v.value.isInitialized) {
+                              v.setVolume(_muted ? 0.0 : 1.0);
+                            }
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Top-left back button rendered last, with glass style like other buttons
+        Positioned(
+          left: 8,
+          top: 8,
+          child: SafeArea(
+            child: _CircleIconButton(
+              icon: Icons.arrow_back,
+              onTap: () {
+                final nav = Navigator.maybeOf(context);
+                bool popped = false;
+                if (nav != null && nav.canPop()) {
+                  debugPrint('[Shorts] Back: popping current route');
+                  nav.pop();
+                  popped = true;
+                }
+                if (!popped) {
+                  final tc = DefaultTabController.maybeOf(context);
+                  if (tc != null) {
+                    final prev = tc.previousIndex;
+                    final cur = tc.index;
+                    int target = prev;
+                    if (prev < 0 || prev >= tc.length || prev == cur) {
+                      target = 0; // fallback to For You
+                    }
+                    debugPrint('[Shorts] Back: no route to pop, switching tab to index ' + target.toString());
+                    try { tc.animateTo(target); } catch (_) {}
+                  } else {
+                    debugPrint('[Shorts] Back: no route to pop and no TabController');
+                  }
+                }
+              },
             ),
           ),
         ),

@@ -13,7 +13,6 @@ import '../features/home/widgets/hero_carousel.dart';
 import '../features/home/widgets/section_header.dart';
 import '../features/home/widgets/poster_row.dart';
 // import '../features/home/widgets/mini_player_bar.dart';
-import '../features/series/pages/player_page.dart';
 import '../features/series/series_service.dart';
 import '../features/series/pages/series_seasons_page.dart';
 import '../features/series/pages/series_episodes_page.dart';
@@ -213,15 +212,18 @@ class _HomePageState extends State<HomePage> {
       // Load shorts feed for "New releases"
       widget.api.setTenant(widget.tenantId);
       final client = ApiClient();
-      final res = await client.get('/channels/shorts/ready/feed/', queryParameters: {
+      final res =
+          await client.get('/channels/shorts/ready/feed/', queryParameters: {
         'limit': '30',
         'recent_bias_count': '15',
       });
       final raw = res.data;
       final List<Map<String, dynamic>> shorts = raw is List
-          ? List<Map<String, dynamic>>.from(raw.map((e) => Map<String, dynamic>.from(e as Map)))
+          ? List<Map<String, dynamic>>.from(
+              raw.map((e) => Map<String, dynamic>.from(e as Map)))
           : (raw is Map && raw['results'] is List)
-              ? List<Map<String, dynamic>>.from((raw['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+              ? List<Map<String, dynamic>>.from((raw['results'] as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map)))
               : const [];
       if (mounted) {
         setState(() {
@@ -283,7 +285,14 @@ class _HomePageState extends State<HomePage> {
       animation: widget.localizationController,
       builder: (_, __) => DefaultTabController(
         length: 4,
-        child: Scaffold(
+        child: Builder(
+          builder: (context) {
+            final tc = DefaultTabController.of(context);
+            return AnimatedBuilder(
+              animation: tc,
+              builder: (_, __) {
+                final onShorts = tc.index == 3;
+                return Scaffold(
           floatingActionButton: Builder(
             builder: (ctx) {
               final tc = DefaultTabController.of(ctx);
@@ -305,17 +314,8 @@ class _HomePageState extends State<HomePage> {
                   if (onShorts || onLiveTab) return const SizedBox.shrink();
                   return FloatingActionButton.extended(
                     onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PlayerPage(
-                            api: widget.api,
-                            tenantId: widget.tenantId,
-                            episodeId: 31,
-                            seasonId: null,
-                            title: 'Live',
-                          ),
-                        ),
-                      );
+                      // Switch to Live tab instead of opening PlayerPage
+                      tc.animateTo(2);
                     },
                     icon: const Icon(Icons.live_tv),
                     label: Text(_t('go_live')),
@@ -324,113 +324,117 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-          appBar: AppBar(
-            title: const BrandTitle(),
-            bottom: TabBar(
-              labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-              isScrollable: true,
-              tabs: [
-                Tab(text: _t('for_you')),
-                Tab(text: _t('Shows')),
-                Tab(text: _t('Live')),
-                Tab(text: _t('Shorts')),
-              ],
-            ),
-            actions: [
-              IconButton(
-                tooltip: _t('search'),
-                icon: const Icon(Icons.search),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Search ${_t('coming_soon')}')),
-                  );
-                },
-              ),
-              PopupMenuButton<_HomeMenuAction>(
-                tooltip: _t('menu'),
-                itemBuilder: (context) {
-                  final lang = widget.localizationController.language;
-                  final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
-                  return <PopupMenuEntry<_HomeMenuAction>>[
-                    PopupMenuItem(
-                      value: _HomeMenuAction.profile,
-                      height: kMinInteractiveDimension,
-                      child: SizedBox(
-                        height: kMinInteractiveDimension,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.account_circle_outlined),
-                            const SizedBox(width: 12),
-                            Text(_t('profile')),
-                          ],
-                        ),
-                      ),
+          appBar: onShorts
+              ? null
+              : AppBar(
+                  title: const BrandTitle(),
+                  bottom: TabBar(
+                    labelPadding:
+                        const EdgeInsets.symmetric(horizontal: 12),
+                    isScrollable: true,
+                    tabs: [
+                      Tab(text: _t('for_you')),
+                      Tab(text: _t('Shows')),
+                      Tab(text: _t('Live')),
+                      Tab(text: _t('Shorts')),
+                    ],
+                  ),
+                  actions: [
+                    IconButton(
+                      tooltip: _t('search'),
+                      icon: const Icon(Icons.search),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Search ${_t('coming_soon')}')),
+                        );
+                      },
                     ),
-                    PopupMenuItem(
-                      value: _HomeMenuAction.settings,
-                      height: kMinInteractiveDimension,
-                      child: SizedBox(
-                        height: kMinInteractiveDimension,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.settings_outlined),
-                            const SizedBox(width: 12),
-                            Text(_t('settings')),
-                          ],
-                        ),
-                      ),
+                    PopupMenuButton<_HomeMenuAction>(
+                      tooltip: _t('menu'),
+                      itemBuilder: (context) {
+                        final lang = widget.localizationController.language;
+                        final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
+                        return <PopupMenuEntry<_HomeMenuAction>>[
+                          PopupMenuItem(
+                            value: _HomeMenuAction.profile,
+                            height: kMinInteractiveDimension,
+                            child: SizedBox(
+                              height: kMinInteractiveDimension,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.account_circle_outlined),
+                                  const SizedBox(width: 12),
+                                  Text(_t('profile')),
+                                ],
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _HomeMenuAction.settings,
+                            height: kMinInteractiveDimension,
+                            child: SizedBox(
+                              height: kMinInteractiveDimension,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.settings_outlined),
+                                  const SizedBox(width: 12),
+                                  Text(_t('settings')),
+                                ],
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _HomeMenuAction.about,
+                            height: kMinInteractiveDimension,
+                            child: SizedBox(
+                              height: kMinInteractiveDimension,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline),
+                                  const SizedBox(width: 12),
+                                  Text(_t('about')),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: _HomeMenuAction.switchLanguage,
+                            height: kMinInteractiveDimension,
+                            child: SizedBox(
+                              height: kMinInteractiveDimension,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.translate),
+                                  const SizedBox(width: 12),
+                                  Text('${_t('switch_language')} ($switchTo)'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ];
+                      },
+                      onSelected: (value) {
+                        switch (value) {
+                          case _HomeMenuAction.profile:
+                            Navigator.of(context).pushNamed('/profile');
+                            break;
+                          case _HomeMenuAction.settings:
+                            Navigator.of(context).pushNamed('/settings');
+                            break;
+                          case _HomeMenuAction.about:
+                            Navigator.of(context).pushNamed('/about');
+                            break;
+                          case _HomeMenuAction.switchLanguage:
+                            widget.localizationController.toggleLanguage();
+                            break;
+                        }
+                      },
                     ),
-                    PopupMenuItem(
-                      value: _HomeMenuAction.about,
-                      height: kMinInteractiveDimension,
-                      child: SizedBox(
-                        height: kMinInteractiveDimension,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline),
-                            const SizedBox(width: 12),
-                            Text(_t('about')),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: _HomeMenuAction.switchLanguage,
-                      height: kMinInteractiveDimension,
-                      child: SizedBox(
-                        height: kMinInteractiveDimension,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.translate),
-                            const SizedBox(width: 12),
-                            Text('${_t('switch_language')} ($switchTo)'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ];
-                },
-                onSelected: (value) {
-                  switch (value) {
-                    case _HomeMenuAction.profile:
-                      Navigator.of(context).pushNamed('/profile');
-                      break;
-                    case _HomeMenuAction.settings:
-                      Navigator.of(context).pushNamed('/settings');
-                      break;
-                    case _HomeMenuAction.about:
-                      Navigator.of(context).pushNamed('/about');
-                      break;
-                    case _HomeMenuAction.switchLanguage:
-                      widget.localizationController.toggleLanguage();
-                      break;
-                  }
-                },
-              ),
-            ],
-          ),
+                  ],
+                ),
           body: SafeArea(
+            top: !onShorts,
             child: TabBarView(
               children: [
                 // For You tab
@@ -444,6 +448,10 @@ class _HomePageState extends State<HomePage> {
           ),
           // Global mini-player is handled by inner pages (e.g., LivePage)
           bottomSheet: null,
+        );
+              },
+            );
+          },
         ),
       ),
     );
@@ -538,10 +546,18 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 12),
                         // Trending Now
-                        SectionHeader(title: _t('trending_now')),
+                        SectionHeader(
+                          title: _t('trending_now'),
+                          actionLabel: _t('see_all'),
+                          onAction: () {
+                            final tc = DefaultTabController.of(context);
+                            tc.animateTo(1); // Shows tab
+                          },
+                        ),
                         const SizedBox(height: 8),
                         PosterRow(
-                          items: List<Map<String, dynamic>>.generate(_trendingShows.length, (i) {
+                          items: List<Map<String, dynamic>>.generate(
+                              _trendingShows.length, (i) {
                             final s = _trendingShows[i];
                             return {
                               'title': (s['title'] ?? '').toString(),
@@ -557,14 +573,23 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 16),
                         // New Releases (Shorts)
-                        SectionHeader(title: _t('new_releases')),
+                        SectionHeader(
+                          title: _t('new_releases'),
+                          actionLabel: _t('see_all'),
+                          onAction: () {
+                            final tc = DefaultTabController.of(context);
+                            tc.animateTo(3); // Shorts tab
+                          },
+                        ),
                         const SizedBox(height: 8),
                         PosterRow(
                           // Map shorts into poster items (title + cover_image)
-                          items: List<Map<String, dynamic>>.generate(_newShorts.length, (i) {
+                          items: List<Map<String, dynamic>>.generate(
+                              _newShorts.length, (i) {
                             final v = _newShorts[i];
                             return {
-                              'title': (v['title'] ?? v['name'] ?? 'Short').toString(),
+                              'title': (v['title'] ?? v['name'] ?? 'Short')
+                                  .toString(),
                               'cover_image': _thumbFromMap(v) ?? '',
                               'originalIndex': i,
                             };

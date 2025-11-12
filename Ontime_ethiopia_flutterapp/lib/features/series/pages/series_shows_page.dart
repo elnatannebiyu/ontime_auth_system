@@ -21,6 +21,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
   String? _selectedCategorySlug;
   List<Map<String, dynamic>> _allShows = const [];
   List<Map<String, dynamic>> _categoryShows = const [];
+  bool _navigating = false; // guard against multiple rapid taps
 
   @override
   void initState() {
@@ -30,23 +31,39 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final cats = await _service.getCategories();
       final all = await _service.getShows();
-      setState(() { _categories = cats; _allShows = all; });
+      setState(() {
+        _categories = cats;
+        _allShows = all;
+      });
       if (_selectedCategorySlug != null) {
         final list = await _service.getShowsByCategory(_selectedCategorySlug!);
-        if (mounted) setState(() { _categoryShows = list; });
+        if (mounted)
+          setState(() {
+            _categoryShows = list;
+          });
       }
     } catch (e) {
-      setState(() { _error = 'Failed to load shows'; });
+      setState(() {
+        _error = 'Failed to load shows';
+      });
     } finally {
-      setState(() { _loading = false; });
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
   Future<void> _openShow(String slug, String title) async {
+    // Guard: prevent multiple rapid navigations
+    if (_navigating) return;
+    _navigating = true;
     // Fetch seasons; if exactly one, push episodes directly
     try {
       final seasons = await _service.getSeasons(slug);
@@ -57,7 +74,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
         final number = s['number']?.toString() ?? '';
         final rawTitle = (s['title'] as String?)?.trim() ?? '';
         final seasonTitle = rawTitle.isNotEmpty ? rawTitle : 'Season $number';
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => SeriesEpisodesPage(
               api: widget.api,
@@ -68,7 +85,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
           ),
         );
       } else {
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => SeriesSeasonsPage(
               api: widget.api,
@@ -84,6 +101,9 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to open show')),
       );
+    } finally {
+      if (mounted) setState(() => _navigating = false);
+      else _navigating = false;
     }
   }
 
@@ -117,7 +137,8 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    child: Text(_error!,
+                        style: const TextStyle(color: Colors.red)),
                   ),
                 _Section(
                   title: 'Categories',
@@ -135,7 +156,9 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
                             label: const Text('All'),
                             selected: selected,
                             onSelected: (val) async {
-                              setState(() { _selectedCategorySlug = null; });
+                              setState(() {
+                                _selectedCategorySlug = null;
+                              });
                               // No extra load; grid uses _allShows
                             },
                           );
@@ -148,17 +171,27 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
                         return ChoiceChip(
                           label: Text(name),
                           selected: selected,
-                          selectedColor: (color ?? Theme.of(context).colorScheme.primary).withOpacity(0.2),
-                          side: BorderSide(color: color ?? Theme.of(context).dividerColor),
+                          selectedColor:
+                              (color ?? Theme.of(context).colorScheme.primary)
+                                  .withOpacity(0.2),
+                          side: BorderSide(
+                              color: color ?? Theme.of(context).dividerColor),
                           onSelected: (val) async {
                             if (!val) {
-                              setState(() { _selectedCategorySlug = null; });
+                              setState(() {
+                                _selectedCategorySlug = null;
+                              });
                               return;
                             }
-                            setState(() { _selectedCategorySlug = slug; });
-                            final list = await _service.getShowsByCategory(slug);
+                            setState(() {
+                              _selectedCategorySlug = slug;
+                            });
+                            final list =
+                                await _service.getShowsByCategory(slug);
                             if (!mounted) return;
-                            setState(() { _categoryShows = list; });
+                            setState(() {
+                              _categoryShows = list;
+                            });
                           },
                         );
                       },
@@ -168,8 +201,11 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                   child: _ShowsGrid(
-                    items: _selectedCategorySlug == null ? _allShows : _categoryShows,
-                    onTap: (s) => _openShow(s['slug']?.toString() ?? '', s['title']?.toString() ?? ''),
+                    items: _selectedCategorySlug == null
+                        ? _allShows
+                        : _categoryShows,
+                    onTap: (s) => _openShow(s['slug']?.toString() ?? '',
+                        s['title']?.toString() ?? ''),
                   ),
                 ),
               ],
@@ -198,7 +234,9 @@ class _ShowCard extends StatelessWidget {
             Expanded(
               child: imageUrl.isNotEmpty
                   ? Image.network(imageUrl, fit: BoxFit.cover)
-                  : Container(color: Colors.black12, child: const Icon(Icons.tv, size: 40)),
+                  : Container(
+                      color: Colors.black12,
+                      child: const Icon(Icons.tv, size: 40)),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),

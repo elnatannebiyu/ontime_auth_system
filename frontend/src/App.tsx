@@ -17,6 +17,7 @@ import Dashboard from './components/Dashboard';
 import AdminUsers from './components/AdminUsers';
 import AdminSessions from './components/AdminSessions';
 import RequireAdmin from './components/RequireAdmin';
+import Channels from './components/Channels';
 import { getAccessToken, isLoggedOut } from './services/api';
 import { AppThemeProvider, useThemeMode } from './theme';
 import { logout as apiLogout } from './services/auth';
@@ -122,7 +123,7 @@ function App() {
           <Route path="/login" element={ isAuthenticated && !isLoggedOut() ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} /> } />
           <Route path="/dashboard" element={<RequireAdmin><Shell><Dashboard /></Shell></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><Shell><AdminUsers /></Shell></RequireAdmin>} />
-          <Route path="/channels" element={<RequireAdmin><Shell><Placeholder title="Channels" /></Shell></RequireAdmin>} />
+          <Route path="/channels" element={<RequireAdmin><Shell><Channels /></Shell></RequireAdmin>} />
           <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
           <Route path="/profile" element={<RequireAdmin><Shell><Placeholder title="My Profile" /></Shell></RequireAdmin>} />
           <Route path="/live" element={<RequireAdmin><Shell><Placeholder title="Live" /></Shell></RequireAdmin>} />
