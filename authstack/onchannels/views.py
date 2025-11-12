@@ -170,7 +170,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
-    @action(detail=True, methods=["get"], url_path="logo")
+    @action(detail=True, methods=["get"], url_path="logo", permission_classes=[permissions.AllowAny])
     def logo(self, request, pk=None, id_slug=None, **kwargs):
         """Serve the channel logo file as an image stream.
 

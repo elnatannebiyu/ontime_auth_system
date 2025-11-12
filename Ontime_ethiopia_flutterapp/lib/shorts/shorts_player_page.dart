@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element_parameter
+// ignore_for_file: unused_element_parameter, unused_element
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -310,8 +310,12 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                       FittedBox(
                         fit: BoxFit.cover,
                         child: SizedBox(
-                          width: vc.value.size.width == 0 ? 1 : vc.value.size.width,
-                          height: vc.value.size.height == 0 ? 1 : vc.value.size.height,
+                          width: vc.value.size.width == 0
+                              ? 1
+                              : vc.value.size.width,
+                          height: vc.value.size.height == 0
+                              ? 1
+                              : vc.value.size.height,
                           child: VideoPlayer(vc),
                         ),
                       ),
@@ -445,8 +449,8 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                       color: (_reactions[_jobIdForIndex(i)]?.user == 'like')
                           ? Colors.lightBlueAccent
                           : Colors.white,
-                      label:
-                          (_reactions[_jobIdForIndex(i)]?.likes ?? 0).toString(),
+                      label: (_reactions[_jobIdForIndex(i)]?.likes ?? 0)
+                          .toString(),
                       onTap: () {
                         final current = _reactions[_jobIdForIndex(i)]?.user;
                         _setReaction(i, current == 'like' ? null : 'like');
@@ -464,7 +468,8 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                           .toString(),
                       onTap: () {
                         final current = _reactions[_jobIdForIndex(i)]?.user;
-                        _setReaction(i, current == 'dislike' ? null : 'dislike');
+                        _setReaction(
+                            i, current == 'dislike' ? null : 'dislike');
                       },
                     ),
                     const SizedBox(height: 12),
@@ -511,10 +516,15 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                     if (prev < 0 || prev >= tc.length || prev == cur) {
                       target = 0; // fallback to For You
                     }
-                    debugPrint('[Shorts] Back: no route to pop, switching tab to index ' + target.toString());
-                    try { tc.animateTo(target); } catch (_) {}
+                    debugPrint(
+                        '[Shorts] Back: no route to pop, switching tab to index ' +
+                            target.toString());
+                    try {
+                      tc.animateTo(target);
+                    } catch (_) {}
                   } else {
-                    debugPrint('[Shorts] Back: no route to pop and no TabController');
+                    debugPrint(
+                        '[Shorts] Back: no route to pop and no TabController');
                   }
                 }
               },

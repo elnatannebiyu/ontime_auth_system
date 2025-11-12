@@ -44,6 +44,10 @@ INSTALLED_APPS = [
     'django_celery_beat',
 ]
 
+# Dev-only utilities
+if DEBUG:
+    INSTALLED_APPS += ['django_extensions']
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -81,6 +85,7 @@ TEMPLATES = [
     },
 ]
 WSGI_APPLICATION = "authstack.wsgi.application"
+ASGI_APPLICATION = "authstack.asgi.application"
 
 DATABASES = {
     "default": {

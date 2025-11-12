@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Grid, Card, CardContent, CardActions, Typography, TextField, IconButton, Chip, Skeleton, Pagination, Tooltip, Button, Stack } from '@mui/material';
+import { Box, Grid, Card, CardContent, CardActions, Typography, TextField, IconButton, Chip, Skeleton, Pagination, Tooltip, Button, Stack, MenuItem, Select, FormControl, InputLabel, Snackbar, Alert } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
+import SyncIcon from '@mui/icons-material/Sync';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
@@ -28,6 +31,9 @@ const Channels: React.FC = () => {
   const [search, setSearch] = useState<string>('');
   const [ordering, setOrdering] = useState<string>('sort_order');
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [status, setStatus] = useState<'all'|'active'|'inactive'>('all');
+  const [error, setError] = useState<string | null>(null);
+  const [searchTimer, setSearchTimer] = useState<any>(null);
 
   const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
 
@@ -49,6 +55,7 @@ const Channels: React.FC = () => {
     try {
       const params: any = { page, ordering };
       if (search.trim()) params.search = search.trim();
+      if (status !== 'all') params.is_active = (status === 'active');
       const res = await api.get('/channels/', { params });
       const data = res.data;
       if (Array.isArray(data)) {
@@ -58,19 +65,34 @@ const Channels: React.FC = () => {
         setItems((data.results || []) as ChannelItem[]);
         setCount(typeof data.count === 'number' ? data.count : (data.results?.length || 0));
       }
-    } catch (e) {
+    } catch (e: any) {
       setItems([]);
       setCount(0);
+      setError(e?.response?.data?.detail || 'Failed to load channels');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      setPage(1);
-      load();
+  const syncPlaylists = async (slug: string) => {
+    if (!isStaff) return; setBusyIds(prev => new Set(prev).add(`sync-pl-${slug}`));
+    try { await api.post(`/channels/${encodeURIComponent(slug)}/yt/sync-playlists/`); await load(); } catch {} finally {
+      setBusyIds(prev => { const n = new Set(prev); n.delete(`sync-pl-${slug}`); return n; });
     }
+  };
+
+  const syncAll = async (slug: string) => {
+    if (!isStaff) return; setBusyIds(prev => new Set(prev).add(`sync-all-${slug}`));
+    try { await api.post(`/channels/${encodeURIComponent(slug)}/yt/sync-all/`); await load(); } catch {} finally {
+      setBusyIds(prev => { const n = new Set(prev); n.delete(`sync-all-${slug}`); return n; });
+    }
+  };
+
+  const handleSearchChange = (v: string) => {
+    setSearch(v);
+    if (searchTimer) clearTimeout(searchTimer);
+    const t = setTimeout(() => { setPage(1); load(); }, 400);
+    setSearchTimer(t);
   };
 
   const toggleActive = async (ch: ChannelItem, nextActive: boolean) => {
@@ -98,21 +120,24 @@ const Channels: React.FC = () => {
           label="Search"
           placeholder="Search by name or slug"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleSearchKey}
+          onChange={(e) => handleSearchChange(e.target.value)}
         />
-        <TextField
-          size="small"
-          select
-          SelectProps={{ native: true }}
-          label="Order by"
-          value={ordering}
-          onChange={(e) => { setOrdering(e.target.value); setPage(1); }}
-        >
-          <option value="sort_order">Sort order</option>
-          <option value="-updated_at">Recently updated</option>
-          <option value="id_slug">Slug</option>
-        </TextField>
+        <FormControl size="small">
+          <InputLabel id="order-label">Order by</InputLabel>
+          <Select labelId="order-label" label="Order by" value={ordering} onChange={(e)=>{ setOrdering(e.target.value as string); setPage(1); load(); }}>
+            <MenuItem value="sort_order">Sort order</MenuItem>
+            <MenuItem value="-updated_at">Recently updated</MenuItem>
+            <MenuItem value="id_slug">Slug</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl size="small">
+          <InputLabel id="status-label">Status</InputLabel>
+          <Select labelId="status-label" label="Status" value={status} onChange={(e)=>{ setStatus(e.target.value as any); setPage(1); load(); }}>
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="inactive">Inactive</MenuItem>
+          </Select>
+        </FormControl>
         <Tooltip title="Reload">
           <span>
             <IconButton onClick={load} aria-label="reload" disabled={loading}>
@@ -138,7 +163,12 @@ const Channels: React.FC = () => {
         </Grid>
       ) : (
         <>
-          <Grid container spacing={2}>
+          {items.length === 0 ? (
+            <Box sx={{ py: 8, textAlign: 'center', width: '100%' }}>
+              <Typography variant="body1" color="text.secondary">No channels found.</Typography>
+            </Box>
+          ) : (
+            <Grid container spacing={2}>
             {items.map((ch) => {
               const title = ch.name_en || ch.name_am || ch.id_slug;
               const logo = ch.logo_url || `/api/channels/${encodeURIComponent(ch.id_slug)}/logo/`;
@@ -157,9 +187,10 @@ const Channels: React.FC = () => {
                       </Box>
                       <Typography variant="caption" color="text.secondary">{ch.id_slug}</Typography>
                     </CardContent>
-                    {isStaff && (
-                      <CardActions sx={{ justifyContent: 'space-between' }}>
-                        <Stack direction="row" spacing={1}>
+                    <CardActions sx={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                      <Stack direction="row" spacing={1}>
+                        <Button component={RouterLink} to={`/channels/${encodeURIComponent(ch.id_slug)}`} size="small">Details</Button>
+                        {isStaff && (
                           <Tooltip title={ch.is_active ? 'Deactivate' : 'Activate'}>
                             <span>
                               <Button
@@ -174,19 +205,29 @@ const Channels: React.FC = () => {
                               </Button>
                             </span>
                           </Tooltip>
+                        )}
+                      </Stack>
+                      {isStaff && (
+                        <Stack direction="row" spacing={1}>
+                          <Tooltip title="Sync playlists">
+                            <span>
+                              <Button size="small" variant="outlined" startIcon={<PlaylistAddIcon/>} disabled={busyIds.has(`sync-pl-${ch.id_slug}`)} onClick={()=>syncPlaylists(ch.id_slug)}>Sync PL</Button>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title="Sync all (playlists + videos)">
+                            <span>
+                              <Button size="small" variant="contained" startIcon={<SyncIcon/>} disabled={busyIds.has(`sync-all-${ch.id_slug}`)} onClick={()=>syncAll(ch.id_slug)}>Sync All</Button>
+                            </span>
+                          </Tooltip>
                         </Stack>
-                        <Tooltip title="Open playlists in YouTube (feature coming soon)">
-                          <span>
-                            <Button size="small" disabled>Playlists</Button>
-                          </span>
-                        </Tooltip>
-                      </CardActions>
-                    )}
+                      )}
+                    </CardActions>
                   </Card>
                 </Grid>
               );
             })}
-          </Grid>
+            </Grid>
+          )}
 
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
             <Pagination
@@ -198,6 +239,12 @@ const Channels: React.FC = () => {
           </Box>
         </>
       )}
+
+      <Snackbar open={!!error} autoHideDuration={4000} onClose={()=>setError(null)}>
+        <Alert onClose={()=>setError(null)} severity="error" variant="filled" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

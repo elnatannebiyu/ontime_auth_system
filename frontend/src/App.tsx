@@ -18,6 +18,12 @@ import AdminUsers from './components/AdminUsers';
 import AdminSessions from './components/AdminSessions';
 import RequireAdmin from './components/RequireAdmin';
 import Channels from './components/Channels';
+import AppVersions from './components/AppVersions';
+import FeatureFlags from './components/FeatureFlags';
+import Playlists from './components/Playlists';
+import Videos from './components/Videos';
+import UserNotifications from './components/UserNotifications';
+import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
 import { AppThemeProvider, useThemeMode } from './theme';
 import { logout as apiLogout } from './services/auth';
@@ -57,6 +63,22 @@ function Shell({ children }: { children: React.ReactNode }) {
           <ListItemButton component={Link} to="/channels">
             <ListItemIcon><DnsIcon /></ListItemIcon>
             <ListItemText primary="Channels" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/playlists">
+            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+            <ListItemText primary="Playlists" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/videos">
+            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+            <ListItemText primary="Videos" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/features">
+            <ListItemIcon><SystemUpdateAltIcon /></ListItemIcon>
+            <ListItemText primary="Feature Flags" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/notifications">
+            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+            <ListItemText primary="My Notifications" />
           </ListItemButton>
           <ListItemButton component={Link} to="/profile">
             <ListItemIcon><AccountCircleIcon /></ListItemIcon>
@@ -124,12 +146,17 @@ function App() {
           <Route path="/dashboard" element={<RequireAdmin><Shell><Dashboard /></Shell></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><Shell><AdminUsers /></Shell></RequireAdmin>} />
           <Route path="/channels" element={<RequireAdmin><Shell><Channels /></Shell></RequireAdmin>} />
+          <Route path="/channels/:slug" element={<RequireAdmin><Shell><ChannelDetail /></Shell></RequireAdmin>} />
+          <Route path="/playlists" element={<RequireAdmin><Shell><Playlists /></Shell></RequireAdmin>} />
+          <Route path="/videos" element={<RequireAdmin><Shell><Videos /></Shell></RequireAdmin>} />
+          <Route path="/features" element={<RequireAdmin><Shell><FeatureFlags /></Shell></RequireAdmin>} />
+          <Route path="/notifications" element={<RequireAdmin><Shell><UserNotifications /></Shell></RequireAdmin>} />
           <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
           <Route path="/profile" element={<RequireAdmin><Shell><Placeholder title="My Profile" /></Shell></RequireAdmin>} />
           <Route path="/live" element={<RequireAdmin><Shell><Placeholder title="Live" /></Shell></RequireAdmin>} />
           <Route path="/shorts/import" element={<RequireAdmin><Shell><Placeholder title="Shorts Import" /></Shell></RequireAdmin>} />
           <Route path="/shorts/metrics" element={<RequireAdmin><Shell><Placeholder title="Shorts Metrics" /></Shell></RequireAdmin>} />
-          <Route path="/versions" element={<RequireAdmin><Shell><Placeholder title="App Versions & Features" /></Shell></RequireAdmin>} />
+          <Route path="/versions" element={<RequireAdmin><Shell><AppVersions /></Shell></RequireAdmin>} />
           <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} />} />
         </Routes>
       </Router>
