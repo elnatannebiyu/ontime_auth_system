@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, CssBaseline, Container, Divider, Snackbar, Alert } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
@@ -30,6 +30,27 @@ import { logout as apiLogout } from './services/auth';
 import { useNavigate as useNavigate2 } from 'react-router-dom';
 
 const drawerWidth = 240;
+
+function LogoutWatcher() {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate2();
+  useEffect(() => {
+    const onLogout = () => {
+      setOpen(true);
+      // Redirect immediately; toast will still show on the login page mount for a moment
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener('admin_fe_logout', onLogout);
+    return () => window.removeEventListener('admin_fe_logout', onLogout);
+  }, [navigate]);
+  return (
+    <Snackbar open={open} autoHideDuration={3000} onClose={() => setOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+      <Alert severity="warning" variant="filled" onClose={() => setOpen(false)} sx={{ width: '100%' }}>
+        Session expired, please log in again
+      </Alert>
+    </Snackbar>
+  );
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { mode, toggle } = useThemeMode();
