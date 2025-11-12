@@ -170,7 +170,13 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
     @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
-    @action(detail=True, methods=["get"], url_path="logo", permission_classes=[permissions.AllowAny])
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="logo",
+        permission_classes=[permissions.AllowAny],
+        throttle_classes=[],  # Do not throttle image loads
+    )
     def logo(self, request, pk=None, id_slug=None, **kwargs):
         """Serve the channel logo file as an image stream.
 
@@ -599,6 +605,33 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
         if ch:
             qs = qs.filter(channel__id_slug=ch)
         return qs
+
+    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="activate")
+    def activate(self, request, pk=None, **kwargs):
+        # Allow staff with either channel or playlist change permission
+        if not (
+            request.user.has_perm("onchannels.change_channel")
+            or request.user.has_perm("onchannels.change_playlist")
+        ):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        pl = self.get_object()
+        pl.is_active = True
+        pl.save(update_fields=["is_active", "updated_at"])
+        return Response({"id": pl.id, "is_active": pl.is_active})
+
+    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="deactivate")
+    def deactivate(self, request, pk=None, **kwargs):
+        if not (
+            request.user.has_perm("onchannels.change_channel")
+            or request.user.has_perm("onchannels.change_playlist")
+        ):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        pl = self.get_object()
+        pl.is_active = False
+        pl.save(update_fields=["is_active", "updated_at"])
+        return Response({"id": pl.id, "is_active": pl.is_active})
 
 
 class VideoViewSet(viewsets.ReadOnlyModelViewSet):
