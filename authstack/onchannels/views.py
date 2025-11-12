@@ -362,6 +362,14 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     title = it.get("title")
                     thumbs = it.get("thumbnails") or {}
                     count = int(it.get("itemCount") or 0)
+                    yt_pub = it.get("publishedAt")
+                    yt_pub_dt = None
+                    if yt_pub:
+                        try:
+                            from datetime import datetime, timezone
+                            yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                        except Exception:
+                            yt_pub_dt = None
                     obj, was_created = Playlist.objects.update_or_create(
                         id=pid,
                         defaults={
@@ -369,6 +377,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                             "title": title or "",
                             "thumbnails": thumbs,
                             "item_count": count,
+                            "yt_published_at": yt_pub_dt,
                         },
                     )
                     processed += 1
@@ -426,6 +435,14 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     title = it.get("title")
                     thumbs = it.get("thumbnails") or {}
                     count = int(it.get("itemCount") or 0)
+                    yt_pub = it.get("publishedAt")
+                    yt_pub_dt = None
+                    if yt_pub:
+                        try:
+                            from datetime import datetime, timezone
+                            yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                        except Exception:
+                            yt_pub_dt = None
                     obj, was_created = Playlist.objects.update_or_create(
                         id=pid,
                         defaults={
@@ -433,6 +450,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                             "title": title or "",
                             "thumbnails": thumbs,
                             "item_count": count,
+                            "yt_published_at": yt_pub_dt,
                         },
                     )
                     processed += 1
@@ -457,6 +475,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                 playlists = list(channel.playlists.all())
             for pl in playlists:
                 page = None
+                latest_item_dt = None
                 while True:
                     data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
                     for it in data.get("items", []):
@@ -468,6 +487,9 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                                 dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
                             except Exception:
                                 dt = None
+                        # Track latest item time for this playlist
+                        if dt and (latest_item_dt is None or dt > latest_item_dt):
+                            latest_item_dt = dt
                         obj, created = Video.objects.update_or_create(
                             playlist=pl,
                             video_id=vid,
@@ -487,6 +509,13 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     page = data.get("nextPageToken")
                     if not page:
                         break
+                # After processing a playlist's videos, update last item timestamp if found
+                if latest_item_dt:
+                    try:
+                        pl.yt_last_item_published_at = latest_item_dt
+                        pl.save(update_fields=["yt_last_item_published_at", "updated_at"])
+                    except Exception:
+                        pass
 
             return Response({
                 "playlists": {"created": playlists_created, "updated": playlists_updated},
@@ -517,6 +546,15 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": "Provide playlist_id or playlist_url."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             meta = youtube_api.get_playlist(playlist_id)
+            # Parse YouTube publishedAt
+            yt_pub = meta.get("publishedAt")
+            yt_pub_dt = None
+            if yt_pub:
+                try:
+                    from datetime import datetime, timezone
+                    yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                except Exception:
+                    yt_pub_dt = None
             obj, created = Playlist.objects.update_or_create(
                 id=meta.get("id") or playlist_id,
                 defaults={
@@ -524,6 +562,7 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     "title": meta.get("title") or "",
                     "thumbnails": meta.get("thumbnails") or {},
                     "item_count": int(meta.get("itemCount") or 0),
+                    "yt_published_at": yt_pub_dt,
                 },
             )
             return Response({
@@ -576,7 +615,7 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["title", "id", "channel__id_slug"]
-    ordering_fields = ["title", "last_synced_at", "item_count"]
+    ordering_fields = ["title", "last_synced_at", "item_count", "yt_published_at", "yt_last_item_published_at"]
 
     PARAM_TENANT = openapi.Parameter(
         name="X-Tenant-Id",

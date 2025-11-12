@@ -73,9 +73,11 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "item_count",
             "is_active",
             "last_synced_at",
+            "yt_published_at",
+            "yt_last_item_published_at",
             "channel_logo_url",
         ]
-        read_only_fields = ("last_synced_at",)
+        read_only_fields = ("last_synced_at", "yt_published_at", "yt_last_item_published_at")
 
     def get_channel_logo_url(self, obj: Playlist) -> str:
         path = f"/api/channels/{obj.channel.id_slug}/logo/"

@@ -65,6 +65,9 @@ class Playlist(models.Model):
     is_active = models.BooleanField(default=False, help_text="Mark playlists active to surface in apps")
     is_shorts = models.BooleanField(default=False, db_index=True, help_text="Mark playlist as part of Shorts feed")
     last_synced_at = models.DateTimeField(auto_now=True)
+    # YouTube timestamps for better recency ordering
+    yt_published_at = models.DateTimeField(null=True, blank=True)
+    yt_last_item_published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["channel", "title"]
