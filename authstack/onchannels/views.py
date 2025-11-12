@@ -157,10 +157,10 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        # Enforce active-only for non-admins; for admins, apply filter only if explicitly provided
         user = self.request.user
         if user.is_staff or user.has_perm("onchannels.change_channel"):
-            is_active = self.request.query_params.get("is_active", "true")
+            is_active = self.request.query_params.get("is_active")
             if is_active in {"true", "false", "1", "0"}:
                 qs = qs.filter(is_active=is_active in {"true", "1"})
         else:
@@ -583,10 +583,10 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        # Enforce active-only for non-admins; for admins, apply filter only if explicitly provided
         user = self.request.user
         if user.is_staff or user.has_perm("onchannels.change_channel"):
-            is_active = self.request.query_params.get("is_active", "true")
+            is_active = self.request.query_params.get("is_active")
             if is_active in {"true", "false", "1", "0"}:
                 qs = qs.filter(is_active=is_active in {"true", "1"})
         else:
@@ -623,10 +623,10 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Enforce active-only for non-admins; allow admins to override via ?is_active=
+        # Enforce active-only for non-admins; for admins, apply filter only if explicitly provided
         user = self.request.user
         if user.is_staff or user.has_perm("onchannels.change_channel"):
-            is_active = self.request.query_params.get("is_active", "true")
+            is_active = self.request.query_params.get("is_active")
             if is_active in {"true", "false", "1", "0"}:
                 qs = qs.filter(is_active=is_active in {"true", "1"})
         else:
