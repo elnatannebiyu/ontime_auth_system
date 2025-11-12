@@ -510,10 +510,10 @@ class ChannelAdmin(admin.ModelAdmin):
 @admin.register(Playlist)
 class PlaylistAdmin(admin.ModelAdmin):
     form = PlaylistAdminForm
-    list_display = ("id", "title", "channel", "item_count", "is_active", "is_shorts", "last_synced_at")
+    list_display = ("id", "title", "channel", "item_count", "is_active", "is_shorts", "yt_published_at", "yt_last_item_published_at", "last_synced_at")
     list_filter = ("channel", "is_active", "is_shorts")
     search_fields = ("id", "title", "channel__id_slug", "channel__name_en", "channel__name_am")
-    ordering = ("channel", "title")
+    ordering = ("-yt_published_at", "channel", "title")
     actions = ("activate_playlists", "deactivate_playlists", "mark_as_shorts", "unmark_as_shorts")
 
     @admin.action(description="Activate selected playlists")
