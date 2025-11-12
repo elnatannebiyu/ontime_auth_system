@@ -171,7 +171,8 @@ const Channels: React.FC = () => {
             <Grid container spacing={2}>
             {items.map((ch) => {
               const title = ch.name_en || ch.name_am || ch.id_slug;
-              const logo = ch.logo_url || `/api/channels/${encodeURIComponent(ch.id_slug)}/logo/`;
+              // Always use relative logo path so it goes through our proxy
+              const logo = `/api/channels/${encodeURIComponent(ch.id_slug)}/logo/`;
               const busy = busyIds.has(ch.id_slug);
               return (
                 <Grid key={ch.uid || ch.id_slug} item xs={12} sm={6} md={4} lg={3}>
