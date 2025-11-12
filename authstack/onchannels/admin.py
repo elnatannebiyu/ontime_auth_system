@@ -409,9 +409,15 @@ class ChannelAdmin(admin.ModelAdmin):
                         yt_pub_dt = None
                         if yt_pub:
                             try:
-                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc)
+                                s = yt_pub.replace("Z", "+00:00")
+                                yt_pub_dt = datetime.fromisoformat(s)
+                                if yt_pub_dt.tzinfo is None:
+                                    yt_pub_dt = yt_pub_dt.replace(tzinfo=dt_timezone.utc)
                             except Exception:
-                                yt_pub_dt = None
+                                try:
+                                    yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc)
+                                except Exception:
+                                    yt_pub_dt = None
                         if yt_pub_dt:
                             with_dates += 1
                         else:
@@ -476,9 +482,15 @@ class ChannelAdmin(admin.ModelAdmin):
                         yt_pub_dt = None
                         if yt_pub:
                             try:
-                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                                s = yt_pub.replace("Z", "+00:00")
+                                yt_pub_dt = datetime.fromisoformat(s)
+                                if yt_pub_dt.tzinfo is None:
+                                    yt_pub_dt = yt_pub_dt.replace(tzinfo=timezone.utc)
                             except Exception:
-                                yt_pub_dt = None
+                                try:
+                                    yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                                except Exception:
+                                    yt_pub_dt = None
                         if yt_pub_dt:
                             with_dates += 1
                         else:
