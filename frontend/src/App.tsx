@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, CssBaseline, Container, Divider } from '@mui/material';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, CssBaseline, Container, Divider, Snackbar, Alert } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -27,13 +27,13 @@ import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
 import { AppThemeProvider, useThemeMode } from './theme';
 import { logout as apiLogout } from './services/auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate as useNavigate2 } from 'react-router-dom';
 
 const drawerWidth = 240;
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { mode, toggle } = useThemeMode();
-  const navigate = useNavigate();
+  const navigate = useNavigate2();
   const handleLogout = async () => {
     try { await apiLogout(); } catch {}
     navigate('/login');
@@ -141,6 +141,7 @@ function App() {
   return (
     <AppThemeProvider>
       <Router>
+        <LogoutWatcher />
         <Routes>
           <Route path="/login" element={ isAuthenticated && !isLoggedOut() ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} /> } />
           <Route path="/dashboard" element={<RequireAdmin><Shell><Dashboard /></Shell></RequireAdmin>} />
