@@ -570,13 +570,13 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
 
-class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Playlist.objects.select_related("channel").all()
     serializer_class = PlaylistSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["title", "id", "channel__id_slug"]
-    ordering_fields = ["title", "last_synced_at", "item_count"]
+    # Allow searching by playlist title or channel name/slug
+    search_fields = ["title", "channel__name_en", "channel__name_am", "channel__id_slug", "id"]
+    ordering_fields = ["updated_at", "item_count", "title", "last_synced_at", "channel__id_slug"]
 
     PARAM_TENANT = openapi.Parameter(
         name="X-Tenant-Id",

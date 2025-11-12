@@ -19,6 +19,8 @@ const ChannelDetail: React.FC = () => {
   const [vidPage, setVidPage] = useState(1);
   const [vidCount, setVidCount] = useState(0);
   const pageSize = 24;
+  const plOrdering = '-updated_at';
+  const vidOrdering = '-published_at';
   const [loading, setLoading] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -34,8 +36,8 @@ const ChannelDetail: React.FC = () => {
     try {
       const [ch, pls, vids] = await Promise.all([
         api.get(`/channels/${encodeURIComponent(slug)}/`).catch(()=>({data:null})),
-        api.get('/channels/playlists/', { params: { channel: slug, page: plPage } }).catch(()=>({data:{results:[], count: 0}})),
-        api.get('/channels/videos/', { params: { channel: slug, page: vidPage } }).catch(()=>({data:{results:[], count: 0}})),
+        api.get('/channels/playlists/', { params: { channel: slug, page: plPage, page_size: pageSize, ordering: plOrdering } }).catch(()=>({data:{results:[], count: 0}})),
+        api.get('/channels/videos/', { params: { channel: slug, page: vidPage, page_size: pageSize, ordering: vidOrdering } }).catch(()=>({data:{results:[], count: 0}})),
       ]);
       setChannel(ch.data);
       const plsList = Array.isArray(pls.data) ? pls.data : (pls.data?.results || []);
@@ -114,8 +116,8 @@ const ChannelDetail: React.FC = () => {
       )}
 
       <Tabs value={tab} onChange={(_,v)=>setTab(v)}>
-        <Tab label={`Playlists (${playlists.length})`} />
-        <Tab label={`Videos (${videos.length})`} />
+        <Tab label={`Playlists (${plCount})`} />
+        <Tab label={`Videos (${vidCount})`} />
       </Tabs>
 
       {tab === 0 && (
