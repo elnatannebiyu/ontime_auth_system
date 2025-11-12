@@ -22,7 +22,7 @@ const Playlists: React.FC = () => {
   const [channel, setChannel] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all'|'active'|'inactive'>('all');
-  const [ordering, setOrdering] = useState<string>('title');
+  const [ordering, setOrdering] = useState<string>('-last_synced_at');
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
   const [err, setErr] = useState<string | null>(null);
@@ -83,8 +83,8 @@ const Playlists: React.FC = () => {
         <FormControl size="small">
           <InputLabel id="order-label">Order by</InputLabel>
           <Select labelId="order-label" label="Order by" value={ordering} onChange={(e)=>{ setOrdering(e.target.value as string); setPage(1); }}>
+            <MenuItem value="-last_synced_at">Newest (last synced)</MenuItem>
             <MenuItem value="title">Title</MenuItem>
-            <MenuItem value="-updated_at">Recently updated</MenuItem>
             <MenuItem value="item_count">Item count</MenuItem>
           </Select>
         </FormControl>
