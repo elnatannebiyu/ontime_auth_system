@@ -383,9 +383,11 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                             "title": title or "",
                             "thumbnails": thumbs,
                             "item_count": count,
-                            "yt_published_at": yt_pub_dt,
                         },
                     )
+                    if yt_pub_dt is not None and obj.yt_published_at != yt_pub_dt:
+                        obj.yt_published_at = yt_pub_dt
+                        obj.save(update_fields=["yt_published_at"])
                     processed += 1
                     if was_created:
                         created += 1
@@ -456,9 +458,11 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                             "title": title or "",
                             "thumbnails": thumbs,
                             "item_count": count,
-                            "yt_published_at": yt_pub_dt,
                         },
                     )
+                    if yt_pub_dt is not None and obj.yt_published_at != yt_pub_dt:
+                        obj.yt_published_at = yt_pub_dt
+                        obj.save(update_fields=["yt_published_at"])
                     processed += 1
                     if was_created:
                         playlists_created += 1
@@ -574,9 +578,11 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     "title": meta.get("title") or "",
                     "thumbnails": meta.get("thumbnails") or {},
                     "item_count": int(meta.get("itemCount") or 0),
-                    "yt_published_at": yt_pub_dt,
                 },
             )
+            if yt_pub_dt is not None and obj.yt_published_at != yt_pub_dt:
+                obj.yt_published_at = yt_pub_dt
+                obj.save(update_fields=["yt_published_at"])
             try:
                 latest_item_dt = None
                 items_data = youtube_api.list_playlist_items(obj.id, max_results=50)

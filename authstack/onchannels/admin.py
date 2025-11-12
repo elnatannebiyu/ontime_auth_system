@@ -429,9 +429,11 @@ class ChannelAdmin(admin.ModelAdmin):
                                 "title": title or "",
                                 "thumbnails": thumbs,
                                 "item_count": count,
-                                "yt_published_at": yt_pub_dt,
                             },
                         )
+                        if yt_pub_dt is not None and obj.yt_published_at != yt_pub_dt:
+                            obj.yt_published_at = yt_pub_dt
+                            obj.save(update_fields=["yt_published_at"])
                         processed += 1
                         if was_created:
                             created += 1
