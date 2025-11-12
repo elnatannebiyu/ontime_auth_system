@@ -25,6 +25,7 @@ const ChannelDetail: React.FC = () => {
   const [syncBusy, setSyncBusy] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
+  const [plQuery, setPlQuery] = useState('');
 
   const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
 
@@ -36,7 +37,7 @@ const ChannelDetail: React.FC = () => {
     try {
       const [ch, pls, vids] = await Promise.all([
         api.get(`/channels/${encodeURIComponent(slug)}/`).catch(()=>({data:null})),
-        api.get('/channels/playlists/', { params: { channel: slug, page: plPage, page_size: pageSize, ordering: plOrdering } }).catch(()=>({data:{results:[], count: 0}})),
+        api.get('/channels/playlists/', { params: { channel: slug, page: plPage, page_size: pageSize, ordering: plOrdering, search: plQuery || undefined } }).catch(()=>({data:{results:[], count: 0}})),
         api.get('/channels/videos/', { params: { channel: slug, page: vidPage, page_size: pageSize, ordering: vidOrdering } }).catch(()=>({data:{results:[], count: 0}})),
       ]);
       setChannel(ch.data);
@@ -49,7 +50,10 @@ const ChannelDetail: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  useEffect(()=>{ load(); }, [slug, plPage, vidPage]);
+  useEffect(()=>{ load(); }, [slug, plPage, vidPage, plQuery]);
+
+  // Reset playlist page when search changes
+  useEffect(()=>{ setPlPage(1); }, [plQuery]);
 
   const syncPlaylists = async () => {
     if (!slug) return; setSyncBusy(true);
@@ -71,19 +75,6 @@ const ChannelDetail: React.FC = () => {
     } finally {
       setBusyIds(prev => { const n = new Set(prev); n.delete(key); return n; });
     }
-  };
-
-  const [upsertVal, setUpsertVal] = useState('');
-  const [upserting, setUpserting] = useState(false);
-  const upsertPlaylist = async () => {
-    if (!slug || !upsertVal.trim()) return; setUpserting(true);
-    try {
-      await api.post(`/channels/${encodeURIComponent(slug)}/yt/upsert-playlist/`, null, { params: { playlist_url: upsertVal.trim() } });
-      setUpsertVal('');
-      await load();
-    } catch (e:any) {
-      setErr(e?.response?.data?.detail || 'Failed to upsert playlist');
-    } finally { setUpserting(false); }
   };
 
   return (
@@ -122,14 +113,15 @@ const ChannelDetail: React.FC = () => {
 
       {tab === 0 && (
         <Grid container spacing={2}>
-          {isStaff && (
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <TextField size="small" fullWidth placeholder="Playlist URL or ID" value={upsertVal} onChange={e=>setUpsertVal(e.target.value)} />
-                <Button size="small" variant="contained" startIcon={<PlaylistAddIcon/>} disabled={!upsertVal.trim() || upserting} onClick={upsertPlaylist}>Add/Update</Button>
-              </Stack>
-            </Grid>
-          )}
+          <Grid item xs={12}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Search by playlist title"
+              value={plQuery}
+              onChange={(e)=>setPlQuery(e.target.value)}
+            />
+          </Grid>
           {playlists.map((pl:any) => (
             <Grid item xs={12} sm={6} md={4} lg={3} key={pl.id}>
               <Card>
