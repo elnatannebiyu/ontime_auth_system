@@ -17,6 +17,7 @@ import json
 import shutil
 import base64
 from django.utils.safestring import mark_safe
+import logging
 from django import forms
 from datetime import datetime
 try:
@@ -378,6 +379,9 @@ class ChannelAdmin(admin.ModelAdmin):
         from . import youtube_api
         created = 0
         updated = 0
+        processed = 0
+        with_dates = 0
+        missing_dates = 0
         for ch in queryset:
             try:
                 cid = ch.youtube_channel_id
@@ -399,6 +403,18 @@ class ChannelAdmin(admin.ModelAdmin):
                         title = it.get("title")
                         thumbs = it.get("thumbnails") or {}
                         count = int(it.get("itemCount") or 0)
+                        # Parse YouTube publishedAt if present
+                        yt_pub = it.get("publishedAt")
+                        yt_pub_dt = None
+                        if yt_pub:
+                            try:
+                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            except Exception:
+                                yt_pub_dt = None
+                        if yt_pub_dt:
+                            with_dates += 1
+                        else:
+                            missing_dates += 1
                         obj, was_created = Playlist.objects.update_or_create(
                             id=pid,
                             defaults={
@@ -406,8 +422,10 @@ class ChannelAdmin(admin.ModelAdmin):
                                 "title": title or "",
                                 "thumbnails": thumbs,
                                 "item_count": count,
+                                "yt_published_at": yt_pub_dt,
                             },
                         )
+                        processed += 1
                         if was_created:
                             created += 1
                         else:
@@ -417,7 +435,9 @@ class ChannelAdmin(admin.ModelAdmin):
                         break
             except Exception as exc:  # noqa: BLE001
                 self.message_user(request, f"{ch.id_slug}: sync failed: {exc}", level="warning")
-        self.message_user(request, f"Playlists upserted. created={created}, updated={updated}")
+        if missing_dates:
+            logging.getLogger(__name__).info("Playlist sync: %d playlist(s) missing publishedAt from YouTube API", missing_dates)
+        self.message_user(request, f"Playlists upserted. processed={processed}, created={created}, updated={updated}. publishedAt set: {with_dates}, missing: {missing_dates}")
 
     @admin.action(description="Sync YouTube (playlists + videos)")
     def sync_youtube_all(self, request, queryset):
@@ -427,6 +447,9 @@ class ChannelAdmin(admin.ModelAdmin):
         playlists_updated = 0
         videos_created = 0
         videos_updated = 0
+        processed = 0
+        with_dates = 0
+        missing_dates = 0
         for ch in queryset:
             try:
                 # 1) Ensure channel id
@@ -448,6 +471,17 @@ class ChannelAdmin(admin.ModelAdmin):
                         title = it.get("title")
                         thumbs = it.get("thumbnails") or {}
                         count = int(it.get("itemCount") or 0)
+                        yt_pub = it.get("publishedAt")
+                        yt_pub_dt = None
+                        if yt_pub:
+                            try:
+                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            except Exception:
+                                yt_pub_dt = None
+                        if yt_pub_dt:
+                            with_dates += 1
+                        else:
+                            missing_dates += 1
                         obj, was_created = Playlist.objects.update_or_create(
                             id=pid,
                             defaults={
@@ -455,8 +489,10 @@ class ChannelAdmin(admin.ModelAdmin):
                                 "title": title or "",
                                 "thumbnails": thumbs,
                                 "item_count": count,
+                                "yt_published_at": yt_pub_dt,
                             },
                         )
+                        processed += 1
                         if was_created:
                             playlists_created += 1
                         else:
@@ -468,6 +504,7 @@ class ChannelAdmin(admin.ModelAdmin):
                 playlists = list(ch.playlists.filter(is_active=True)) or list(ch.playlists.all())
                 for pl in playlists:
                     page = None
+                    latest_item_dt = None
                     while True:
                         data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
                         for it in data.get("items", []):
@@ -479,6 +516,8 @@ class ChannelAdmin(admin.ModelAdmin):
                                     dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
                                 except Exception:
                                     dt = None
+                            if dt and (latest_item_dt is None or dt > latest_item_dt):
+                                latest_item_dt = dt
                             obj, created = Video.objects.update_or_create(
                                 playlist=pl,
                                 video_id=vid,
@@ -498,11 +537,19 @@ class ChannelAdmin(admin.ModelAdmin):
                         page = data.get("nextPageToken")
                         if not page:
                             break
+                    if latest_item_dt:
+                        try:
+                            pl.yt_last_item_published_at = latest_item_dt
+                            pl.save(update_fields=["yt_last_item_published_at", "updated_at"])
+                        except Exception:
+                            pass
             except Exception as exc:  # noqa: BLE001
                 self.message_user(request, f"{ch.id_slug}: sync failed: {exc}", level="warning")
+        if missing_dates:
+            logging.getLogger(__name__).info("Sync all: %d playlist(s) missing publishedAt from YouTube API", missing_dates)
         self.message_user(
             request,
-            f"Sync complete. playlists(created={playlists_created}, updated={playlists_updated}), "
+            f"Sync complete. playlists(processed={processed}, created={playlists_created}, updated={playlists_updated}, publishedAt set: {with_dates}, missing: {missing_dates}), "
             f"videos(created={videos_created}, updated={videos_updated})",
         )
 

@@ -88,6 +88,7 @@ def get_playlist(playlist_id: str) -> Dict[str, Any]:
         "title": it.get("snippet", {}).get("title"),
         "thumbnails": it.get("snippet", {}).get("thumbnails", {}),
         "itemCount": it.get("contentDetails", {}).get("itemCount"),
+        "publishedAt": it.get("snippet", {}).get("publishedAt"),
     }
     
 
