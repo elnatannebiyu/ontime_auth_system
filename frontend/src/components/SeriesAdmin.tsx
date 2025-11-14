@@ -11,12 +11,13 @@ interface ShowItem {
   id: number;
   slug: string;
   title: string;
+  // Channel foreign key (numeric id from backend)
   channel: number;
   is_active: boolean;
 }
 
 interface ChannelOption {
-  id: number;
+  id: number; // numeric primary key
   name: string;
   slug?: string;
   is_active: boolean;
@@ -158,7 +159,8 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
 function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose: ()=>void; initial?: Partial<ShowItem>; onSave: (p: any)=>void; }) {
   const [slug, setSlug] = useState(initial?.slug || '');
   const [title, setTitle] = useState(initial?.title || '');
-  const [channel, setChannel] = useState<number | ''>((initial && typeof initial.channel === 'number') ? initial.channel : '');
+  // Channel is always stored as a string for Select; convert to number only on submit
+  const [channel, setChannel] = useState<string>('');
   const [isActive, setIsActive] = useState(!!initial?.is_active);
   const [synopsis, setSynopsis] = useState('');
   const [locale, setLocale] = useState('am');
@@ -171,7 +173,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
   useEffect(()=>{
     setSlug(initial?.slug || '');
     setTitle(initial?.title || '');
-    setChannel((initial && typeof initial.channel === 'number') ? initial.channel : '');
+    setChannel(typeof initial?.channel === 'number' ? String(initial.channel) : '');
     setIsActive(!!initial?.is_active);
     setSynopsis('');
     setLocale('am');
@@ -189,7 +191,17 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
           api.get('/series/categories/', { params: { page_size: 500 } }),
         ]);
         const chanList = Array.isArray(chanRes.data?.results) ? chanRes.data.results : (Array.isArray(chanRes.data) ? chanRes.data : []);
-        setChannels(chanList.map((c: any) => ({ id: c.id, name: c.title || c.name || c.slug || `Channel ${c.id}`, slug: c.id_slug || c.slug, is_active: c.is_active })));
+        // Debug: inspect raw channel objects used for the Select in Add Show dialog
+        // Remove or comment out once you're satisfied with the mapping.
+        // eslint-disable-next-line no-console
+        console.log('ShowDialog channels:', chanList);
+        setChannels(chanList.map((c: any) => ({
+          id: c.id,
+          // Prefer English name; fall back to other fields so it's never undefined
+          name: c.name_en || c.title || c.name || c.id_slug || c.slug || String(c.id),
+          slug: c.id_slug || c.slug,
+          is_active: !!c.is_active,
+        })));
         const catList = Array.isArray(catRes.data?.results) ? catRes.data.results : (Array.isArray(catRes.data) ? catRes.data : []);
         setAllCategories(catList);
       } catch (e) {
@@ -222,7 +234,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
   };
 
   const submit = () => {
-    if (!slug.trim() || !title.trim() || channel === '') {
+    if (!slug.trim() || !title.trim() || !channel) {
       alert('Slug, title and channel are required');
       return;
     }
@@ -233,7 +245,8 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
     const payload = {
       slug: slug.trim(),
       title: title.trim(),
-      channel: typeof channel === 'number' ? channel : Number(channel),
+      // Backend expects numeric pk for channel
+      channel: Number(channel),
       is_active: isActive,
       synopsis: synopsis.trim() || '',
       default_locale: locale || 'am',
@@ -252,8 +265,8 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
           <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} />
           <Select
             displayEmpty
-            value={channel === '' ? '' : channel}
-            onChange={e=>setChannel(e.target.value as number)}
+            value={channel}
+            onChange={e=>setChannel(String(e.target.value || ''))}
             fullWidth
           >
             {channels.length === 0 ? (
@@ -266,7 +279,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             {channels.map((c, idx) => {
               const label = (c.name ?? (c as any).title ?? c.slug ?? (c as any).id_slug ?? `Channel ${c.id}`);
               return (
-                <MenuItem key={`ch-${idx}`} value={c.id}>
+                <MenuItem key={`ch-${idx}`} value={String(c.id)}>
                   {label}{c.is_active ? '' : ' (inactive)'}
                 </MenuItem>
               );
