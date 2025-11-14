@@ -28,7 +28,7 @@ const Playlists: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [user, setUser] = useState<User | null>(null);
-  const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
+  const isStaff = useMemo(() => !!(user && (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend'))), [user]);
 
   useEffect(()=>{ (async()=>{ try { setUser(await getCurrentUser()); } catch {} })(); }, []);
 

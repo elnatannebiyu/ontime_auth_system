@@ -35,7 +35,7 @@ const Channels: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTimer, setSearchTimer] = useState<any>(null);
 
-  const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
+  const isStaff = useMemo(() => !!(user && (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend'))), [user]);
 
   useEffect(() => {
     (async () => {
