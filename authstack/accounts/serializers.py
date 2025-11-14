@@ -19,7 +19,6 @@ class MeSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
-            "is_staff",
             "roles",          # global groups
             "tenant_roles",   # per-tenant roles from Membership
             "permissions",
@@ -124,9 +123,9 @@ class UserAdminSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined', 'groups', 'tenant_roles'
+            'is_active', 'is_superuser', 'last_login', 'date_joined', 'groups', 'tenant_roles'
         ]
-        read_only_fields = ['id', 'username', 'is_staff', 'is_superuser', 'last_login', 'date_joined', 'groups']
+        read_only_fields = ['id', 'username', 'is_superuser', 'last_login', 'date_joined', 'groups']
 
     def validate_email(self, value):
         v = (value or '').lower().strip()
