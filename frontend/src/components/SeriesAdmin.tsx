@@ -214,7 +214,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
         // Debug: inspect raw channel objects used for the Select in Add Show dialog
         // Remove or comment out once you're satisfied with the mapping.
         // eslint-disable-next-line no-console
-        console.log('ShowDialog channels:', chanList);
+        //console.log('ShowDialog channels:', chanList);
         setChannels(chanList.map((c: any) => ({
           // use id_slug as value for the Select; backend will accept this
           id: c.id_slug,
@@ -277,7 +277,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
     };
     // Debug: inspect payload before sending
     // eslint-disable-next-line no-console
-    console.log('ShowDialog submit payload:', payload, 'raw channel state:', channel);
+    //console.log('ShowDialog submit payload:', payload, 'raw channel state:', channel);
     onSave(payload);
   };
 
@@ -295,7 +295,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
               const v = (e.target.value ?? '') as string;
               const selected = channels.find(ch => String(ch.id) === String(v));
               // eslint-disable-next-line no-console
-              console.log('ShowDialog channel selected:', {
+              console.log('ShowDialog channel selected:',{
                 id: v,
                 id_slug: selected?.slug,
                 name_en: selected?.name,
@@ -406,7 +406,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
       const res = await api.post(`/series/seasons/${season.id}/sync-now/`);
       const data = res?.data || {};
       // eslint-disable-next-line no-console
-      console.log('Season sync-now result:', data);
+      //console.log('Season sync-now result:', data);
       const msg: string = data.detail || 'Sync complete.';
       setSyncMessage(msg);
     } catch (e:any) {

@@ -156,7 +156,9 @@ class ShowViewSet(viewsets.ModelViewSet):
 class SeasonViewSet(viewsets.ModelViewSet):
     queryset = Season.objects.select_related("show").all()
     serializer_class = SeasonSerializer
-    filter_backends = [filters.OrderingFilter]
+    # Allow ordering and search by show slug/title and playlist id
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["show__slug", "show__title", "yt_playlist_id"]
     ordering_fields = ["number", "updated_at"]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
