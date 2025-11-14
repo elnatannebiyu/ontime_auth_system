@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.utils.text import slugify
 import time
 from .models import Show, Season, Episode, Category
+from onchannels.models import Channel  # type: ignore
 
 
 class CategoryMiniSerializer(serializers.ModelSerializer):
@@ -30,6 +31,10 @@ class CategoryListSerializer(serializers.ModelSerializer):
 class ShowSerializer(serializers.ModelSerializer):
     # Accept any text for slug (or blank); we'll slugify/normalize it in create/update.
     slug = serializers.CharField(required=False, allow_blank=True)
+    # Accept channel by its id_slug (e.g. "abbay-tv") instead of numeric pk
+    channel = serializers.SlugRelatedField(
+        slug_field="id_slug", queryset=Channel.objects.all()
+    )
     cover_image = serializers.SerializerMethodField()
     channel_logo_url = serializers.SerializerMethodField()
     categories = CategoryMiniSerializer(many=True, read_only=True)
