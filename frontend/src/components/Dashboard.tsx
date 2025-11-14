@@ -62,7 +62,7 @@ const Dashboard: React.FC = () => {
         api.get('/sessions/'),
         api.get('/channels/', { params: { page: 1 } }),
       ];
-      const allowAdmin = !!(u && (((u as any).is_staff) || (Array.isArray((u as any).roles) && (u as any).roles.includes('AdminFrontend'))));
+      const allowAdmin = !!(u && (Array.isArray((u as any).roles) && (user as any).roles.includes('AdminFrontend')));
       // Also fetch READY list for a concrete count (cap to 100 for performance)
       const readyCall = allowAdmin
         ? api.get('/channels/shorts/ready/', { params: { limit: 100 } }).catch(() => ({ data: [] }))
