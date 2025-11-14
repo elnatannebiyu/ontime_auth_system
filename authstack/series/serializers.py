@@ -21,6 +21,7 @@ class CategoryListSerializer(serializers.ModelSerializer):
             "color",
             "description",
             "display_order",
+            "is_active",
         ]
 
 
@@ -151,7 +152,7 @@ class ShowSerializer(serializers.ModelSerializer):
 
 
 class SeasonSerializer(serializers.ModelSerializer):
-    show = serializers.SlugRelatedField(slug_field="slug", read_only=True)
+    show = serializers.SlugRelatedField(slug_field="slug", queryset=Show.objects.all())
     cover_image = serializers.SerializerMethodField()
 
     class Meta:
@@ -190,7 +191,7 @@ class SeasonSerializer(serializers.ModelSerializer):
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
-    season = serializers.PrimaryKeyRelatedField(read_only=True)
+    season = serializers.PrimaryKeyRelatedField(queryset=Season.objects.all())
     display_title = serializers.SerializerMethodField()
 
     class Meta:

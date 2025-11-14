@@ -44,7 +44,7 @@ except Exception:
     openapi = _OpenApiShim()  # type: ignore
 
 
-class LiveViewSet(viewsets.ReadOnlyModelViewSet):
+class LiveViewSet(viewsets.ModelViewSet):
     queryset = Live.objects.select_related('channel').all()
     serializer_class = LiveSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -80,6 +80,21 @@ class LiveViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(channel__id_slug=ch)
         return qs
 
+    def perform_create(self, serializer):
+        tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
+        serializer.save(tenant=tenant, added_by=self.request.user)
+
+    def perform_update(self, serializer):
+        # Prevent tenant drift
+        tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
+        serializer.save(tenant=tenant)
+
+    def get_permissions(self):
+        # Writes require staff or change permission; reads require auth
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
+
 
 class LiveBySlugView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -92,6 +107,41 @@ class LiveBySlugView(APIView):
             qs = qs.filter(is_active=True)
         obj = get_object_or_404(qs)
         return Response(LiveSerializer(obj, context={'request': request}).data)
+
+
+class LiveRadioViewSet(viewsets.ModelViewSet):
+    queryset = LiveRadio.objects.all()
+    serializer_class = LiveRadioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'slug', 'country', 'language']
+    ordering_fields = ['updated_at', 'priority', 'name']
+
+    @swagger_auto_schema(manual_parameters=[LiveViewSet.PARAM_TENANT])
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
+        qs = qs.filter(tenant=tenant)
+        # Non-admins see only active & verified
+        if not (self.request.user.is_staff or self.request.user.has_perm('live.change_liveradio')):
+            qs = qs.filter(is_active=True, is_verified=True)
+        return qs
+
+    def perform_create(self, serializer):
+        tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
+        serializer.save(tenant=tenant, added_by=self.request.user if hasattr(self.serializer_class.Meta.model, 'added_by') else None)
+
+    def perform_update(self, serializer):
+        tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
+        serializer.save(tenant=tenant)
+
+    def get_permissions(self):
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
 
 
 class RadioListView(APIView):

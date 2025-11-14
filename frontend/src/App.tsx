@@ -25,6 +25,8 @@ import Videos from './components/Videos';
 import UserNotifications from './components/UserNotifications';
 import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
+import LiveAdmin from './components/LiveAdmin';
+import SeriesAdmin from './components/SeriesAdmin';
 import { AppThemeProvider, useThemeMode } from './theme';
 import { logout as apiLogout } from './services/auth';
 import { useNavigate as useNavigate2 } from 'react-router-dom';
@@ -92,6 +94,10 @@ function Shell({ children }: { children: React.ReactNode }) {
           <ListItemButton component={Link} to="/videos">
             <ListItemIcon><MovieFilterIcon /></ListItemIcon>
             <ListItemText primary="Videos" />
+          </ListItemButton>
+          <ListItemButton component={Link} to="/series">
+            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+            <ListItemText primary="Series" />
           </ListItemButton>
           <ListItemButton component={Link} to="/features">
             <ListItemIcon><SystemUpdateAltIcon /></ListItemIcon>
@@ -175,7 +181,8 @@ function App() {
           <Route path="/notifications" element={<RequireAdmin><Shell><UserNotifications /></Shell></RequireAdmin>} />
           <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
           <Route path="/profile" element={<RequireAdmin><Shell><Placeholder title="My Profile" /></Shell></RequireAdmin>} />
-          <Route path="/live" element={<RequireAdmin><Shell><Placeholder title="Live" /></Shell></RequireAdmin>} />
+          <Route path="/live" element={<RequireAdmin><Shell><LiveAdmin /></Shell></RequireAdmin>} />
+          <Route path="/series" element={<RequireAdmin><Shell><SeriesAdmin /></Shell></RequireAdmin>} />
           <Route path="/shorts/import" element={<RequireAdmin><Shell><Placeholder title="Shorts Import" /></Shell></RequireAdmin>} />
           <Route path="/shorts/metrics" element={<RequireAdmin><Shell><Placeholder title="Shorts Metrics" /></Shell></RequireAdmin>} />
           <Route path="/versions" element={<RequireAdmin><Shell><AppVersions /></Shell></RequireAdmin>} />

@@ -57,7 +57,7 @@ class BaseTenantReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
         return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
 
 
-class ShowViewSet(BaseTenantReadOnlyViewSet):
+class ShowViewSet(viewsets.ModelViewSet):
     queryset = Show.objects.select_related("channel").all()
     serializer_class = ShowSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -98,8 +98,24 @@ class ShowViewSet(BaseTenantReadOnlyViewSet):
             qs = qs.filter(is_active=True)
         return qs
 
+    def tenant_slug(self):
+        return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
 
-class SeasonViewSet(BaseTenantReadOnlyViewSet):
+    def perform_create(self, serializer):
+        tenant = self.tenant_slug()
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = self.tenant_slug()
+        serializer.save(tenant=tenant)
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
+
+
+class SeasonViewSet(viewsets.ModelViewSet):
     queryset = Season.objects.select_related("show").all()
     serializer_class = SeasonSerializer
     filter_backends = [filters.OrderingFilter]
@@ -121,8 +137,30 @@ class SeasonViewSet(BaseTenantReadOnlyViewSet):
             qs = qs.filter(is_enabled=True)
         return qs
 
+    def tenant_slug(self):
+        return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
 
-class EpisodeViewSet(BaseTenantReadOnlyViewSet):
+    def perform_create(self, serializer):
+        tenant = self.tenant_slug()
+        show = serializer.validated_data.get("show")
+        if show and show.tenant != tenant:
+            raise PermissionError("Show belongs to a different tenant")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = self.tenant_slug()
+        show = serializer.validated_data.get("show") or getattr(self.get_object(), "show", None)
+        if show and show.tenant != tenant:
+            raise PermissionError("Show belongs to a different tenant")
+        serializer.save(tenant=tenant)
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
+
+
+class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.select_related("season", "season__show").all()
     serializer_class = EpisodeSerializer
     filter_backends = [filters.OrderingFilter]
@@ -166,7 +204,7 @@ class EpisodeViewSet(BaseTenantReadOnlyViewSet):
         }, status=status.HTTP_200_OK)
 
 
-class CategoryViewSet(BaseTenantReadOnlyViewSet):
+class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategoryListSerializer
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
@@ -180,5 +218,21 @@ class CategoryViewSet(BaseTenantReadOnlyViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         tenant = self.tenant_slug()
-        qs = qs.filter(tenant=tenant, is_active=True).order_by("display_order", "name")
+        qs = qs.filter(tenant=tenant).order_by("display_order", "name")
         return qs
+
+    def tenant_slug(self):
+        return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
+
+    def perform_create(self, serializer):
+        tenant = self.tenant_slug()
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = self.tenant_slug()
+        serializer.save(tenant=tenant)
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
