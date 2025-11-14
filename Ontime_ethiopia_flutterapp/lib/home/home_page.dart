@@ -214,7 +214,7 @@ class _HomePageState extends State<HomePage> {
       final client = ApiClient();
       final res =
           await client.get('/channels/shorts/ready/feed/', queryParameters: {
-        'limit': '30',
+        'limit': '15',
         'recent_bias_count': '15',
       });
       final raw = res.data;
@@ -293,162 +293,172 @@ class _HomePageState extends State<HomePage> {
               builder: (_, __) {
                 final onShorts = tc.index == 3;
                 return Scaffold(
-          floatingActionButton: Builder(
-            builder: (ctx) {
-              final tc = DefaultTabController.of(ctx);
-              if (!_tabListenerAttached) {
-                _tabListenerAttached = true;
-                tc.addListener(() {
-                  if (tc.index == 3) {
-                    // Shorts tab selected: stop radio and clear TV mini session
-                    AudioController.instance.stop();
-                    TvController.instance.clear();
-                  }
-                });
-              }
-              return AnimatedBuilder(
-                animation: tc,
-                builder: (_, __) {
-                  final onShorts = tc.index == 3; // Shorts tab
-                  final onLiveTab = tc.index == 2; // Live tab
-                  if (onShorts || onLiveTab) return const SizedBox.shrink();
-                  return FloatingActionButton.extended(
-                    onPressed: () {
-                      // Switch to Live tab instead of opening PlayerPage
-                      tc.animateTo(2);
+                  floatingActionButton: Builder(
+                    builder: (ctx) {
+                      final tc = DefaultTabController.of(ctx);
+                      if (!_tabListenerAttached) {
+                        _tabListenerAttached = true;
+                        tc.addListener(() {
+                          if (tc.index == 3) {
+                            // Shorts tab selected: stop radio and clear TV mini session
+                            AudioController.instance.stop();
+                            TvController.instance.clear();
+                          }
+                        });
+                      }
+                      return AnimatedBuilder(
+                        animation: tc,
+                        builder: (_, __) {
+                          final onShorts = tc.index == 3; // Shorts tab
+                          final onLiveTab = tc.index == 2; // Live tab
+                          if (onShorts || onLiveTab)
+                            return const SizedBox.shrink();
+                          return FloatingActionButton.extended(
+                            onPressed: () {
+                              // Switch to Live tab instead of opening PlayerPage
+                              tc.animateTo(2);
+                            },
+                            icon: const Icon(Icons.live_tv),
+                            label: Text(_t('go_live')),
+                          );
+                        },
+                      );
                     },
-                    icon: const Icon(Icons.live_tv),
-                    label: Text(_t('go_live')),
-                  );
-                },
-              );
-            },
-          ),
-          appBar: onShorts
-              ? null
-              : AppBar(
-                  title: const BrandTitle(),
-                  bottom: TabBar(
-                    labelPadding:
-                        const EdgeInsets.symmetric(horizontal: 12),
-                    isScrollable: true,
-                    tabs: [
-                      Tab(text: _t('for_you')),
-                      Tab(text: _t('Shows')),
-                      Tab(text: _t('Live')),
-                      Tab(text: _t('Shorts')),
-                    ],
                   ),
-                  actions: [
-                    IconButton(
-                      tooltip: _t('search'),
-                      icon: const Icon(Icons.search),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Search ${_t('coming_soon')}')),
-                        );
-                      },
+                  appBar: onShorts
+                      ? null
+                      : AppBar(
+                          title: const BrandTitle(),
+                          bottom: TabBar(
+                            labelPadding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            isScrollable: true,
+                            tabs: [
+                              Tab(text: _t('for_you')),
+                              Tab(text: _t('Shows')),
+                              Tab(text: _t('Live')),
+                              Tab(text: _t('Shorts')),
+                            ],
+                          ),
+                          actions: [
+                            IconButton(
+                              tooltip: _t('search'),
+                              icon: const Icon(Icons.search),
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content:
+                                          Text('Search ${_t('coming_soon')}')),
+                                );
+                              },
+                            ),
+                            PopupMenuButton<_HomeMenuAction>(
+                              tooltip: _t('menu'),
+                              itemBuilder: (context) {
+                                final lang =
+                                    widget.localizationController.language;
+                                final switchTo =
+                                    lang == AppLanguage.en ? 'AM' : 'EN';
+                                return <PopupMenuEntry<_HomeMenuAction>>[
+                                  PopupMenuItem(
+                                    value: _HomeMenuAction.profile,
+                                    height: kMinInteractiveDimension,
+                                    child: SizedBox(
+                                      height: kMinInteractiveDimension,
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                              Icons.account_circle_outlined),
+                                          const SizedBox(width: 12),
+                                          Text(_t('profile')),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: _HomeMenuAction.settings,
+                                    height: kMinInteractiveDimension,
+                                    child: SizedBox(
+                                      height: kMinInteractiveDimension,
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.settings_outlined),
+                                          const SizedBox(width: 12),
+                                          Text(_t('settings')),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: _HomeMenuAction.about,
+                                    height: kMinInteractiveDimension,
+                                    child: SizedBox(
+                                      height: kMinInteractiveDimension,
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.info_outline),
+                                          const SizedBox(width: 12),
+                                          Text(_t('about')),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const PopupMenuDivider(),
+                                  PopupMenuItem(
+                                    value: _HomeMenuAction.switchLanguage,
+                                    height: kMinInteractiveDimension,
+                                    child: SizedBox(
+                                      height: kMinInteractiveDimension,
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.translate),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                              '${_t('switch_language')} ($switchTo)'),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ];
+                              },
+                              onSelected: (value) {
+                                switch (value) {
+                                  case _HomeMenuAction.profile:
+                                    Navigator.of(context).pushNamed('/profile');
+                                    break;
+                                  case _HomeMenuAction.settings:
+                                    Navigator.of(context)
+                                        .pushNamed('/settings');
+                                    break;
+                                  case _HomeMenuAction.about:
+                                    Navigator.of(context).pushNamed('/about');
+                                    break;
+                                  case _HomeMenuAction.switchLanguage:
+                                    widget.localizationController
+                                        .toggleLanguage();
+                                    break;
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                  body: SafeArea(
+                    top: !onShorts,
+                    child: TabBarView(
+                      children: [
+                        // For You tab
+                        _buildForYou(context),
+                        // Shows tab
+                        SeriesShowsPage(
+                            api: widget.api, tenantId: widget.tenantId),
+                        const LivePage(),
+                        ShortsPage(api: widget.api, tenantId: widget.tenantId),
+                      ],
                     ),
-                    PopupMenuButton<_HomeMenuAction>(
-                      tooltip: _t('menu'),
-                      itemBuilder: (context) {
-                        final lang = widget.localizationController.language;
-                        final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
-                        return <PopupMenuEntry<_HomeMenuAction>>[
-                          PopupMenuItem(
-                            value: _HomeMenuAction.profile,
-                            height: kMinInteractiveDimension,
-                            child: SizedBox(
-                              height: kMinInteractiveDimension,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.account_circle_outlined),
-                                  const SizedBox(width: 12),
-                                  Text(_t('profile')),
-                                ],
-                              ),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _HomeMenuAction.settings,
-                            height: kMinInteractiveDimension,
-                            child: SizedBox(
-                              height: kMinInteractiveDimension,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.settings_outlined),
-                                  const SizedBox(width: 12),
-                                  Text(_t('settings')),
-                                ],
-                              ),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _HomeMenuAction.about,
-                            height: kMinInteractiveDimension,
-                            child: SizedBox(
-                              height: kMinInteractiveDimension,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.info_outline),
-                                  const SizedBox(width: 12),
-                                  Text(_t('about')),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const PopupMenuDivider(),
-                          PopupMenuItem(
-                            value: _HomeMenuAction.switchLanguage,
-                            height: kMinInteractiveDimension,
-                            child: SizedBox(
-                              height: kMinInteractiveDimension,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.translate),
-                                  const SizedBox(width: 12),
-                                  Text('${_t('switch_language')} ($switchTo)'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ];
-                      },
-                      onSelected: (value) {
-                        switch (value) {
-                          case _HomeMenuAction.profile:
-                            Navigator.of(context).pushNamed('/profile');
-                            break;
-                          case _HomeMenuAction.settings:
-                            Navigator.of(context).pushNamed('/settings');
-                            break;
-                          case _HomeMenuAction.about:
-                            Navigator.of(context).pushNamed('/about');
-                            break;
-                          case _HomeMenuAction.switchLanguage:
-                            widget.localizationController.toggleLanguage();
-                            break;
-                        }
-                      },
-                    ),
-                  ],
-                ),
-          body: SafeArea(
-            top: !onShorts,
-            child: TabBarView(
-              children: [
-                // For You tab
-                _buildForYou(context),
-                // Shows tab
-                SeriesShowsPage(api: widget.api, tenantId: widget.tenantId),
-                const LivePage(),
-                ShortsPage(api: widget.api, tenantId: widget.tenantId),
-              ],
-            ),
-          ),
-          // Global mini-player is handled by inner pages (e.g., LivePage)
-          bottomSheet: null,
-        );
+                  ),
+                  // Global mini-player is handled by inner pages (e.g., LivePage)
+                  bottomSheet: null,
+                );
               },
             );
           },

@@ -1236,10 +1236,6 @@ class ShortsReadyFeedView(APIView):
         except Exception:
             limit, bias_count = 50, 15
 
-        # Hard cap: never return more than 15 shorts in the feed
-        if limit > 15:
-            limit = 15
-
         base = os.environ.get('MEDIA_PUBLIC_BASE', 'http://127.0.0.1:8080')
 
         jobs = (
