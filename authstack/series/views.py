@@ -197,6 +197,35 @@ class SeasonViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
         return super().get_permissions()
 
+    @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="sync-now")
+    def sync_now(self, request, pk=None):
+        """Run sync_season management command for this Season (fetch episodes).
+
+        Mirrors the Django admin "Run sync now (fetch episodes)" action and
+        returns a summary like "Sync complete. Succeeded: 1, Failed: 0".
+        """
+        season = self.get_object()
+        tenant = self.tenant_slug()
+        ref = f"{season.show.slug}:{season.number}"
+        succeeded = 0
+        failed = 0
+        try:
+            call_command("sync_season", ref, f"--tenant={tenant}")
+            succeeded = 1
+        except Exception as exc:  # noqa: BLE001
+            failed = 1
+            return Response(
+                {
+                    "detail": f"Sync failed for {ref}: {exc}",
+                    "succeeded": succeeded,
+                    "failed": failed,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        msg = f"Sync complete. Succeeded: {succeeded}, Failed: {failed}"
+        return Response({"detail": msg, "succeeded": succeeded, "failed": failed})
+
 
 class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.select_related("season", "season__show").all()
