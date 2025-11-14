@@ -108,10 +108,6 @@ function Shell({ children }: { children: React.ReactNode }) {
             <ListItemIcon><AccountCircleIcon /></ListItemIcon>
             <ListItemText primary="My Notifications" />
           </ListItemButton>
-          <ListItemButton component={Link} to="/profile">
-            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
-            <ListItemText primary="My Profile" />
-          </ListItemButton>
           <ListItemButton component={Link} to="/live">
             <ListItemIcon><LiveTvIcon /></ListItemIcon>
             <ListItemText primary="Live" />
@@ -131,6 +127,10 @@ function Shell({ children }: { children: React.ReactNode }) {
         </List>
         <Divider />
         <Box sx={{ p: 1 }}>
+          <ListItemButton component={Link} to="/profile">
+            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+            <ListItemText primary="My Profile" />
+          </ListItemButton>
           <ListItemButton onClick={handleLogout}>
             <ListItemIcon><LogoutIcon /></ListItemIcon>
             <ListItemText primary="Logout" />
