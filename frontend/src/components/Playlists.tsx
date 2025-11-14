@@ -10,6 +10,7 @@ interface PlaylistItem {
   title: string;
   item_count: number;
   is_active: boolean;
+  is_shorts?: boolean;
   channel_logo_url?: string;
   thumbnail_url?: string | null;
 }
@@ -66,6 +67,19 @@ const Playlists: React.FC = () => {
     }
   };
 
+  const onToggleShorts = async (pl: PlaylistItem, next: boolean) => {
+    const key = `${pl.id}-${next ? 'short' : 'unshort'}`;
+    setBusyIds(prev => new Set(prev).add(key));
+    try {
+      await api.post(`/channels/playlists/${encodeURIComponent(pl.id)}/${next ? 'mark-short' : 'unmark-short'}/`);
+      await load();
+    } catch (e:any) {
+      setErr(e?.response?.data?.detail || 'Failed to update shorts flag');
+    } finally {
+      setBusyIds(prev => { const n = new Set(prev); n.delete(key); return n; });
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap:'wrap' }}>
@@ -113,14 +127,32 @@ const Playlists: React.FC = () => {
                   <Chip size="small" label={`${pl.item_count}`} />
                 </Box>
                 <Typography variant="caption" color="text.secondary">{pl.channel}</Typography>
-                <Box sx={{ mt: 1, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <Chip size="small" color={pl.is_active ? 'success' : 'default'} label={pl.is_active ? 'Active' : 'Inactive'} />
+                <Box sx={{ mt: 1, display:'flex', alignItems:'center', justifyContent:'space-between', gap:1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip size="small" color={pl.is_active ? 'success' : 'default'} label={pl.is_active ? 'Active' : 'Inactive'} />
+                    {pl.is_shorts && <Chip size="small" color="primary" label="Shorts" />}
+                  </Stack>
                   {isStaff && (
-                    <span>
-                      <Button size="small" variant={pl.is_active? 'outlined':'contained'} color={pl.is_active? 'warning':'primary'} disabled={busyIds.has(`${pl.id}-${pl.is_active?'deact':'act'}`)} onClick={()=>onToggle(pl, !pl.is_active)}>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        variant={pl.is_active? 'outlined':'contained'}
+                        color={pl.is_active? 'warning':'primary'}
+                        disabled={busyIds.has(`${pl.id}-${pl.is_active?'deact':'act'}`)}
+                        onClick={()=>onToggle(pl, !pl.is_active)}
+                      >
                         {pl.is_active? 'Deactivate':'Activate'}
                       </Button>
-                    </span>
+                      <Button
+                        size="small"
+                        variant={pl.is_shorts ? 'outlined' : 'contained'}
+                        color="secondary"
+                        disabled={busyIds.has(`${pl.id}-${pl.is_shorts ? 'unshort' : 'short'}`)}
+                        onClick={()=>onToggleShorts(pl, !pl.is_shorts)}
+                      >
+                        {pl.is_shorts ? 'Unmark Shorts' : 'Mark Shorts'}
+                      </Button>
+                    </Stack>
                   )}
                 </Box>
               </CardContent>

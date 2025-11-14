@@ -13,7 +13,6 @@ interface ShortJob {
 }
 
 const ShortsIngestion: React.FC = () => {
-  const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [ready, setReady] = useState<ShortJob[]>([]);
   const [batchLimit, setBatchLimit] = useState<number | ''>(50);
@@ -21,28 +20,20 @@ const ShortsIngestion: React.FC = () => {
   const loadReady = async () => {
     try {
       const { data } = await api.get('/channels/shorts/ready/', { params: { limit: 50 } });
+      console.log('Shorts READY response', data);
       setReady(Array.isArray(data) ? data : []);
     } catch { setReady([]); }
   };
 
   useEffect(()=>{ loadReady(); }, []);
 
-  const submit = async () => {
-    if (!url.trim()) return; setSubmitting(true);
-    try {
-      await api.post('/channels/shorts/import/', { source_url: url.trim() });
-      setUrl('');
-      await loadReady();
-    } catch {}
-    finally { setSubmitting(false); }
-  };
-
   const runBatchImport = async () => {
     const lim = batchLimit === '' ? 0 : Number(batchLimit);
     const safeLimit = !lim || lim <= 0 ? 50 : Math.min(lim, 50);
     setSubmitting(true);
     try {
-      await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
+      const { data } = await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
+      console.log('Shorts batch import response', data);
       await loadReady();
     } catch {
       // ignore errors here; admin can inspect logs if needed
@@ -57,15 +48,6 @@ const ShortsIngestion: React.FC = () => {
         <Typography variant="h5">Short Ingestion Jobs</Typography>
         <Tooltip title="Reload READY list"><span><IconButton onClick={loadReady}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
-      <Card>
-        <CardContent>
-          <Typography variant="subtitle1">Submit a source URL</Typography>
-          <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-            <TextField fullWidth size="small" placeholder="https://youtube.com/... or other URL" value={url} onChange={e=>setUrl(e.target.value)} />
-            <Button variant="contained" onClick={submit} disabled={submitting || !url.trim()}>Start</Button>
-          </Stack>
-        </CardContent>
-      </Card>
       <Card>
         <CardContent>
           <Typography variant="subtitle1">Batch import recent from Shorts playlists</Typography>
@@ -90,8 +72,8 @@ const ShortsIngestion: React.FC = () => {
         <CardContent>
           <Typography variant="subtitle1">READY items (latest)</Typography>
           <List>
-            {ready.map(j => (
-              <ListItem key={j.id} divider>
+            {ready.map((j, idx) => (
+              <ListItem key={j.id || j.hls_master_url || `${j.status}-${idx}`} divider>
                 <ListItemText
                   primary={<Typography variant="body1">{j.hls_master_url || j.id}</Typography>}
                   secondary={<Typography variant="caption" color="text.secondary">{j.status} · {j.updated_at || j.created_at || ''}</Typography>}
