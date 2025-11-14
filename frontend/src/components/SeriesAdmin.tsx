@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Pagination, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -82,15 +82,22 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ShowItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/series/shows/', { params: { ordering: 'title' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: 'title', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/series/shows/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Shows'); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<ShowItem>) => {
     try {
@@ -110,17 +117,18 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
+        <TextField size="small" label="Search title or slug" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Show</Button>}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.slug} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary">{it.slug}</Typography>
+          <Stack key={it.slug} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.slug} sx={{ fontFamily:'monospace' }}>{it.slug}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             {isStaff && (
@@ -132,6 +140,9 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <ShowDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
@@ -179,15 +190,22 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SeasonItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/series/seasons/', { params: { ordering: 'show,number' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: 'number', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/series/seasons/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Seasons'); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<SeasonItem>) => {
     try {
@@ -207,17 +225,18 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
+        <TextField size="small" label="Search by show slug or title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Season</Button>}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.show} • S{it.number}{it.title? ` • ${it.title}`:''}</Typography>
-              <Typography variant="caption" color="text.secondary">{it.yt_playlist_id}</Typography>
+          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={`${it.show} • S${it.number}${it.title? ' • '+it.title:''}`}>{it.show} • S{it.number}{it.title? ` • ${it.title}`:''}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.yt_playlist_id} sx={{ fontFamily:'monospace' }}>{it.yt_playlist_id}</Typography>
             </Box>
             <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
             {isStaff && (
@@ -229,6 +248,9 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <SeasonDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
@@ -279,22 +301,31 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<EpisodeItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/series/episodes/', { params: { ordering: 'episode_number' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: 'episode_number', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/series/episodes/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e1:any) {
       try {
         const { data } = await api.get('/series/episodes/');
-        setItems(Array.isArray(data) ? data : (data?.results || []));
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        setItems(list);
+        setCount(typeof data?.count === 'number' ? data.count : list.length);
       } catch (e2:any) {
         onError(e2?.response?.data?.detail || e1?.response?.data?.detail || 'Failed to load Episodes');
       }
     } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<EpisodeItem>) => {
     try {
@@ -314,17 +345,18 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
+        <TextField size="small" label="Search title or video id" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Episode</Button>}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary">Season #{it.season} • {it.source_video_id}</Typography>
+          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={`Season #${it.season} • ${it.source_video_id}`} sx={{ fontFamily:'monospace' }}>Season #{it.season} • {it.source_video_id}</Typography>
             </Box>
             <Chip size="small" color={it.visible ? 'success':'default'} label={it.visible ? 'Visible':'Hidden'} />
             <Chip size="small" label={it.status} />
@@ -337,6 +369,9 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <EpisodeDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
@@ -393,15 +428,22 @@ function CategoriesSection({ isStaff, onError }: { isStaff: boolean; onError: (m
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/series/categories/', { params: { ordering: 'display_order,name' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: 'display_order,name', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/series/categories/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Categories'); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<CategoryItem>) => {
     try {
@@ -422,17 +464,18 @@ function CategoriesSection({ isStaff, onError }: { isStaff: boolean; onError: (m
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
+        <TextField size="small" label="Search name or slug" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Category</Button>}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={`${it.slug}-${it.name}`} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.name}</Typography>
-              <Typography variant="caption" color="text.secondary">{it.slug}</Typography>
+          <Stack key={`${it.slug}-${it.name}`} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={it.name}>{it.name}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.slug} sx={{ fontFamily:'monospace' }}>{it.slug}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             {isStaff && (
@@ -444,6 +487,9 @@ function CategoriesSection({ isStaff, onError }: { isStaff: boolean; onError: (m
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <CategoryDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
@@ -478,7 +524,7 @@ function CategoryDialog({ open, onClose, initial, onSave }: { open: boolean; onC
         <Stack spacing={2} sx={{ mt:1 }}>
           <TextField label="Name" value={name} onChange={e=>setName(e.target.value)} />
           <TextField label="Slug" value={slug} onChange={e=>setSlug(e.target.value)} />
-          <TextField label="Color (#RRGGBB)" value={color} onChange={e=>setColor(e.target.value)} />
+          <TextField label="Color" type="color" value={color || '#000000'} onChange={e=>setColor(e.target.value)} sx={{ width: 140 }} />
           <TextField label="Description" value={desc} onChange={e=>setDesc(e.target.value)} />
           <TextField label="Display Order" type="number" value={order} onChange={e=>setOrder(e.target.value===''? '': Number(e.target.value))} />
           <FormControlLabel control={<Switch checked={active} onChange={e=>setActive(e.target.checked)} />} label="Active" />
