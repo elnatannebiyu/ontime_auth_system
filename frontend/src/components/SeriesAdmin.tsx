@@ -29,7 +29,20 @@ interface SeasonItem {
   number: number;
   title?: string;
   yt_playlist_id?: string;
+  cover_image?: string;
+  last_synced_at?: string | null;
   is_enabled: boolean;
+}
+
+interface ShowChoice {
+  slug: string;
+  title: string;
+  channel?: string; // channel id_slug
+}
+
+interface PlaylistChoice {
+  id: string;   // PL...
+  title: string;
 }
 
 interface EpisodeItem {
@@ -356,6 +369,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -386,6 +400,20 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
     try { await api.delete(`/series/seasons/${id}/`); await load(); } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to delete Season'); }
   };
 
+  const handleSync = async (season: SeasonItem) => {
+    if (!window.confirm('Run sync now for this Season (fetch episodes)?')) return;
+    try {
+      const res = await api.post(`/series/seasons/${season.id}/sync-now/`);
+      const data = res?.data || {};
+      // eslint-disable-next-line no-console
+      console.log('Season sync-now result:', data);
+      const msg: string = data.detail || 'Sync complete.';
+      setSyncMessage(msg);
+    } catch (e:any) {
+      onError(e?.response?.data?.detail || 'Failed to sync Season');
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
@@ -404,6 +432,13 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
             <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
             {isStaff && (
               <Stack direction="row" spacing={1}>
+                <Tooltip title="Sync episodes for this Season's channel">
+                  <span>
+                    <IconButton onClick={()=>handleSync(it)} disabled={loading}>
+                      <RefreshIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
                 <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
                 <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
               </Stack>
@@ -411,6 +446,11 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
           </Stack>
         ))}
       </Stack>
+      <Snackbar open={!!syncMessage} autoHideDuration={4000} onClose={()=>setSyncMessage(null)}>
+        <Alert severity="success" variant="filled" onClose={()=>setSyncMessage(null)} sx={{ width:'100%' }}>
+          {syncMessage}
+        </Alert>
+      </Snackbar>
       <Box sx={{ display:'flex', justifyContent:'center' }}>
         <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
       </Box>
@@ -424,19 +464,90 @@ function SeasonDialog({ open, onClose, initial, onSave }: { open: boolean; onClo
   const [number, setNumber] = useState<number | ''>(initial?.number ?? '');
   const [title, setTitle] = useState(initial?.title || '');
   const [playlist, setPlaylist] = useState(initial?.yt_playlist_id || '');
+  const [coverImage, setCoverImage] = useState(initial?.cover_image || '');
   const [enabled, setEnabled] = useState(!!initial?.is_enabled);
+  const [showChoices, setShowChoices] = useState<ShowChoice[]>([]);
+  const [playlistChoices, setPlaylistChoices] = useState<PlaylistChoice[]>([]);
 
   useEffect(()=>{
     setShow(initial?.show || '');
     setNumber(initial?.number ?? '');
     setTitle(initial?.title || '');
     setPlaylist(initial?.yt_playlist_id || '');
+    setCoverImage(initial?.cover_image || '');
     setEnabled(!!initial?.is_enabled);
   }, [initial]);
 
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const { data } = await api.get('/series/shows/', { params: { page_size: 500, ordering: 'title' } });
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        const mapped: ShowChoice[] = list
+          .filter((s: any) => s && s.slug)
+          .map((s: any) => ({
+            slug: s.slug,
+            title: s.title || s.slug,
+            // ShowSerializer.channel now returns channel id_slug (string)
+            channel: typeof (s as any).channel === 'string' ? (s as any).channel : undefined,
+          }));
+        setShowChoices(mapped);
+      } catch {
+        // ignore; user can still type slug manually if needed
+      }
+    })();
+  }, [open]);
+
+  // When user changes Show in Add mode, clear playlist + detected playlists so they refresh for the new show
+  useEffect(() => {
+    if (!open) return;
+    if (initial?.id) return; // editing existing Season - keep its playlist
+    setPlaylist('');
+    setPlaylistChoices([]);
+  }, [open, show, initial]);
+
+  // Auto-detect playlist for selected show/channel when opening the dialog or changing show
+  useEffect(() => {
+    if (!open) return;
+    if (playlist.trim()) return; // don't override if user already typed one
+    const choice = showChoices.find(sc => sc.slug === show);
+    if (!choice?.channel) return;
+    (async () => {
+      try {
+        const { data } = await api.get('/channels/playlists/', {
+          params: {
+            channel: choice.channel,
+            is_active: 'true',
+            ordering: '-yt_last_item_published_at',
+            page_size: 20,
+          },
+        });
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        const mapped: PlaylistChoice[] = list
+          .filter((pl: any) => pl && typeof pl.id === 'string')
+          .map((pl: any) => ({ id: pl.id, title: pl.title || pl.id }));
+        setPlaylistChoices(mapped);
+        if (mapped.length > 0 && !playlist.trim()) {
+          // Default to the first playlist but still show all options
+          setPlaylist(mapped[0].id);
+        }
+      } catch {
+        // if detection fails, user can enter the playlist manually
+      }
+    })();
+  }, [open, show, showChoices]);
+
   const submit = () => {
     if (!show.trim() || number === '') { alert('Show slug and number are required'); return; }
-    onSave({ show: show.trim(), number: typeof number==='number'? number:Number(number), title: title.trim() || undefined, yt_playlist_id: playlist.trim() || undefined, is_enabled: enabled });
+    onSave({
+      show: show.trim(),
+      number: typeof number==='number' ? number : Number(number),
+      title: title.trim() || undefined,
+      yt_playlist_id: playlist.trim() || undefined,
+      cover_image: coverImage.trim() || undefined,
+      is_enabled: enabled,
+    });
   };
 
   return (
@@ -444,11 +555,79 @@ function SeasonDialog({ open, onClose, initial, onSave }: { open: boolean; onClo
       <DialogTitle>{initial?.id ? 'Edit Season' : 'Add Season'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt:1 }}>
-          <TextField label="Show Slug" value={show} onChange={e=>setShow(e.target.value)} />
-          <TextField label="Number" type="number" value={number} onChange={e=>setNumber(e.target.value===''? '': Number(e.target.value))} />
-          <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} />
-          <TextField label="YouTube Playlist ID" value={playlist} onChange={e=>setPlaylist(e.target.value)} />
+          <Select
+            fullWidth
+            displayEmpty
+            value={show}
+            onChange={e=>setShow(String(e.target.value || ''))}
+            renderValue={(value) => {
+              if (!value) return 'Select show…';
+              const s = showChoices.find(sc => sc.slug === value);
+              return s ? `${s.title} (${s.slug})` : String(value);
+            }}
+          >
+            {showChoices.length === 0 ? (
+              <MenuItem value="" disabled>
+                No shows loaded – type slug manually in Number field helper if needed.
+              </MenuItem>
+            ) : (
+              showChoices.map((s, idx) => (
+                <MenuItem key={`show-${idx}`} value={s.slug}>
+                  {s.title} ({s.slug})
+                </MenuItem>
+              ))
+            )}
+          </Select>
+          <TextField
+            label="Number"
+            type="number"
+            value={number}
+            onChange={e=>setNumber(e.target.value===''? '': Number(e.target.value))}
+          />
+          <TextField
+            label="Title"
+            value={title}
+            onChange={e=>setTitle(e.target.value)}
+          />
+          <TextField
+            label="Cover image path"
+            helperText="Relative path or URL to the Season cover image."
+            value={coverImage}
+            onChange={e=>setCoverImage(e.target.value)}
+          />
+          <TextField
+            label="YouTube Playlist ID"
+            helperText={playlistChoices.length
+              ? 'Select a playlist for this show/channel. You can still edit the PL... id manually.'
+              : 'Playlist ID (PL...). Enter manually if no active playlists are detected for the selected channel.'}
+            value={playlist}
+            onChange={e=>setPlaylist(e.target.value)}
+          />
+          {playlistChoices.length > 0 && (
+            <Select
+              fullWidth
+              value={playlist || ''}
+              displayEmpty
+              onChange={e=>setPlaylist(String(e.target.value || ''))}
+              renderValue={(value) => {
+                if (!value) return 'Select playlist…';
+                const pl = playlistChoices.find(p => p.id === value);
+                return pl ? `${pl.title} (${pl.id})` : String(value);
+              }}
+            >
+              {playlistChoices.map((pl, idx) => (
+                <MenuItem key={`pl-${idx}`} value={pl.id}>
+                  {pl.title} ({pl.id})
+                </MenuItem>
+              ))}
+            </Select>
+          )}
           <FormControlLabel control={<Switch checked={enabled} onChange={e=>setEnabled(e.target.checked)} />} label="Enabled" />
+          {initial?.last_synced_at && (
+            <Typography variant="caption" color="text.secondary">
+              Last synced at: {initial.last_synced_at}
+            </Typography>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>

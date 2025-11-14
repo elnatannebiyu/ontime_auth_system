@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.conf import settings
 from django.db.models import Max, F, Count, Q
 from django.utils import timezone
+from django.core.management import call_command
 from .models import Show, Season, Episode, Category
 from .serializers import ShowSerializer, SeasonSerializer, EpisodeSerializer, CategoryListSerializer
 import uuid
@@ -105,6 +106,35 @@ class ShowViewSet(viewsets.ModelViewSet):
         if self.action in {"create", "update", "partial_update", "destroy"}:
             return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
         return super().get_permissions()
+
+    @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="sync-now")
+    def sync_now(self, request, pk=None):
+        """Run sync_season management command for this Season (fetch episodes).
+
+        Mirrors the Django admin "Run sync now (fetch episodes)" action and
+        returns a summary like "Sync complete. Succeeded: 1, Failed: 0".
+        """
+        season = self.get_object()
+        tenant = self.tenant_slug()
+        ref = f"{season.show.slug}:{season.number}"
+        succeeded = 0
+        failed = 0
+        try:
+            call_command("sync_season", ref, f"--tenant={tenant}")
+            succeeded = 1
+        except Exception as exc:  # noqa: BLE001
+            failed = 1
+            return Response(
+                {
+                    "detail": f"Sync failed for {ref}: {exc}",
+                    "succeeded": succeeded,
+                    "failed": failed,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        msg = f"Sync complete. Succeeded: {succeeded}, Failed: {failed}"
+        return Response({"detail": msg, "succeeded": succeeded, "failed": failed})
 
     def tenant_slug(self):
         return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
