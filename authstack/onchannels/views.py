@@ -1111,50 +1111,70 @@ class ShortsBatchImportRecentView(APIView):
             limit = int(request.query_params.get("limit", 10))
         except Exception:
             limit = 10
-        # Find recent videos from active, shorts playlists for this tenant
-        vids = (
-            Video.objects.select_related("playlist", "channel")
-            .filter(playlist__is_shorts=True, playlist__is_active=True, channel__tenant=tenant)
-            .order_by("-published_at", "-position")[: max(1, min(limit, 50))]
-        )
-        results = []
-        for v in vids:
-            vid = v.video_id
-            if not vid:
-                continue
-            source_url = f"https://youtu.be/{vid}"
-            # Dedupe using existing helpers
-            norm = _yt_video_id_from_url(source_url) or _yt_video_id_via_ytdlp(source_url)
-            base_qs = ShortJob.objects.filter(tenant=tenant).exclude(status=ShortJob.STATUS_DELETED)
-            existing_ready = None
-            existing_inprog = None
-            if norm:
-                existing_ready = base_qs.filter(status=ShortJob.STATUS_READY, source_url__icontains=norm).order_by('-updated_at').first()
-                if not existing_ready:
-                    existing_inprog = base_qs.filter(status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING], source_url__icontains=norm).order_by('-updated_at').first()
-            if existing_ready:
-                results.append({"video_id": vid, "job_id": str(existing_ready.id), "status": existing_ready.status, "deduped": True})
-                continue
-            if existing_inprog:
-                results.append({"video_id": vid, "job_id": str(existing_inprog.id), "status": existing_inprog.status, "deduped": True})
-                continue
-            # Create new job (Ephemeral by default) and enqueue
-            job = ShortJob.objects.create(
-                tenant=tenant,
-                requested_by=getattr(request, 'user', None),
-                source_url=source_url,
-                status=ShortJob.STATUS_QUEUED,
-                ladder_profile='shorts_v1',
-                content_class=getattr(ShortJob, 'CLASS_EPHEMERAL', 'ephemeral'),
+        # Per-playlist cap (UI uses 1-10); enforce global safety cap for newly created jobs
+        per_playlist_limit = max(1, min(limit, 10))
+        global_new_cap = 50
+        results: list[dict] = []
+
+        # Consider all shorts playlists for this tenant, regardless of is_active
+        playlists = Playlist.objects.select_related("channel").filter(
+            is_shorts=True,
+            channel__tenant=tenant,
+        ).order_by("channel__id_slug", "title")
+
+        base_qs = ShortJob.objects.filter(tenant=tenant).exclude(status=ShortJob.STATUS_DELETED)
+        new_created = 0
+
+        for pl in playlists:
+            if new_created >= global_new_cap:
+                break
+            # Newest videos in this playlist
+            vids = (
+                Video.objects.filter(playlist=pl)
+                .order_by("-published_at", "-position")
             )
-            job.artifact_prefix = f"shorts/{tenant}/{job.id}"
-            job.save(update_fields=["artifact_prefix", "updated_at"])
-            try:
-                from .tasks import process_short_job
-                process_short_job.delay(str(job.id))
-            except Exception:
-                pass
-            results.append({"video_id": vid, "job_id": str(job.id), "status": job.status, "deduped": False})
+            created_for_playlist = 0
+            for v in vids:
+                if new_created >= global_new_cap or created_for_playlist >= per_playlist_limit:
+                    break
+                vid = v.video_id
+                if not vid:
+                    continue
+                source_url = f"https://youtu.be/{vid}"
+                # Dedupe using existing helpers
+                norm = _yt_video_id_from_url(source_url) or _yt_video_id_via_ytdlp(source_url)
+                existing_ready = None
+                existing_inprog = None
+                if norm:
+                    existing_ready = base_qs.filter(status=ShortJob.STATUS_READY, source_url__icontains=norm).order_by('-updated_at').first()
+                    if not existing_ready:
+                        existing_inprog = base_qs.filter(status__in=[ShortJob.STATUS_QUEUED, ShortJob.STATUS_DOWNLOADING, ShortJob.STATUS_TRANSCODING], source_url__icontains=norm).order_by('-updated_at').first()
+                if existing_ready:
+                    results.append({"video_id": vid, "job_id": str(existing_ready.id), "status": existing_ready.status, "deduped": True})
+                    continue
+                if existing_inprog:
+                    results.append({"video_id": vid, "job_id": str(existing_inprog.id), "status": existing_inprog.status, "deduped": True})
+                    continue
+                # Create new job (Ephemeral by default) and enqueue
+                job = ShortJob.objects.create(
+                    tenant=tenant,
+                    requested_by=getattr(request, 'user', None),
+                    source_url=source_url,
+                    status=ShortJob.STATUS_QUEUED,
+                    ladder_profile='shorts_v1',
+                    content_class=getattr(ShortJob, 'CLASS_EPHEMERAL', 'ephemeral'),
+                )
+                job.artifact_prefix = f"shorts/{tenant}/{job.id}"
+                job.save(update_fields=["artifact_prefix", "updated_at"])
+                try:
+                    from .tasks import process_short_job
+                    process_short_job.delay(str(job.id))
+                except Exception:
+                    pass
+                results.append({"video_id": vid, "job_id": str(job.id), "status": job.status, "deduped": False, "playlist_id": pl.id})
+                new_created += 1
+                created_for_playlist += 1
+
         return Response({"count": len(results), "results": results})
 
 
