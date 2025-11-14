@@ -540,6 +540,8 @@ class AdminUsersView(APIView):
         from .models import Membership
         user_ids = Membership.objects.filter(tenant=tenant).values_list('user_id', flat=True)
         qs = User.objects.filter(id__in=user_ids)
+        # Exclude staff accounts from the admin list
+        qs = qs.filter(is_staff=False)
         # Search
         search = (request.query_params.get('search') or '').strip()
         if search:
