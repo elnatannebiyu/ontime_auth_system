@@ -11,6 +11,7 @@ from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation
@@ -695,9 +696,9 @@ class AdminUserRolesView(APIView):
     def _require_admin(self, request):
         user = request.user
         try:
-            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            return bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            return user.is_staff
+            return bool(getattr(user, 'is_superuser', False))
 
     def _get_member(self, request, user_id):
         tenant = getattr(request, 'tenant', None)
