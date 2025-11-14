@@ -283,9 +283,16 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/series/episodes/', { params: { ordering: 'episode_number,source_published_at' } });
+      const { data } = await api.get('/series/episodes/', { params: { ordering: 'episode_number' } });
       setItems(Array.isArray(data) ? data : (data?.results || []));
-    } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Episodes'); } finally { setLoading(false); }
+    } catch (e1:any) {
+      try {
+        const { data } = await api.get('/series/episodes/');
+        setItems(Array.isArray(data) ? data : (data?.results || []));
+      } catch (e2:any) {
+        onError(e2?.response?.data?.detail || e1?.response?.data?.detail || 'Failed to load Episodes');
+      }
+    } finally { setLoading(false); }
   };
   useEffect(()=>{ load(); }, []);
 

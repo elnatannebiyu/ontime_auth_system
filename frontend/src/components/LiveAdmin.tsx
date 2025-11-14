@@ -118,7 +118,7 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
           <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
             <Box sx={{ flex: 1, minWidth:0 }}>
               <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap title={it.playback_url}>{it.playback_url}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.playback_url} sx={{ display:'block', maxWidth:{ xs:'100%', md: 480 }, overflow:'hidden', textOverflow:'ellipsis', fontFamily:'monospace' }}>{it.playback_url}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             {isStaff && (
@@ -235,9 +235,9 @@ function LiveRadioSection({ isStaff, onError }: { isStaff: boolean; onError: (m:
       <Stack spacing={1}>
         {items.map(it => (
           <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
-            <Box sx={{ flex: 1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0, pr:1 }}>
               <Typography variant="subtitle1" noWrap title={it.name}>{it.name}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap title={it.stream_url}>{it.stream_url}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.stream_url} sx={{ display:'block', maxWidth:{ xs:'100%', md: 480 }, overflow:'hidden', textOverflow:'ellipsis', fontFamily:'monospace' }}>{it.stream_url}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             <Chip size="small" color={it.is_verified ? 'primary':'default'} label={it.is_verified ? 'Verified':'Unverified'} />
