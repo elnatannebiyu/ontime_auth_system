@@ -26,6 +26,7 @@ const ChannelDetail: React.FC = () => {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
   const [plQuery, setPlQuery] = useState('');
+  const [vidQuery, setVidQuery] = useState('');
 
   const isStaff = useMemo(() => !!(user && ((user as any).is_staff || (Array.isArray((user as any).roles) && (user as any).roles.includes('AdminFrontend')))), [user]);
 
@@ -38,7 +39,7 @@ const ChannelDetail: React.FC = () => {
       const [ch, pls, vids] = await Promise.all([
         api.get(`/channels/${encodeURIComponent(slug)}/`).catch(()=>({data:null})),
         api.get('/channels/playlists/', { params: { channel: slug, page: plPage, page_size: pageSize, ordering: plOrdering, search: plQuery || undefined } }).catch(()=>({data:{results:[], count: 0}})),
-        api.get('/channels/videos/', { params: { channel: slug, page: vidPage, page_size: pageSize, ordering: vidOrdering } }).catch(()=>({data:{results:[], count: 0}})),
+        api.get('/channels/videos/', { params: { channel: slug, page: vidPage, page_size: pageSize, ordering: vidOrdering, search: vidQuery || undefined } }).catch(()=>({data:{results:[], count: 0}})),
       ]);
       setChannel(ch.data);
       const plsList = Array.isArray(pls.data) ? pls.data : (pls.data?.results || []);
@@ -50,10 +51,12 @@ const ChannelDetail: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  useEffect(()=>{ load(); }, [slug, plPage, vidPage, plQuery]);
+  useEffect(()=>{ load(); }, [slug, plPage, vidPage, plQuery, vidQuery]);
 
   // Reset playlist page when search changes
   useEffect(()=>{ setPlPage(1); }, [plQuery]);
+  // Reset videos page when search changes
+  useEffect(()=>{ setVidPage(1); }, [vidQuery]);
 
   const syncPlaylists = async () => {
     if (!slug) return; setSyncBusy(true);
@@ -163,6 +166,15 @@ const ChannelDetail: React.FC = () => {
 
       {tab === 1 && (
         <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Search videos by title or channel"
+              value={vidQuery}
+              onChange={(e)=>setVidQuery(e.target.value)}
+            />
+          </Grid>
           {videos.map((v:any) => (
             <Grid item xs={12} sm={6} md={4} lg={3} key={v.id}>
               <Card>

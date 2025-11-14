@@ -742,7 +742,14 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = VideoSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["title", "video_id", "playlist__id", "channel__id_slug"]
+    search_fields = [
+        "title",
+        "video_id",
+        "playlist__id",
+        "channel__id_slug",
+        "channel__name_en",
+        "channel__name_am",
+    ]
     ordering_fields = ["published_at", "position", "last_synced_at"]
 
     PARAM_TENANT = openapi.Parameter(

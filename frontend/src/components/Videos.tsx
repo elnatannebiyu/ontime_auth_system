@@ -19,6 +19,7 @@ const Videos: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [channel, setChannel] = useState('');
   const [playlist, setPlaylist] = useState('');
+  const [search, setSearch] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -26,6 +27,7 @@ const Videos: React.FC = () => {
       const params: any = {};
       if (channel.trim()) params.channel = channel.trim();
       if (playlist.trim()) params.playlist = playlist.trim();
+      if (search.trim()) params.search = search.trim();
       const { data } = await api.get('/channels/videos/', { params });
       const list = Array.isArray(data) ? data : (data?.results || []);
       setItems(list);
@@ -52,6 +54,7 @@ const Videos: React.FC = () => {
     <Stack spacing={2}>
       <Stack direction="row" spacing={2} alignItems="center">
         <Typography variant="h5">Videos</Typography>
+        <TextField size="small" label="Search title or channel name" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') load(); }} />
         <TextField size="small" label="Filter by channel slug" value={channel} onChange={e=>setChannel(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') load(); }} />
         <TextField size="small" label="Filter by playlist id" value={playlist} onChange={e=>setPlaylist(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') load(); }} />
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
