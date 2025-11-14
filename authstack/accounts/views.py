@@ -520,16 +520,16 @@ class RegisterView(APIView):
 
 class AdminUsersView(APIView):
     """Tenant-scoped Users admin: list and create members of current tenant.
-    Requires AdminFrontend role or is_staff.
+    Requires AdminFrontend role or superuser.
     """
     permission_classes = [IsAuthenticated]
 
     def _require_admin(self, request):
         user = request.user
         try:
-            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            return bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            return user.is_staff
+            return bool(getattr(user, 'is_superuser', False))
 
     def get(self, request):
         if not self._require_admin(request):
@@ -630,9 +630,9 @@ class AdminUserDetailView(APIView):
     def _require_admin(self, request):
         user = request.user
         try:
-            return user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            return bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            return user.is_staff
+            return bool(getattr(user, 'is_superuser', False))
 
     def _get_tenant_user(self, request, user_id):
         tenant = getattr(request, 'tenant', None)

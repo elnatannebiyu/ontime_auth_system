@@ -180,9 +180,9 @@ class AdminSessionsStatsView(APIView):
         user = request.user
         is_admin_fe = False
         try:
-            is_admin_fe = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            is_admin_fe = bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            is_admin_fe = user.is_staff
+            is_admin_fe = bool(getattr(user, 'is_superuser', False))
         if not is_admin_fe:
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -224,9 +224,9 @@ class AdminSessionsListView(APIView):
     def get(self, request):
         user = request.user
         try:
-            is_admin = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            is_admin = bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            is_admin = user.is_staff
+            is_admin = bool(getattr(user, 'is_superuser', False))
         if not is_admin:
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -312,9 +312,9 @@ class AdminSessionRevokeView(APIView):
     def post(self, request, session_id):
         user = request.user
         try:
-            is_admin = user.is_staff or user.groups.filter(name='AdminFrontend').exists()
+            is_admin = bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
         except Exception:
-            is_admin = user.is_staff
+            is_admin = bool(getattr(user, 'is_superuser', False))
         if not is_admin:
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
