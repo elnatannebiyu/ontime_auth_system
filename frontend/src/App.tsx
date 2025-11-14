@@ -23,6 +23,7 @@ import FeatureFlags from './components/FeatureFlags';
 import Playlists from './components/Playlists';
 import Videos from './components/Videos';
 import UserNotifications from './components/UserNotifications';
+import MyProfile from './components/MyProfile';
 import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
 import LiveAdmin from './components/LiveAdmin';
@@ -180,7 +181,7 @@ function App() {
           <Route path="/features" element={<RequireAdmin><Shell><FeatureFlags /></Shell></RequireAdmin>} />
           <Route path="/notifications" element={<RequireAdmin><Shell><UserNotifications /></Shell></RequireAdmin>} />
           <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
-          <Route path="/profile" element={<RequireAdmin><Shell><Placeholder title="My Profile" /></Shell></RequireAdmin>} />
+          <Route path="/profile" element={<RequireAdmin><Shell><MyProfile /></Shell></RequireAdmin>} />
           <Route path="/live" element={<RequireAdmin><Shell><LiveAdmin /></Shell></RequireAdmin>} />
           <Route path="/series" element={<RequireAdmin><Shell><SeriesAdmin /></Shell></RequireAdmin>} />
           <Route path="/shorts/import" element={<RequireAdmin><Shell><Placeholder title="Shorts Import" /></Shell></RequireAdmin>} />

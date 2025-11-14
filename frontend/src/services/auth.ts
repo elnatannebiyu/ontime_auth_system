@@ -1,7 +1,6 @@
 import api, { setAccessToken, setLoggedOut } from "./api";
 
 export interface User {
-  id: number;
   username: string;
   email: string;
   first_name: string;
@@ -42,4 +41,9 @@ export const refreshToken = async () => {
   const { data } = await api.post("/token/refresh/");
   setAccessToken(data.access);
   return data.access;
+};
+
+export const changePassword = async (current_password: string, new_password: string) => {
+  await api.post("/me/change-password/", { current_password, new_password });
+  await logout();
 };
