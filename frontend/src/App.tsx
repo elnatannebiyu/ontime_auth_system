@@ -19,10 +19,8 @@ import AdminSessions from './components/AdminSessions';
 import RequireAdmin from './components/RequireAdmin';
 import Channels from './components/Channels';
 import AppVersions from './components/AppVersions';
-import FeatureFlags from './components/FeatureFlags';
 import Playlists from './components/Playlists';
 import Videos from './components/Videos';
-import UserNotifications from './components/UserNotifications';
 import MyProfile from './components/MyProfile';
 import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
@@ -100,14 +98,6 @@ function Shell({ children }: { children: React.ReactNode }) {
             <ListItemIcon><MovieFilterIcon /></ListItemIcon>
             <ListItemText primary="Series" />
           </ListItemButton>
-          <ListItemButton component={Link} to="/features">
-            <ListItemIcon><SystemUpdateAltIcon /></ListItemIcon>
-            <ListItemText primary="Feature Flags" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/notifications">
-            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
-            <ListItemText primary="My Notifications" />
-          </ListItemButton>
           <ListItemButton component={Link} to="/live">
             <ListItemIcon><LiveTvIcon /></ListItemIcon>
             <ListItemText primary="Live" />
@@ -178,8 +168,6 @@ function App() {
           <Route path="/channels/:slug" element={<RequireAdmin><Shell><ChannelDetail /></Shell></RequireAdmin>} />
           <Route path="/playlists" element={<RequireAdmin><Shell><Playlists /></Shell></RequireAdmin>} />
           <Route path="/videos" element={<RequireAdmin><Shell><Videos /></Shell></RequireAdmin>} />
-          <Route path="/features" element={<RequireAdmin><Shell><FeatureFlags /></Shell></RequireAdmin>} />
-          <Route path="/notifications" element={<RequireAdmin><Shell><UserNotifications /></Shell></RequireAdmin>} />
           <Route path="/users/sessions" element={<RequireAdmin><Shell><AdminSessions /></Shell></RequireAdmin>} />
           <Route path="/profile" element={<RequireAdmin><Shell><MyProfile /></Shell></RequireAdmin>} />
           <Route path="/live" element={<RequireAdmin><Shell><LiveAdmin /></Shell></RequireAdmin>} />
