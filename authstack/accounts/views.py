@@ -741,3 +741,71 @@ class AdminUserRolesView(APIView):
         except Group.DoesNotExist:
             pass
         return Response(UserAdminSerializer(target, context={"request": request}).data)
+
+
+class ChangePasswordView(APIView):
+    """Allow the authenticated user to change their password.
+    Validates current password, enforces validators for new password,
+    revokes all sessions, and clears the refresh cookie.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
+        operation_id="me_change_password",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        current_password = request.data.get("current_password") or ""
+        new_password = request.data.get("new_password") or ""
+
+        if not current_password or not new_password:
+            return Response({"detail": "current_password and new_password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify current password
+        if not request.user.check_password(current_password):
+            return Response({"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate new password strength
+        try:
+            validate_password(new_password, user=request.user)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set new password
+        request.user.set_password(new_password)
+        request.user.save()
+
+        # Revoke all sessions for this user in legacy UserSession table
+        try:
+            from .models import UserSession as LegacySession
+            sessions = list(LegacySession.objects.filter(user=request.user, is_active=True))
+            for s in sessions:
+                try:
+                    s.revoke('password_change')
+                except Exception:
+                    try:
+                        s.is_active = False
+                        s.save(update_fields=['is_active'])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Revoke all sessions in new user_sessions backend
+        try:
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+            RefreshSession.objects.filter(user=request.user, revoked_at__isnull=True).update(
+                revoked_at=_tz.now(), revoke_reason='password_change'
+            )
+        except Exception:
+            pass
+
+        res = Response({"detail": "Password changed. You have been logged out from all devices."}, status=status.HTTP_200_OK)
+        clear_refresh_cookie(res)
+        return res
