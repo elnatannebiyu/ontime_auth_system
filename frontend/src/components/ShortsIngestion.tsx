@@ -28,8 +28,8 @@ const ShortsIngestion: React.FC = () => {
   useEffect(()=>{ loadReady(); }, []);
 
   const runBatchImport = async () => {
-    const lim = batchLimit === '' ? 0 : Number(batchLimit);
-    const safeLimit = !lim || lim <= 0 ? 50 : Math.min(lim, 50);
+    const lim = batchLimit === '' ? 10 : Math.floor(Number(batchLimit) || 10);
+    const safeLimit = Math.min(Math.max(lim, 1), 50);
     setSubmitting(true);
     try {
       const { data } = await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
@@ -60,8 +60,15 @@ const ShortsIngestion: React.FC = () => {
               label="Max jobs"
               type="number"
               value={batchLimit}
-              onChange={e=>setBatchLimit(e.target.value === '' ? '' : Number(e.target.value))}
-              inputProps={{ min: 1, max: 50 }}
+              onChange={e=>{
+                const raw = e.target.value;
+                if (raw === '') { setBatchLimit(''); return; }
+                let n = Math.floor(Number(raw) || 0);
+                if (n < 1) n = 1;
+                if (n > 50) n = 50;
+                setBatchLimit(n);
+              }}
+              inputProps={{ min: 1, max: 50, step: 1 }}
               sx={{ width: 120 }}
             />
             <Button variant="outlined" onClick={runBatchImport} disabled={submitting}>Run batch (max 50)</Button>
