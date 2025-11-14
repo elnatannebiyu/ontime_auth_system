@@ -736,6 +736,34 @@ class PlaylistViewSet(viewsets.ReadOnlyModelViewSet):
         pl.save(update_fields=["is_active"])
         return Response({"id": pl.id, "is_active": pl.is_active})
 
+    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="mark-short")
+    def mark_short(self, request, pk=None, **kwargs):
+        """Mark this playlist as part of the Shorts feed (is_shorts=True)."""
+        if not (
+            request.user.has_perm("onchannels.change_channel")
+            or request.user.has_perm("onchannels.change_playlist")
+        ):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        pl = self.get_object()
+        pl.is_shorts = True
+        pl.save(update_fields=["is_shorts"])
+        return Response({"id": pl.id, "is_shorts": pl.is_shorts})
+
+    @swagger_auto_schema(manual_parameters=[PARAM_TENANT])
+    @action(detail=True, methods=["post"], url_path="unmark-short")
+    def unmark_short(self, request, pk=None, **kwargs):
+        """Unmark this playlist from the Shorts feed (is_shorts=False)."""
+        if not (
+            request.user.has_perm("onchannels.change_channel")
+            or request.user.has_perm("onchannels.change_playlist")
+        ):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        pl = self.get_object()
+        pl.is_shorts = False
+        pl.save(update_fields=["is_shorts"])
+        return Response({"id": pl.id, "is_shorts": pl.is_shorts})
+
 
 class VideoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Video.objects.select_related("channel", "playlist").all()

@@ -72,6 +72,7 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "thumbnail_url",
             "item_count",
             "is_active",
+            "is_shorts",
             "last_synced_at",
             "yt_published_at",
             "yt_last_item_published_at",
