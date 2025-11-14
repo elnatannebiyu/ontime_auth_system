@@ -1243,15 +1243,14 @@ class ShortsReadyFeedView(APIView):
             .order_by('-updated_at')[: max(1, min(limit * 3, 300))]
         )
         items = list(jobs)
-        head = items[:bias_count]
-        tail = items[bias_count:limit]
 
+        # Seeded shuffle so each user/device gets a stable but random order
         seed = request.query_params.get("seed") or request.headers.get("X-Device-Id") or str(getattr(request.user, "id", "0"))
         import hashlib, random
         seed_int = int.from_bytes(hashlib.sha256(seed.encode("utf-8")).digest(), "big")
         rng = random.Random(seed_int)
-        rng.shuffle(tail)
-        ordered = head + tail
+        rng.shuffle(items)
+        ordered = items
 
         out = []
         for j in ordered[:limit]:
