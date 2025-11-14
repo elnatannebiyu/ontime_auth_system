@@ -14,6 +14,7 @@ interface ShowItem {
   // Channel FK numeric primary key
   channel: number;
   is_active: boolean;
+  categories?: { slug: string; name: string }[];
 }
 
 interface ChannelOption {
@@ -198,7 +199,15 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
     setSynopsis('');
     setLocale('am');
     setTagsInput('');
-    setSelectedCategorySlugs([]);
+    // Pre-populate selected categories when editing an existing show
+    if (initial && Array.isArray((initial as any).categories)) {
+      const slugs = ((initial as any).categories as { slug: string }[])
+        .map(c => c.slug)
+        .filter(Boolean);
+      setSelectedCategorySlugs(slugs);
+    } else {
+      setSelectedCategorySlugs([]);
+    }
     setSlugTouched(!!initial?.slug);
   }, [open, initial]);
 
