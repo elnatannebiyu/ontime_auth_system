@@ -251,7 +251,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             onChange={e=>setChannel(e.target.value as number)}
             fullWidth
           >
-            <MenuItem value="" disabled>Select channel…</MenuItem>
+            <MenuItem key="channel-placeholder" value="" disabled>Select channel…</MenuItem>
             {channels.map(c => (
               <MenuItem key={c.id} value={c.id}>
                 {c.name}{c.is_active ? '' : ' (inactive)'}
@@ -275,7 +275,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
               }}
             >
               {allCategories.map(cat => (
-                <MenuItem key={cat.slug} value={cat.slug}>
+                <MenuItem key={`cat-${cat.slug}`} value={cat.slug}>
                   {cat.name}
                 </MenuItem>
               ))}
