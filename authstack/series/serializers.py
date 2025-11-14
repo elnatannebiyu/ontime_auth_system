@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.utils.text import slugify
+import time
 from .models import Show, Season, Episode, Category
 
 
@@ -26,6 +28,8 @@ class CategoryListSerializer(serializers.ModelSerializer):
 
 
 class ShowSerializer(serializers.ModelSerializer):
+    # Accept any text for slug (or blank); we'll slugify/normalize it in create/update.
+    slug = serializers.CharField(required=False, allow_blank=True)
     cover_image = serializers.SerializerMethodField()
     channel_logo_url = serializers.SerializerMethodField()
     categories = CategoryMiniSerializer(many=True, read_only=True)
@@ -67,12 +71,40 @@ class ShowSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         slugs = validated_data.pop("category_slugs", [])
+        # Backend slug auto-generation: if slug is missing/blank, derive from title.
+        raw_slug = (validated_data.get("slug") or "").strip()
+        if not raw_slug:
+            title = (validated_data.get("title") or "").strip()
+            base = slugify(title)
+            if not base:
+                base = f"show-{int(time.time())}"
+            slug = base
+            i = 2
+            while Show.objects.filter(slug=slug).exists():
+                slug = f"{base}-{i}"
+                i += 1
+            validated_data["slug"] = slug
         show = super().create(validated_data)
         self._set_categories(show, slugs)
         return show
 
     def update(self, instance, validated_data):
         slugs = validated_data.pop("category_slugs", None)
+        # If slug is explicitly set blank on update, regenerate similar to create.
+        if "slug" in validated_data:
+            raw_slug = (validated_data.get("slug") or "").strip()
+            if not raw_slug:
+                title = (validated_data.get("title") or instance.title or "").strip()
+                base = slugify(title)
+                if not base:
+                    base = f"show-{int(time.time())}"
+                slug = base
+                i = 2
+                # Exclude current instance when checking for uniqueness
+                while Show.objects.exclude(pk=instance.pk).filter(slug=slug).exists():
+                    slug = f"{base}-{i}"
+                    i += 1
+                validated_data["slug"] = slug
         show = super().update(instance, validated_data)
         if slugs is not None:
             self._set_categories(show, slugs)

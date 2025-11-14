@@ -158,7 +158,7 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
 function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose: ()=>void; initial?: Partial<ShowItem>; onSave: (p: any)=>void; }) {
   const [slug, setSlug] = useState(initial?.slug || '');
   const [title, setTitle] = useState(initial?.title || '');
-  const [channel, setChannel] = useState<number | ''>(initial?.channel ?? '');
+  const [channel, setChannel] = useState<number | ''>((initial && typeof initial.channel === 'number') ? initial.channel : '');
   const [isActive, setIsActive] = useState(!!initial?.is_active);
   const [synopsis, setSynopsis] = useState('');
   const [locale, setLocale] = useState('am');
@@ -171,7 +171,7 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
   useEffect(()=>{
     setSlug(initial?.slug || '');
     setTitle(initial?.title || '');
-    setChannel(initial?.channel ?? '');
+    setChannel((initial && typeof initial.channel === 'number') ? initial.channel : '');
     setIsActive(!!initial?.is_active);
     setSynopsis('');
     setLocale('am');
@@ -202,12 +202,17 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
   useEffect(() => {
     if (!open) return;
     if (slugTouched) return;
-    const auto = title
+    let auto = title
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
+    // If the title contains only non-ASCII characters (e.g. Amharic), the above may yield an empty slug.
+    // In that case, fall back to a safe ASCII slug based on a timestamp.
+    if (!auto) {
+      auto = `show-${Date.now()}`;
+    }
     setSlug(auto);
   }, [title, open, slugTouched]);
 
@@ -251,12 +256,21 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             onChange={e=>setChannel(e.target.value as number)}
             fullWidth
           >
-            <MenuItem key="channel-placeholder" value="" disabled>Select channel…</MenuItem>
-            {channels.map(c => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}{c.is_active ? '' : ' (inactive)'}
+            {channels.length === 0 ? (
+              <MenuItem key="channel-none" value="" disabled>
+                No channels found for this tenant. Create a channel first.
               </MenuItem>
-            ))}
+            ) : (
+              <MenuItem key="channel-placeholder" value="" disabled>Select channel…</MenuItem>
+            )}
+            {channels.map((c, idx) => {
+              const label = (c.name ?? (c as any).title ?? c.slug ?? (c as any).id_slug ?? `Channel ${c.id}`);
+              return (
+                <MenuItem key={`ch-${idx}`} value={c.id}>
+                  {label}{c.is_active ? '' : ' (inactive)'}
+                </MenuItem>
+              );
+            })}
           </Select>
           <FormControlLabel control={<Switch checked={isActive} onChange={e=>setIsActive(e.target.checked)} />} label="Active" />
           <TextField label="Synopsis" value={synopsis} onChange={e=>setSynopsis(e.target.value)} multiline minRows={3} />
@@ -267,15 +281,18 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             <Select
               multiple
               value={selectedCategorySlugs}
-              onChange={e=>setSelectedCategorySlugs(e.target.value as string[])}
+              onChange={e=>{
+                const val = e.target.value;
+                setSelectedCategorySlugs(Array.isArray(val) ? val as string[] : []);
+              }}
               fullWidth
               renderValue={(selected) => {
                 const names = allCategories.filter(c => selected.includes(c.slug)).map(c => c.name);
                 return names.join(', ');
               }}
             >
-              {allCategories.map(cat => (
-                <MenuItem key={`cat-${cat.slug}`} value={cat.slug}>
+              {allCategories.map((cat, idx) => (
+                <MenuItem key={`cat-${idx}`} value={cat.slug}>
                   {cat.name}
                 </MenuItem>
               ))}
