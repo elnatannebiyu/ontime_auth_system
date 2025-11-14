@@ -258,11 +258,6 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
     setSlug(auto);
   }, [title, open, slugTouched]);
 
-  const handleSlugChange = (val: string) => {
-    setSlugTouched(true);
-    setSlug(val);
-  };
-
   const submit = () => {
     const channelSlug = channel && channel !== 'undefined' ? channel : '';
     if (!slug.trim() || !title.trim() || !channelSlug) {
