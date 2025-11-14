@@ -295,7 +295,12 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
       <DialogTitle>{initial?.slug ? 'Edit Show' : 'Add Show'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt:1 }}>
-          <TextField label="Slug" value={slug} onChange={e=>handleSlugChange(e.target.value)} disabled={!!initial?.slug} />
+          <TextField
+            label="Slug (auto-generated)"
+            value={slug}
+            disabled
+            helperText="Slug is generated automatically from the title/channel and cannot be edited."
+          />
           <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} />
           <Select
             displayEmpty
@@ -673,11 +678,12 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
 
   const handleSave = async (payload: Partial<EpisodeItem>) => {
     try {
-      if (editing?.id) {
-        await api.patch(`/series/episodes/${editing.id}/`, payload);
-      } else {
-        await api.post('/series/episodes/', payload);
+      // Only allow editing existing episodes from this UI; no creation of new episodes
+      if (!editing?.id) {
+        onError('Creating new Episodes from this page is disabled.');
+        return;
       }
+      await api.patch(`/series/episodes/${editing.id}/`, payload);
       setOpen(false); setEditing(null); await load();
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to save Episode'); }
   };
@@ -692,7 +698,7 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
         <TextField size="small" label="Search title or video id" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
-        {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Episode</Button>}
+        {/* Creating new Episodes from this UI is disabled; keep only edit/delete for existing ones. */}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
