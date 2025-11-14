@@ -16,6 +16,7 @@ const ShortsIngestion: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [ready, setReady] = useState<ShortJob[]>([]);
   const [batchLimit, setBatchLimit] = useState<number | ''>(10);
+  const [batchSummary, setBatchSummary] = useState<string | null>(null);
 
   const loadReady = async () => {
     try {
@@ -34,6 +35,19 @@ const ShortsIngestion: React.FC = () => {
     try {
       const { data } = await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
       console.log('Shorts batch import response', data);
+      try {
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const total = typeof data?.count === 'number' ? data.count : results.length;
+        const newCount = results.filter((r: any) => !r.deduped).length;
+        const deduped = results.filter((r: any) => r.deduped).length;
+        if (total === 0 || (newCount === 0 && deduped === 0)) {
+          setBatchSummary('No new shorts found: all recent videos from Shorts playlists already have jobs.');
+        } else {
+          setBatchSummary(`Batch done: created ${newCount} new jobs, reused ${deduped} existing.`);
+        }
+      } catch {
+        setBatchSummary(null);
+      }
       await loadReady();
     } catch {
       // ignore errors here; admin can inspect logs if needed
@@ -54,6 +68,11 @@ const ShortsIngestion: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             Uses active playlists marked as Shorts (is_shorts=true & is_active=true) and queues up to 50 latest videos as short jobs.
           </Typography>
+          {batchSummary && (
+            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
+              {batchSummary}
+            </Typography>
+          )}
           <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
             <TextField
               size="small"
