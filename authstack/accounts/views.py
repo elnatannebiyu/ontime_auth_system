@@ -542,6 +542,8 @@ class AdminUsersView(APIView):
         qs = User.objects.filter(id__in=user_ids)
         # Exclude staff accounts from the admin list
         qs = qs.filter(is_staff=False)
+        # Exclude the requesting user (self) from the list
+        qs = qs.exclude(pk=request.user.id)
         # Search
         search = (request.query_params.get('search') or '').strip()
         if search:
