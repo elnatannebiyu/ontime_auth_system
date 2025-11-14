@@ -16,6 +16,7 @@ const ShortsIngestion: React.FC = () => {
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [ready, setReady] = useState<ShortJob[]>([]);
+  const [batchLimit, setBatchLimit] = useState<number | ''>(50);
 
   const loadReady = async () => {
     try {
@@ -36,6 +37,20 @@ const ShortsIngestion: React.FC = () => {
     finally { setSubmitting(false); }
   };
 
+  const runBatchImport = async () => {
+    const lim = batchLimit === '' ? 0 : Number(batchLimit);
+    const safeLimit = !lim || lim <= 0 ? 50 : Math.min(lim, 50);
+    setSubmitting(true);
+    try {
+      await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
+      await loadReady();
+    } catch {
+      // ignore errors here; admin can inspect logs if needed
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={2} alignItems="center">
@@ -48,6 +63,26 @@ const ShortsIngestion: React.FC = () => {
           <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
             <TextField fullWidth size="small" placeholder="https://youtube.com/... or other URL" value={url} onChange={e=>setUrl(e.target.value)} />
             <Button variant="contained" onClick={submit} disabled={submitting || !url.trim()}>Start</Button>
+          </Stack>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent>
+          <Typography variant="subtitle1">Batch import recent from Shorts playlists</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Uses active playlists marked as Shorts (is_shorts=true & is_active=true) and queues up to 50 latest videos as short jobs.
+          </Typography>
+          <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              size="small"
+              label="Max jobs"
+              type="number"
+              value={batchLimit}
+              onChange={e=>setBatchLimit(e.target.value === '' ? '' : Number(e.target.value))}
+              inputProps={{ min: 1, max: 50 }}
+              sx={{ width: 120 }}
+            />
+            <Button variant="outlined" onClick={runBatchImport} disabled={submitting}>Run batch (max 50)</Button>
           </Stack>
         </CardContent>
       </Card>
