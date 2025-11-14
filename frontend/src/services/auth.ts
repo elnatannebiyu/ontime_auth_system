@@ -6,7 +6,6 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  is_staff: boolean;
   roles: string[];
   permissions: string[];
 }
