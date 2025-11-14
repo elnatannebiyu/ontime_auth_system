@@ -477,7 +477,7 @@ def process_short_job(self, job_id: str) -> bool:
             # Permanent indicators
             if any(s in msg for s in [
                 'http error 401', 'http error 403', 'http error 404', 'http error 410',
-                'private video', 'copyright', 'this video is unavailable',
+                'private video', 'copyright', 'this video is unavailable', 'this video is not available',
                 'sign in to confirm your age',
             ]):
                 raise PermanentError(str(last_err))
