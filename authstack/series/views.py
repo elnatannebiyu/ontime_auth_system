@@ -197,6 +197,14 @@ class EpisodeViewSet(viewsets.ModelViewSet):
                 qs = qs.order_by("episode_number", "source_published_at", "id")
         return qs
 
+    def tenant_slug(self):
+        return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return super().get_permissions()
+
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     @action(detail=True, methods=["get"], url_path="play")
     def play(self, request, pk=None):
