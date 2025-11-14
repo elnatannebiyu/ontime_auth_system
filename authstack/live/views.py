@@ -70,7 +70,11 @@ class LiveViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         # Non-admins: active only
-        if not (user.is_staff or user.has_perm('live.change_live')):
+        try:
+            is_admin_fe = bool(getattr(user, 'is_superuser', False)) or user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = bool(getattr(user, 'is_superuser', False))
+        if not (is_admin_fe or user.has_perm('live.change_live')):
             qs = qs.filter(is_active=True)
         tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
         qs = qs.filter(tenant=tenant)
@@ -103,7 +107,11 @@ class LiveBySlugView(APIView):
     def get(self, request, slug: str):
         tenant = request.headers.get('X-Tenant-Id') or request.query_params.get('tenant') or 'ontime'
         qs = Live.objects.select_related('channel').filter(tenant=tenant, channel__id_slug=slug)
-        if not (request.user.is_staff or request.user.has_perm('live.change_live')):
+        try:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False)) or request.user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False))
+        if not (is_admin_fe or request.user.has_perm('live.change_live')):
             qs = qs.filter(is_active=True)
         obj = get_object_or_404(qs)
         return Response(LiveSerializer(obj, context={'request': request}).data)
@@ -126,7 +134,11 @@ class LiveRadioViewSet(viewsets.ModelViewSet):
         tenant = self.request.headers.get('X-Tenant-Id') or self.request.query_params.get('tenant') or 'ontime'
         qs = qs.filter(tenant=tenant)
         # Non-admins see only active & verified
-        if not (self.request.user.is_staff or self.request.user.has_perm('live.change_liveradio')):
+        try:
+            is_admin_fe = bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = bool(getattr(self.request.user, 'is_superuser', False))
+        if not (is_admin_fe or self.request.user.has_perm('live.change_liveradio')):
             qs = qs.filter(is_active=True, is_verified=True)
         return qs
 
@@ -151,7 +163,11 @@ class RadioListView(APIView):
     def get(self, request):
         tenant = request.headers.get('X-Tenant-Id') or request.query_params.get('tenant') or 'ontime'
         qs = LiveRadio.objects.all().filter(tenant=tenant)
-        if not (request.user.is_staff or request.user.has_perm('live.change_liveradio')):
+        try:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False)) or request.user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False))
+        if not (is_admin_fe or request.user.has_perm('live.change_liveradio')):
             qs = qs.filter(is_active=True, is_verified=True)
         # Optional filters
         q = request.query_params.get('q')
@@ -469,7 +485,11 @@ class RadioBySlugView(APIView):
     def get(self, request, slug: str):
         tenant = request.headers.get('X-Tenant-Id') or request.query_params.get('tenant') or 'ontime'
         qs = LiveRadio.objects.filter(tenant=tenant, slug=slug)
-        if not (request.user.is_staff or request.user.has_perm('live.change_liveradio')):
+        try:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False)) or request.user.groups.filter(name='AdminFrontend').exists()
+        except Exception:
+            is_admin_fe = bool(getattr(request.user, 'is_superuser', False))
+        if not (is_admin_fe or request.user.has_perm('live.change_liveradio')):
             qs = qs.filter(is_active=True, is_verified=True)
         obj = get_object_or_404(qs)
         return Response(LiveRadioSerializer(obj, context={'request': request}).data)
