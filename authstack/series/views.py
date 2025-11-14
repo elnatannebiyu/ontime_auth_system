@@ -94,7 +94,7 @@ class ShowViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get("new"):
             qs = qs.annotate(latest_time=Max("seasons__episodes__source_published_at")).order_by("-latest_time", "-updated_at")
         # Only active shows for non-admins
-        if not (self.request.user.is_staff or self.request.user.has_perm("series.manage_content")):
+        if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(is_active=True)
         return qs
 
@@ -141,7 +141,7 @@ class SeasonViewSet(viewsets.ModelViewSet):
         if show_slug:
             qs = qs.filter(show__slug=show_slug)
         # Only enabled seasons for non-admins
-        if not (self.request.user.is_staff or self.request.user.has_perm("series.manage_content")):
+        if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(is_enabled=True)
         return qs
 
@@ -186,7 +186,7 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         if season_id:
             qs = qs.filter(season__id=season_id)
         # Public filter: only visible published episodes unless admin
-        if not (self.request.user.is_staff or self.request.user.has_perm("series.manage_content")):
+        if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(visible=True, status=Episode.STATUS_PUBLISHED, season__is_enabled=True, season__show__is_active=True)
         # Default ordering: manual episode_number first (nulls last), then publish time, then id
         if not self.request.query_params.get("ordering"):
