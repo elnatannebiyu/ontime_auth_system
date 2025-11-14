@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Snackbar, Alert } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Snackbar, Alert, Pagination } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -70,15 +70,22 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LiveItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/live/', { params: { ordering: '-updated_at' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: '-updated_at', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/live/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Live'); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<LiveItem>) => {
     try {
@@ -98,7 +105,8 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap: 1 }}>
+        <TextField size="small" label="Search title or channel" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && (
           <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Live</Button>
@@ -107,10 +115,10 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary">{it.playback_url}</Typography>
+          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.playback_url}>{it.playback_url}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             {isStaff && (
@@ -122,6 +130,9 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <LiveDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
@@ -178,15 +189,22 @@ function LiveRadioSection({ isStaff, onError }: { isStaff: boolean; onError: (m:
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RadioItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/live/radios/', { params: { ordering: '-updated_at' } });
-      setItems(Array.isArray(data) ? data : (data?.results || []));
+      const params: any = { ordering: '-updated_at', page };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await api.get('/live/radios/', { params });
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      setItems(list);
+      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to load Radios'); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [page]);
 
   const handleSave = async (payload: Partial<RadioItem>) => {
     try {
@@ -206,7 +224,8 @@ function LiveRadioSection({ isStaff, onError }: { isStaff: boolean; onError: (m:
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap: 1 }}>
+        <TextField size="small" label="Search name, slug, language, country" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && (
           <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Radio</Button>
@@ -215,10 +234,10 @@ function LiveRadioSection({ isStaff, onError }: { isStaff: boolean; onError: (m:
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">{it.name}</Typography>
-              <Typography variant="caption" color="text.secondary">{it.stream_url}</Typography>
+          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Box sx={{ flex: 1, minWidth:0 }}>
+              <Typography variant="subtitle1" noWrap title={it.name}>{it.name}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap title={it.stream_url}>{it.stream_url}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             <Chip size="small" color={it.is_verified ? 'primary':'default'} label={it.is_verified ? 'Verified':'Unverified'} />
@@ -231,6 +250,9 @@ function LiveRadioSection({ isStaff, onError }: { isStaff: boolean; onError: (m:
           </Stack>
         ))}
       </Stack>
+      <Box sx={{ display:'flex', justifyContent:'center' }}>
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+      </Box>
       <RadioDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
