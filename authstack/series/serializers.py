@@ -29,6 +29,9 @@ class ShowSerializer(serializers.ModelSerializer):
     cover_image = serializers.SerializerMethodField()
     channel_logo_url = serializers.SerializerMethodField()
     categories = CategoryMiniSerializer(many=True, read_only=True)
+    category_slugs = serializers.ListField(
+        child=serializers.SlugField(), write_only=True, required=False
+    )
 
     class Meta:
         model = Show
@@ -44,11 +47,36 @@ class ShowSerializer(serializers.ModelSerializer):
             "tags",
             "channel",
             "categories",
+            "category_slugs",
             "is_active",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ("created_at", "updated_at")
+
+    def _set_categories(self, show: Show, slugs: list[str]):
+        if slugs is None:
+            return
+        request = getattr(self, "context", {}).get("request") if hasattr(self, "context") else None
+        tenant = getattr(request, "tenant", None) if request is not None else None
+        qs = Category.objects.all()
+        if tenant is not None:
+            qs = qs.filter(tenant=getattr(tenant, "slug", tenant))
+        cats = list(qs.filter(slug__in=slugs)) if slugs else []
+        show.categories.set(cats)
+
+    def create(self, validated_data):
+        slugs = validated_data.pop("category_slugs", [])
+        show = super().create(validated_data)
+        self._set_categories(show, slugs)
+        return show
+
+    def update(self, instance, validated_data):
+        slugs = validated_data.pop("category_slugs", None)
+        show = super().update(instance, validated_data)
+        if slugs is not None:
+            self._set_categories(show, slugs)
+        return show
 
     def get_cover_image(self, obj: Show) -> str | None:
         # Prefer explicit Show cover if set

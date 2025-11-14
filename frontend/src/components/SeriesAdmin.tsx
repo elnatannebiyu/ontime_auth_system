@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Pagination, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Pagination, Select, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,6 +12,13 @@ interface ShowItem {
   slug: string;
   title: string;
   channel: number;
+  is_active: boolean;
+}
+
+interface ChannelOption {
+  id: number;
+  name: string;
+  slug?: string;
   is_active: boolean;
 }
 
@@ -99,7 +106,7 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
   };
   useEffect(()=>{ load(); }, [page]);
 
-  const handleSave = async (payload: Partial<ShowItem>) => {
+  const handleSave = async (payload: any) => {
     try {
       if (editing?.slug) {
         await api.patch(`/series/shows/${encodeURIComponent(editing.slug)}/`, payload);
@@ -148,22 +155,87 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
   );
 }
 
-function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose: ()=>void; initial?: Partial<ShowItem>; onSave: (p: Partial<ShowItem>)=>void; }) {
+function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose: ()=>void; initial?: Partial<ShowItem>; onSave: (p: any)=>void; }) {
   const [slug, setSlug] = useState(initial?.slug || '');
   const [title, setTitle] = useState(initial?.title || '');
   const [channel, setChannel] = useState<number | ''>(initial?.channel ?? '');
   const [isActive, setIsActive] = useState(!!initial?.is_active);
+  const [synopsis, setSynopsis] = useState('');
+  const [locale, setLocale] = useState('am');
+  const [tagsInput, setTagsInput] = useState('');
+  const [allCategories, setAllCategories] = useState<CategoryItem[]>([]);
+  const [selectedCategorySlugs, setSelectedCategorySlugs] = useState<string[]>([]);
+  const [channels, setChannels] = useState<ChannelOption[]>([]);
+  const [slugTouched, setSlugTouched] = useState(!!initial?.slug);
 
   useEffect(()=>{
     setSlug(initial?.slug || '');
     setTitle(initial?.title || '');
     setChannel(initial?.channel ?? '');
     setIsActive(!!initial?.is_active);
+    setSynopsis('');
+    setLocale('am');
+    setTagsInput('');
+    setSelectedCategorySlugs([]);
+    setSlugTouched(!!initial?.slug);
   }, [initial]);
 
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const [chanRes, catRes] = await Promise.all([
+          api.get('/channels/', { params: { page_size: 500 } }),
+          api.get('/series/categories/', { params: { page_size: 500 } }),
+        ]);
+        const chanList = Array.isArray(chanRes.data?.results) ? chanRes.data.results : (Array.isArray(chanRes.data) ? chanRes.data : []);
+        setChannels(chanList.map((c: any) => ({ id: c.id, name: c.title || c.name || c.slug || `Channel ${c.id}`, slug: c.id_slug || c.slug, is_active: c.is_active })));
+        const catList = Array.isArray(catRes.data?.results) ? catRes.data.results : (Array.isArray(catRes.data) ? catRes.data : []);
+        setAllCategories(catList);
+      } catch (e) {
+        // ignore loading errors here; parent will show errors on list fetch
+      }
+    })();
+  }, [open]);
+
+  // Auto-generate slug from title when user hasn't manually edited slug
+  useEffect(() => {
+    if (!open) return;
+    if (slugTouched) return;
+    const auto = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+    setSlug(auto);
+  }, [title, open, slugTouched]);
+
+  const handleSlugChange = (val: string) => {
+    setSlugTouched(true);
+    setSlug(val);
+  };
+
   const submit = () => {
-    if (!slug.trim() || !title.trim() || channel === '') { alert('Slug, title and channel id are required'); return; }
-    onSave({ slug: slug.trim(), title: title.trim(), channel: typeof channel==='number'?channel:Number(channel), is_active: isActive });
+    if (!slug.trim() || !title.trim() || channel === '') {
+      alert('Slug, title and channel are required');
+      return;
+    }
+    const tags = tagsInput
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    const payload = {
+      slug: slug.trim(),
+      title: title.trim(),
+      channel: typeof channel === 'number' ? channel : Number(channel),
+      is_active: isActive,
+      synopsis: synopsis.trim() || '',
+      default_locale: locale || 'am',
+      tags,
+      category_slugs: selectedCategorySlugs,
+    };
+    onSave(payload);
   };
 
   return (
@@ -171,10 +243,44 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
       <DialogTitle>{initial?.slug ? 'Edit Show' : 'Add Show'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt:1 }}>
-          <TextField label="Slug" value={slug} onChange={e=>setSlug(e.target.value)} disabled={!!initial?.slug} />
+          <TextField label="Slug" value={slug} onChange={e=>handleSlugChange(e.target.value)} disabled={!!initial?.slug} />
           <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} />
-          <TextField label="Channel ID" type="number" value={channel} onChange={e=>setChannel(e.target.value===''?'': Number(e.target.value))} />
+          <Select
+            displayEmpty
+            value={channel === '' ? '' : channel}
+            onChange={e=>setChannel(e.target.value as number)}
+            fullWidth
+          >
+            <MenuItem value="" disabled>Select channel…</MenuItem>
+            {channels.map(c => (
+              <MenuItem key={c.id} value={c.id}>
+                {c.name}{c.is_active ? '' : ' (inactive)'}
+              </MenuItem>
+            ))}
+          </Select>
           <FormControlLabel control={<Switch checked={isActive} onChange={e=>setIsActive(e.target.checked)} />} label="Active" />
+          <TextField label="Synopsis" value={synopsis} onChange={e=>setSynopsis(e.target.value)} multiline minRows={3} />
+          <TextField label="Default locale" value={locale} onChange={e=>setLocale(e.target.value)} />
+          <TextField label="Tags (comma separated)" value={tagsInput} onChange={e=>setTagsInput(e.target.value)} />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>Categories</Typography>
+            <Select
+              multiple
+              value={selectedCategorySlugs}
+              onChange={e=>setSelectedCategorySlugs(e.target.value as string[])}
+              fullWidth
+              renderValue={(selected) => {
+                const names = allCategories.filter(c => selected.includes(c.slug)).map(c => c.name);
+                return names.join(', ');
+              }}
+            >
+              {allCategories.map(cat => (
+                <MenuItem key={cat.slug} value={cat.slug}>
+                  {cat.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
         </Stack>
       </DialogContent>
       <DialogActions>
