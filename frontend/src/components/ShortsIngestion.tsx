@@ -15,7 +15,7 @@ interface ShortJob {
 const ShortsIngestion: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [ready, setReady] = useState<ShortJob[]>([]);
-  const [batchLimit, setBatchLimit] = useState<number | ''>(50);
+  const [batchLimit, setBatchLimit] = useState<number | ''>(10);
 
   const loadReady = async () => {
     try {
@@ -29,7 +29,7 @@ const ShortsIngestion: React.FC = () => {
 
   const runBatchImport = async () => {
     const lim = batchLimit === '' ? 10 : Math.floor(Number(batchLimit) || 10);
-    const safeLimit = Math.min(Math.max(lim, 1), 50);
+    const safeLimit = Math.min(Math.max(lim, 1), 10);
     setSubmitting(true);
     try {
       const { data } = await api.post('/channels/shorts/import/batch/recent/', undefined, { params: { limit: safeLimit } });
@@ -57,7 +57,7 @@ const ShortsIngestion: React.FC = () => {
           <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
             <TextField
               size="small"
-              label="Max jobs"
+              label="Max jobs (1-10)"
               type="number"
               value={batchLimit}
               onChange={e=>{
@@ -65,13 +65,13 @@ const ShortsIngestion: React.FC = () => {
                 if (raw === '') { setBatchLimit(''); return; }
                 let n = Math.floor(Number(raw) || 0);
                 if (n < 1) n = 1;
-                if (n > 50) n = 50;
+                if (n > 10) n = 10;
                 setBatchLimit(n);
               }}
-              inputProps={{ min: 1, max: 50, step: 1 }}
+              inputProps={{ min: 1, max: 10, step: 1 }}
               sx={{ width: 120 }}
             />
-            <Button variant="outlined" onClick={runBatchImport} disabled={submitting}>Run batch (max 50)</Button>
+            <Button variant="outlined" onClick={runBatchImport} disabled={submitting}>Run batch (max 10)</Button>
           </Stack>
         </CardContent>
       </Card>
