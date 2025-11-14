@@ -293,13 +293,6 @@ function ShowDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             value={channel}
             onChange={e=>{
               const v = (e.target.value ?? '') as string;
-              const selected = channels.find(ch => String(ch.id) === String(v));
-              // eslint-disable-next-line no-console
-              console.log('ShowDialog channel selected:',{
-                id: v,
-                id_slug: selected?.slug,
-                name_en: selected?.name,
-              });
               setChannel(v || '');
             }}
             fullWidth
