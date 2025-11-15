@@ -93,7 +93,8 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
       if (editing?.id) {
         await api.patch(`/live/${editing.id}/`, payload);
       } else {
-        await api.post('/live/', payload);
+        // Live model requires tenant; default to ontime for admin UI
+        await api.post('/live/', { tenant: 'ontime', ...payload });
       }
       setOpen(false); setEditing(null); await load();
     } catch (e:any) { onError(e?.response?.data?.detail || 'Failed to save Live'); }
@@ -208,11 +209,7 @@ function LiveDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
             label="Channel"
             value={channel ?? ''}
             onChange={e => {
-              const val = e.target.value as string;
-              // Debug: inspect what the select emits and what we store
-              // eslint-disable-next-line no-console
-              console.log('[LiveDialog] channel onChange', { raw: e.target.value, val, prev: channel });
-              setChannel(val);
+              setChannel(e.target.value as string);
             }}
             helperText="Select the channel this Live entry belongs to"
           >
