@@ -22,6 +22,7 @@ import AppVersions from './components/AppVersions';
 import Playlists from './components/Playlists';
 import Videos from './components/Videos';
 import ShortsIngestion from './components/ShortsIngestion';
+import ShortsMetrics from './components/ShortsMetrics';
 import MyProfile from './components/MyProfile';
 import ChannelDetail from './components/ChannelDetail';
 import { getAccessToken, isLoggedOut } from './services/api';
@@ -174,7 +175,7 @@ function App() {
           <Route path="/live" element={<RequireAdmin><Shell><LiveAdmin /></Shell></RequireAdmin>} />
           <Route path="/series" element={<RequireAdmin><Shell><SeriesAdmin /></Shell></RequireAdmin>} />
           <Route path="/shorts/import" element={<RequireAdmin><Shell><ShortsIngestion /></Shell></RequireAdmin>} />
-          <Route path="/shorts/metrics" element={<RequireAdmin><Shell><Placeholder title="Shorts Metrics" /></Shell></RequireAdmin>} />
+          <Route path="/shorts/metrics" element={<RequireAdmin><Shell><ShortsMetrics /></Shell></RequireAdmin>} />
           <Route path="/versions" element={<RequireAdmin><Shell><AppVersions /></Shell></RequireAdmin>} />
           <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} />} />
         </Routes>

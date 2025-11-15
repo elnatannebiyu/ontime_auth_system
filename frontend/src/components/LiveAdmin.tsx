@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Snackbar, Alert, Pagination } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Snackbar, Alert, Pagination, MenuItem } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -19,6 +19,7 @@ interface LiveItem {
   drm?: any;
   is_active: boolean;
   is_previewable: boolean;
+  channel_name?: string;
 }
 
 // LiveRadio
@@ -118,6 +119,11 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
           <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
             <Box sx={{ flex: 1, minWidth:0 }}>
               <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
+              {it.channel_name && (
+                <Typography variant="caption" color="text.secondary" sx={{ display:'block' }}>
+                  Channel: {it.channel_name}
+                </Typography>
+              )}
               <Typography variant="caption" color="text.secondary" noWrap title={it.playback_url} sx={{ display:'block', maxWidth:{ xs:'100%', md: 480 }, overflow:'hidden', textOverflow:'ellipsis', fontFamily:'monospace' }}>{it.playback_url}</Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
@@ -140,16 +146,26 @@ function LiveTvSection({ isStaff, onError }: { isStaff: boolean; onError: (m: st
 
 function LiveDialog({ open, onClose, initial, onSave }: { open: boolean; onClose: ()=>void; initial?: Partial<LiveItem>; onSave: (p: Partial<LiveItem>)=>void; }) {
   const [title, setTitle] = useState(initial?.title || '');
-  const [channel, setChannel] = useState(initial?.channel || (undefined as any));
+  // Store channel as a string id for the select, convert back to number on submit
+  const [channel, setChannel] = useState<string>(
+    initial?.channel !== undefined && initial?.channel !== null
+      ? String(initial.channel)
+      : ''
+  );
   const [playbackUrl, setPlaybackUrl] = useState(initial?.playback_url || '');
   const [playbackType, setPlaybackType] = useState(initial?.playback_type || 'hls');
   const [posterUrl, setPosterUrl] = useState(initial?.poster_url || '');
   const [isActive, setIsActive] = useState(!!initial?.is_active);
   const [isPreview, setIsPreview] = useState(!!initial?.is_previewable);
+  const [channels, setChannels] = useState<{ id: number; label: string }[]>([]);
 
   useEffect(()=>{
     setTitle(initial?.title || '');
-    setChannel(initial?.channel || (undefined as any));
+    setChannel(
+      initial?.channel !== undefined && initial?.channel !== null
+        ? String(initial.channel)
+        : ''
+    );
     setPlaybackUrl(initial?.playback_url || '');
     setPlaybackType(initial?.playback_type || 'hls');
     setPosterUrl(initial?.poster_url || '');
@@ -157,9 +173,29 @@ function LiveDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
     setIsPreview(!!initial?.is_previewable);
   }, [initial]);
 
+  useEffect(() => {
+    // Load a page of channels to populate the dropdown so we can show names
+    (async () => {
+      try {
+        const res = await api.get('/channels/', { params: { page_size: 100, ordering: 'id_slug' } as any });
+        const data = res.data;
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        const options = (list as any[]).map(ch => ({
+          id: ch.id,
+          label: ch.name_en || ch.name_am || ch.id_slug || String(ch.id),
+        }));
+        setChannels(options);
+      } catch {
+        setChannels([]);
+      }
+    })();
+  }, []);
+
   const submit = () => {
     if (!channel) { alert('Channel id is required'); return; }
-    onSave({ title, channel, playback_url: playbackUrl, playback_type: playbackType, poster_url: posterUrl, is_active: isActive, is_previewable: isPreview });
+    const channelId = Number(channel);
+    if (!channelId || Number.isNaN(channelId)) { alert('Invalid channel id'); return; }
+    onSave({ title, channel: channelId, playback_url: playbackUrl, playback_type: playbackType, poster_url: posterUrl, is_active: isActive, is_previewable: isPreview });
   };
 
   return (
@@ -167,7 +203,23 @@ function LiveDialog({ open, onClose, initial, onSave }: { open: boolean; onClose
       <DialogTitle>{initial?.id ? 'Edit Live' : 'Add Live'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt:1 }}>
-          <TextField label="Channel ID" type="number" value={channel ?? ''} onChange={e=>setChannel(Number(e.target.value))} />
+          <TextField
+            select
+            label="Channel"
+            value={channel ?? ''}
+            onChange={e => {
+              const val = e.target.value as string;
+              // Debug: inspect what the select emits and what we store
+              // eslint-disable-next-line no-console
+              console.log('[LiveDialog] channel onChange', { raw: e.target.value, val, prev: channel });
+              setChannel(val);
+            }}
+            helperText="Select the channel this Live entry belongs to"
+          >
+            {channels.map((ch, idx) => (
+              <MenuItem key={`${ch.id}-${ch.label}-${idx}`} value={String(ch.id)}>{ch.label}</MenuItem>
+            ))}
+          </TextField>
           <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} />
           <TextField label="Playback URL" value={playbackUrl} onChange={e=>setPlaybackUrl(e.target.value)} />
           <TextField label="Playback Type" value={playbackType} onChange={e=>setPlaybackType(e.target.value)} />

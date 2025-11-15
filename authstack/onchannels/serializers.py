@@ -10,6 +10,7 @@ class ChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Channel
         fields = [
+            "id",
             "uid",
             "tenant",
             "id_slug",

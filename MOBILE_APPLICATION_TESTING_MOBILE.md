@@ -213,18 +213,7 @@ For detailed testing activities:
 
 | Name           | Role      | Address (Email and Mobile)                           |
 |----------------|-----------|------------------------------------------------------|
-| elnatan nebiyou| Developer | Email: elnatan.nebiyu@gmail.com  \
+| elnatan nebiyou| Developer | Email: elnatan.nebiyu@gmail.com  
 |                |           | Mobile: +251911429639                                |
 
 ---
-
-## 5. Notes for PDF / Official Document
-
-When converting this Markdown into the final PDF or official document for submission:
-
-- Include a **cover page** with:  
-  - Title: “Mobile Application Testing – OnTime Ethiopia”  
-  - Company name: AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ  
-  - Date of preparation.  
-- Ensure that the **background**, **introduction**, and **objective** sections are present as required.  
-- Insert this content into the corresponding sections of the provided mobile application testing form (static/dynamic analysis, scope, etc.).

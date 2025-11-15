@@ -10,6 +10,9 @@ export default defineConfig({
       '/api': {
         target: 'https://api.aitechnologiesplc.com',
         changeOrigin: true,
+        headers: {
+          'X-Tenant-Id': 'ontime',
+        },
       }
     }
   }

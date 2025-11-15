@@ -1,7 +1,9 @@
-# Web Application Testing – Technical Information
+# Web Application Testing – OnTime Ethiopia
 
 **Organization:** AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ  
-**Platform:** OnTime Ethiopia (Web Application)
+**Platform:** OnTime Ethiopia (Web Application)  
+**Prepared for:** Information Network Security Administration (INSA)  
+**Date:** November 2025
 
 ---
 
@@ -9,7 +11,7 @@
 
 ### 1.1 Background of the Organization
 
-AI TECHNOLOGIES PLC (ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ) is an Ethiopian technology company focused on building digital platforms that support media, communication, and innovative services aligned with the country’s digital transformation agenda. The company delivers scalable software solutions and streaming platforms for local and regional audiences.
+AI TECHNOLOGIES PLC (ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ) is an Ethiopian technology company focused on building digital platforms that support media, communication, and innovative services aligned with the country’s digital transformation agenda. The company delivers scalable software solutions and streaming platforms for global and regional audiences.
 
 On behalf of the OnTime Ethiopia team, we would like to extend our sincere appreciation to the Information Network Security Administration for its continuous efforts in advancing Ethiopia’s digital transformation and ensuring the nation’s cybersecurity resilience. The Administration’s leadership in creating a secure and empowering digital environment plays a crucial role in strengthening innovation, public trust, and national development.
 
@@ -38,6 +40,8 @@ The objective is to obtain an independent security assessment and certificate fo
 4. Celery/background workers process shorts ingestion jobs and interact with external services (e.g. YouTube playlists, storage/CDN) and update job status in the database.
 5. The frontend receives JSON responses and renders UI accordingly, while media (HLS streams, images) is delivered from streaming endpoints/CDN over HTTPS.
 
+![OnTime Ethiopia Web Data Flow](web_data_flow.png)
+
 ### 1.6 System Architecture Diagram (Text Description)
 
 - **Client Layer**  
@@ -55,6 +59,10 @@ The objective is to obtain an independent security assessment and certificate fo
   - Reverse proxy/load balancer providing TLS termination and basic protection.  
   - Network firewall restricting non-essential ports.  
   - (If applicable) Additional WAF or cloud-based protections.
+
+### 1.7 Database Entity-Relationship Diagram
+
+![OnTime Ethiopia Web DB ER Diagram](web_db_er.png)
 
 ---
 
@@ -208,27 +216,5 @@ If prior internal security reviews or tests exist, they can be shared separately
 
 | Name           | Role      | Address (Email and Mobile)                           |
 |----------------|-----------|------------------------------------------------------|
-| elnatan nebiyou| Developer | Email: elnatan.nebiyu@gmail.com  \
+| Elnatan Nebiyou| Developer | Email: elnatan.nebiyu@gmail.com                      |
 |                |           | Mobile: +251911429639                                |
-
----
-
-## 8. Cover Page and Summary (for PDF Version)
-
-When transforming this into the final PDF or official document, the cover page should include:
-
-1. **Cover page and correct company name**  
-   - Title: “Web Application Testing – OnTime Ethiopia”  
-   - Company name: AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ  
-   - Date of preparation.
-
-2. **Background of the organization**  
-   - As described in Section 1.1 above.
-
-3. **Introduction**  
-   - As described in Section 1.2 above.
-
-4. **Objective of this certificate requested**  
-   - As described in Section 1.3 above.
-
-This Markdown file can be used as the basis for completing the official WEB_APPLICATION_TESTING form and for generating a PDF document to share with the testing authority.
