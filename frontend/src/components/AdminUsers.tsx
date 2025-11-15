@@ -3,7 +3,6 @@ import { Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, D
 import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import AddIcon from '@mui/icons-material/PersonAddAlt1';
 import api from '../services/api';
 import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 
@@ -37,7 +36,7 @@ const AdminUsers: React.FC = () => {
 
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
-  const [form, setForm] = useState({ email: '', first_name: '', last_name: '', password: '' });
+  const [form, setForm] = useState({ email: '', first_name: '', last_name: '' });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -92,32 +91,22 @@ const AdminUsers: React.FC = () => {
 
   useEffect(() => { load(); }, [debouncedSearch, page, pageSize, ordering]);
 
-  const startCreate = () => {
-    setEditing(null);
-    setForm({ email: '', first_name: '', last_name: '', password: '' });
-    setOpenEdit(true);
-  };
   const startEdit = (u: AdminUser) => {
     setEditing(u);
-    setForm({ email: u.email || '', first_name: u.first_name || '', last_name: u.last_name || '', password: '' });
+    setForm({ email: u.email || '', first_name: u.first_name || '', last_name: u.last_name || '' });
     setOpenEdit(true);
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      if (editing) {
-        const payload: any = { email: form.email, first_name: form.first_name, last_name: form.last_name };
-        const res = await api.patch(`/admin/users/${editing.id}/`, payload);
-        setUsers(prev => prev.map(u => u.id === editing.id ? res.data : u));
-        setSnack({ open: true, msg: 'User updated', severity: 'success' });
-      } else {
-        const payload: any = { email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name };
-        const res = await api.post('/admin/users/', payload);
-        setUsers(prev => [res.data, ...prev]);
-        setTotal(prev => prev + 1);
-        setSnack({ open: true, msg: 'User created', severity: 'success' });
+      if (!editing) {
+        throw new Error('Editing context missing');
       }
+      const payload: any = { email: form.email, first_name: form.first_name, last_name: form.last_name };
+      const res = await api.patch(`/admin/users/${editing.id}/`, payload);
+      setUsers(prev => prev.map(u => u.id === editing.id ? res.data : u));
+      setSnack({ open: true, msg: 'User updated', severity: 'success' });
       setOpenEdit(false);
     } catch (e: any) {
       const detail = e?.response?.data?.detail || e?.message || 'Save failed';
@@ -180,7 +169,6 @@ const AdminUsers: React.FC = () => {
         <Stack direction="row" spacing={2} alignItems="center">
           <TextField size="small" placeholder="Search users" value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
           <Button component={RouterLink} to="/users/sessions" variant="outlined">View Sessions</Button>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={startCreate}>New User</Button>
         </Stack>
       </Stack>
       <Card>
@@ -250,13 +238,10 @@ const AdminUsers: React.FC = () => {
       </Snackbar>
 
       <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{editing ? 'Edit user' : 'Create user'}</DialogTitle>
+        <DialogTitle>Edit user</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} fullWidth />
-            {!editing && (
-              <TextField label="Password" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} fullWidth />
-            )}
             <Stack direction="row" spacing={2}>
               <TextField label="First name" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} fullWidth />
               <TextField label="Last name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} fullWidth />
@@ -265,7 +250,7 @@ const AdminUsers: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
-          <Button variant="contained" onClick={save} disabled={saving}>{editing ? 'Save' : 'Create'}</Button>
+          <Button variant="contained" onClick={save} disabled={saving}>Save</Button>
         </DialogActions>
       </Dialog>
     </Box>
