@@ -73,7 +73,7 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
       _metaLoading = true;
       setState(() {});
       try {
-        final res = await ApiClient().get('/live/${widget.slug}/');
+        final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
         final m = Map<String, dynamic>.from(res.data as Map);
         // Debug: dump full live object for this slug
         debugPrint('*** Live meta (reuse) for slug=${widget.slug}:\n'
@@ -107,7 +107,7 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
     // Cold start: fetch meta then start playback at lowest variant (auto if master only)
     setState(() => _metaLoading = true);
     try {
-      final res = await ApiClient().get('/live/${widget.slug}/');
+      final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
       final m = Map<String, dynamic>.from(res.data as Map);
       // Debug: dump full live object for this slug
       debugPrint('*** Live meta (cold) for slug=${widget.slug}:\n'
