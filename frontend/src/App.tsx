@@ -139,10 +139,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Placeholder({ title }: { title: string }) {
-  return <Typography variant="h5" component="h1">{title}</Typography>;
-}
-
 function App() {
   // Don't check authentication on initial load to prevent loops
   // Let the protected routes handle their own authentication
