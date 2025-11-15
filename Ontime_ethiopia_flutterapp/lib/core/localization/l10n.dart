@@ -28,7 +28,8 @@ class LocalizationController extends ChangeNotifier {
     await prefs.setString(_keyLang, lang == AppLanguage.en ? 'en' : 'am');
   }
 
-  Future<void> toggleLanguage() => setLanguage(_lang == AppLanguage.en ? AppLanguage.am : AppLanguage.en);
+  Future<void> toggleLanguage() =>
+      setLanguage(_lang == AppLanguage.en ? AppLanguage.am : AppLanguage.en);
 
   String t(String key) {
     const en = {
@@ -49,7 +50,7 @@ class LocalizationController extends ChangeNotifier {
       'new_releases': 'New releases',
       'go_live': 'Go Live',
       'play': 'Play',
-      'live': 'LIVE',
+      'live': 'Live',
       'now_playing': 'Now Playing',
       'settings': 'Settings',
       'appearance': 'Appearance',
@@ -68,7 +69,8 @@ class LocalizationController extends ChangeNotifier {
       'connection_details': 'Connection details',
       'server': 'Server',
       'tenant': 'Tenant',
-      'tip_pull_refresh': 'Tip: Pull to refresh, or check that your device can reach the server.',
+      'tip_pull_refresh':
+          'Tip: Pull to refresh, or check that your device can reach the server.',
       'loading': 'Loading…',
       'no_playlists': 'No playlists',
       'no_videos': 'No videos',

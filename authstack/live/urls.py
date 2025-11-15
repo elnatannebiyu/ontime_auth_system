@@ -40,12 +40,9 @@ urlpatterns = [
     path('<slug:slug>/listen/start/', LiveListenStartView.as_view(), name='live-listen-start'),
     path('<slug:slug>/listen/heartbeat/', LiveListenHeartbeatView.as_view(), name='live-listen-heartbeat'),
     path('<slug:slug>/listen/stop/', LiveListenStopView.as_view(), name='live-listen-stop'),
+
+    # Slug-based Live detail by channel slug (for app/frontend)
+    path('by-channel/<slug:slug>/', LiveBySlugView.as_view(), name='live-by-channel'),
 ]
 
-# Register router URLs before the catch-all slug route
 urlpatterns += router.urls
-
-# Catch-all slug route for Live by channel slug must be last
-urlpatterns += [
-    path('<slug:slug>/', LiveBySlugView.as_view(), name='live-by-slug'),
-]

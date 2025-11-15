@@ -10,7 +10,8 @@ import '../core/cache/channel_cache.dart';
 class ChannelsPage extends StatefulWidget {
   final String tenantId;
   final LocalizationController? localizationController;
-  const ChannelsPage({super.key, required this.tenantId, this.localizationController});
+  const ChannelsPage(
+      {super.key, required this.tenantId, this.localizationController});
 
   @override
   State<ChannelsPage> createState() => _ChannelsPageState();
@@ -45,6 +46,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
       return 'en';
     }
   }
+
   String _channelDisplayName(Map<String, dynamic> ch) {
     final am = (ch['name_am'] ?? '').toString().trim();
     final en = (ch['name_en'] ?? '').toString().trim();
@@ -92,7 +94,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
         children: [
           SizedBox(
             width: 150,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(label,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -107,6 +110,70 @@ class _ChannelsPageState extends State<ChannelsPage> {
     );
   }
 
+  void _showChannelPlaylists(String channelSlug, Map<String, dynamic> ch) {
+    final playlists = _playlistsByChannel[channelSlug] ?? const [];
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _channelDisplayName(ch),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: _t('close'),
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (playlists.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text(_t('no_playlists')),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: playlists.length,
+                      itemBuilder: (context, index) {
+                        final pl = playlists[index] as Map<String, dynamic>;
+                        final title = (pl['title'] ?? '').toString();
+                        final thumb = _thumbFromMap(pl);
+                        return ListTile(
+                          leading: _buildThumb(thumb, size: 40),
+                          title: Text(title.isNotEmpty
+                              ? title
+                              : pl['id']?.toString() ?? ''),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _logChannelDetails(Map<String, dynamic> ch) {
     if (!kDebugMode) return;
     final slug = (ch['id_slug'] ?? '').toString();
@@ -117,7 +184,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
     for (int i = 0; i < parts; i++) {
       final start = i * max;
       final end = start + max > pretty.length ? pretty.length : start + max;
-      debugPrint('[ChannelsPage] channel:$slug part ${i + 1}/$parts\n${pretty.substring(start, end)}');
+      debugPrint(
+          '[ChannelsPage] channel:$slug part ${i + 1}/$parts\n${pretty.substring(start, end)}');
     }
   }
 
@@ -137,7 +205,10 @@ class _ChannelsPageState extends State<ChannelsPage> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Text(_t('channel_details'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+                      Expanded(
+                          child: Text(_t('channel_details'),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 16))),
                       IconButton(
                         tooltip: _t('close'),
                         icon: const Icon(Icons.close),
@@ -146,7 +217,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _kv(_t('tenant_label'), ch['tenant'] ?? _client.tenant ?? widget.tenantId),
+                  _kv(_t('tenant_label'),
+                      ch['tenant'] ?? _client.tenant ?? widget.tenantId),
                   _kv(_t('id_slug'), ch['id_slug']),
                   _kv(_t('default_locale'), ch['default_locale']),
                   _kv(_t('name_am'), ch['name_am']),
@@ -226,7 +298,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
               runSpacing: 4,
               children: [
                 TextButton.icon(
-                  onPressed: _loading ? null : () => _loadChannels(clearCaches: false),
+                  onPressed:
+                      _loading ? null : () => _loadChannels(clearCaches: false),
                   icon: const Icon(Icons.refresh),
                   label: Text(_t('retry')),
                 ),
@@ -242,13 +315,18 @@ class _ChannelsPageState extends State<ChannelsPage> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(_t('connection_details'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                              Text(_t('connection_details'),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
                                   Text('${_t('server')}:'),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(kApiBase, style: const TextStyle(fontFamily: 'monospace'))),
+                                  Expanded(
+                                      child: Text(kApiBase,
+                                          style: const TextStyle(
+                                              fontFamily: 'monospace'))),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -283,7 +361,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
     try {
       await _client.ensureInitialized();
       if (kDebugMode) {
-        debugPrint('[ChannelsPage] ApiClient initialized. hasAccessToken=${_client.getAccessToken() != null}');
+        debugPrint(
+            '[ChannelsPage] ApiClient initialized. hasAccessToken=${_client.getAccessToken() != null}');
       }
       if (mounted) setState(() {});
     } catch (_) {}
@@ -308,8 +387,16 @@ class _ChannelsPageState extends State<ChannelsPage> {
   String? _thumbFromMap(Map<String, dynamic> m) {
     // Common flat fields
     const keys = [
-      'thumbnail', 'thumbnail_url', 'thumb', 'thumb_url',
-      'image', 'image_url', 'logo', 'logo_url', 'poster', 'poster_url',
+      'thumbnail',
+      'thumbnail_url',
+      'thumb',
+      'thumb_url',
+      'image',
+      'image_url',
+      'logo',
+      'logo_url',
+      'poster',
+      'poster_url',
     ];
     for (final k in keys) {
       final v = m[k];
@@ -359,8 +446,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
           borderRadius: radius,
         ),
         child: Icon(Icons.image_not_supported,
-            size: size * 0.6,
-            color: Theme.of(context).colorScheme.outline),
+            size: size * 0.6, color: Theme.of(context).colorScheme.outline),
       );
     }
     return ClipRRect(
@@ -379,8 +465,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
             borderRadius: radius,
           ),
           child: Icon(Icons.broken_image,
-              size: size * 0.6,
-              color: Theme.of(context).colorScheme.outline),
+              size: size * 0.6, color: Theme.of(context).colorScheme.outline),
         ),
       ),
     );
@@ -399,7 +484,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
       _offline = false;
     });
     if (kDebugMode) {
-      debugPrint('[ChannelsPage] Loading channels... (clearCaches=$clearCaches)');
+      debugPrint(
+          '[ChannelsPage] Loading channels... (clearCaches=$clearCaches)');
     }
     try {
       // Fetch all pages so the user can see/select any active channel
@@ -440,8 +526,10 @@ class _ChannelsPageState extends State<ChannelsPage> {
         final int sample = all.length < 3 ? all.length : 3;
         for (int i = 0; i < sample; i++) {
           final ch = all[i] as Map<String, dynamic>;
-          debugPrint('[ChannelsPage] ch[$i] slug=${ch['id_slug']} name_en=${ch['name_en']} name_am=${ch['name_am']} lang=${ch['language']} active=${ch['is_active']}');
-          debugPrint('[ChannelsPage] ch[$i] images=${ch['images']} sources=${ch['sources']} handle=${ch['handle']} yt_handle=${ch['youtube_handle']}');
+          debugPrint(
+              '[ChannelsPage] ch[$i] slug=${ch['id_slug']} name_en=${ch['name_en']} name_am=${ch['name_am']} lang=${ch['language']} active=${ch['is_active']}');
+          debugPrint(
+              '[ChannelsPage] ch[$i] images=${ch['images']} sources=${ch['sources']} handle=${ch['handle']} yt_handle=${ch['youtube_handle']}');
         }
       }
       // After channels reload, for any channels currently expanded,
@@ -528,16 +616,19 @@ class _ChannelsPageState extends State<ChannelsPage> {
         _playlistCounts[channelSlug] = data.length;
       });
       if (kDebugMode) {
-        debugPrint('[ChannelsPage] Playlists loaded for $channelSlug: count=${data.length}');
+        debugPrint(
+            '[ChannelsPage] Playlists loaded for $channelSlug: count=${data.length}');
         final int sample = data.length < 3 ? data.length : 3;
         for (int i = 0; i < sample; i++) {
           final p = data[i] as Map<String, dynamic>;
-          debugPrint('[ChannelsPage] pl[$i] id=${p['id']} title=${p['title']} thumbs=${p['thumbnails'] ?? p['thumbnail'] ?? p['image']}');
+          debugPrint(
+              '[ChannelsPage] pl[$i] id=${p['id']} title=${p['title']} thumbs=${p['thumbnails'] ?? p['thumbnail'] ?? p['image']}');
         }
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[ChannelsPage] Failed to load playlists for $channelSlug: $e');
+        debugPrint(
+            '[ChannelsPage] Failed to load playlists for $channelSlug: $e');
       }
       // Suppress SnackBar to avoid duplicate offline messaging; rely on offline UI
     }
@@ -578,11 +669,13 @@ class _ChannelsPageState extends State<ChannelsPage> {
         _videosByPlaylist[playlistId] = data;
       });
       if (kDebugMode) {
-        debugPrint('[ChannelsPage] Videos loaded for $playlistId: count=${data.length}');
+        debugPrint(
+            '[ChannelsPage] Videos loaded for $playlistId: count=${data.length}');
         final int sample = data.length < 3 ? data.length : 3;
         for (int i = 0; i < sample; i++) {
           final v = data[i] as Map<String, dynamic>;
-          debugPrint('[ChannelsPage] v[$i] video_id=${v['video_id']} title=${v['title']} thumbs=${v['thumbnails'] ?? v['thumbnail'] ?? v['image']}');
+          debugPrint(
+              '[ChannelsPage] v[$i] video_id=${v['video_id']} title=${v['title']} thumbs=${v['thumbnails'] ?? v['thumbnail'] ?? v['image']}');
         }
       }
     } catch (e) {
@@ -600,125 +693,163 @@ class _ChannelsPageState extends State<ChannelsPage> {
     return AnimatedBuilder(
       animation: _lc,
       builder: (_, __) => Scaffold(
-      appBar: AppBar(
-        title: BrandTitle(section: _t('channels')),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'toggle_hide_empty') {
-                setState(() => _hideEmpty = !_hideEmpty);
-              }
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem<String>(
-                value: 'toggle_hide_empty',
-                child: Row(
-                  children: [
-                    Icon(_hideEmpty ? Icons.check_box : Icons.check_box_outline_blank),
-                    const SizedBox(width: 8),
-                    Text(_t('hide_empty_channels')),
-                  ],
+        appBar: AppBar(
+          title: BrandTitle(section: _t('channels')),
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'toggle_hide_empty') {
+                  setState(() => _hideEmpty = !_hideEmpty);
+                }
+              },
+              itemBuilder: (ctx) => [
+                PopupMenuItem<String>(
+                  value: 'toggle_hide_empty',
+                  child: Row(
+                    children: [
+                      Icon(_hideEmpty
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank),
+                      const SizedBox(width: 8),
+                      Text(_t('hide_empty_channels')),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : RefreshIndicator(
-                  onRefresh: () => _loadChannels(clearCaches: true),
-                  child: Builder(builder: (context) {
-                    // Prepare visible channels with optional hide-empty filtering
-                    final List<Map<String, dynamic>> allCh = _channels.cast<Map<String, dynamic>>();
-                    List<Map<String, dynamic>> visible = allCh;
-                    if (_hideEmpty) {
-                      visible = allCh.where((ch) {
-                        final slug = (ch['id_slug'] ?? '').toString();
-                        if (_playlistsByChannel.containsKey(slug)) {
-                          return (_playlistCounts[slug] ?? 0) > 0;
-                        }
-                        return true;
-                      }).toList();
-                    }
-                    return ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      children: [
-                        if (_offline) _buildOfflineCard(),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 0.82,
-                            ),
-                            itemCount: visible.length,
-                            itemBuilder: (context, i) {
-                              final ch = visible[i];
-                              final slug = (ch['id_slug'] ?? '').toString();
-                              final title = _channelDisplayName(ch);
-                              String? thumbUrlPrimary = _thumbFromMap(ch);
-                              String thumbUrl = thumbUrlPrimary ?? '$kApiBase/api/channels/$slug/logo/';
-                              final int? count = _playlistCounts[slug];
-                              final lang = (ch['language'] ?? '').toString();
-                              return InkWell(
-                                onTap: () {},
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Theme.of(context).dividerColor),
-                                    borderRadius: BorderRadius.zero,
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          Expanded(
-                                            child: _buildThumb(thumbUrl, size: double.infinity, radius: BorderRadius.zero),
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                                if (lang.isNotEmpty)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: 4),
-                                                    child: Text(lang.toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
-                                                  ),
-                                              ],
+              ],
+            ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: Text(_error!,
+                        style: const TextStyle(color: Colors.red)))
+                : RefreshIndicator(
+                    onRefresh: () => _loadChannels(clearCaches: true),
+                    child: Builder(builder: (context) {
+                      // Prepare visible channels with optional hide-empty filtering
+                      final List<Map<String, dynamic>> allCh =
+                          _channels.cast<Map<String, dynamic>>();
+                      List<Map<String, dynamic>> visible = allCh;
+                      if (_hideEmpty) {
+                        visible = allCh.where((ch) {
+                          final slug = (ch['id_slug'] ?? '').toString();
+                          if (_playlistsByChannel.containsKey(slug)) {
+                            return (_playlistCounts[slug] ?? 0) > 0;
+                          }
+                          return true;
+                        }).toList();
+                      }
+                      return ListView(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        children: [
+                          if (_offline) _buildOfflineCard(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 0.82,
+                              ),
+                              itemCount: visible.length,
+                              itemBuilder: (context, i) {
+                                final ch = visible[i];
+                                final slug = (ch['id_slug'] ?? '').toString();
+                                final title = _channelDisplayName(ch);
+                                String? thumbUrlPrimary = _thumbFromMap(ch);
+                                String thumbUrl = thumbUrlPrimary ??
+                                    '$kApiBase/api/channels/$slug/logo/';
+                                final int? count = _playlistCounts[slug];
+                                final lang = (ch['language'] ?? '').toString();
+                                return InkWell(
+                                  onTap: () async {
+                                    await _ensurePlaylists(slug);
+                                    if (!mounted) return;
+                                    _showChannelPlaylists(slug, ch);
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                          color:
+                                              Theme.of(context).dividerColor),
+                                      borderRadius: BorderRadius.zero,
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              child: _buildThumb(thumbUrl,
+                                                  size: double.infinity,
+                                                  radius: BorderRadius.zero),
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(title,
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w600)),
+                                                  if (lang.isNotEmpty)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              top: 4),
+                                                      child: Text(
+                                                          lang.toUpperCase(),
+                                                          style:
+                                                              Theme.of(context)
+                                                                  .textTheme
+                                                                  .labelSmall),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (count != null)
+                                          Positioned(
+                                            top: 6,
+                                            right: 6,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                              child: Text('$count',
+                                                  style: const TextStyle(
+                                                      fontSize: 11)),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                      if (count != null)
-                                        Positioned(
-                                          top: 6,
-                                          right: 6,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                            child: Text('$count', style: const TextStyle(fontSize: 11)),
-                                          ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
+                        ],
+                      );
+                    }),
+                  ),
       ),
     );
   }
