@@ -2,7 +2,7 @@
     <!-- Android 13+ runtime notifications permission -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="ontime_ethiopia_flutterapp"
+        android:label="Ontime Ethiopia"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

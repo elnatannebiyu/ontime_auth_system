@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../api_client.dart';
+import '../core/cache/logo_probe_cache.dart';
 import 'tv_controller.dart';
 
 class LivePlayerOverlayPage extends StatefulWidget {
@@ -92,29 +93,31 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
     _masterUrl = _masterCache[widget.slug];
     if ((_masterUrl ?? '').isEmpty) {
       try {
-        final res = await ApiClient().get('/live/${widget.slug}/');
+        // Fetch Live entry by channel slug (backend endpoint: /live/by-channel/<slug>/)
+        final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
         final m = Map<String, dynamic>.from(res.data as Map);
         _masterUrl = (m['playback_url'] ?? m['playbackUrl'] ?? '').toString();
-        // Populate metadata
+        // Populate metadata from the same response to avoid a second request
         _titleText = (m['title'] ?? '').toString();
         _channelName =
             (m['channel_name'] ?? m['channel_slug'] ?? '').toString();
         _channelLogoUrl = (m['channel_logo_url'] ?? '').toString();
-        // Prefetch channel logo (only if exists): HEAD check -> then precache
+        // Prefetch channel logo (only if exists): probe via LogoProbeCache, then precache
         try {
           final logo = _channelLogoUrl ?? '';
           if (logo.isNotEmpty && mounted) {
             final token = ApiClient().getAccessToken();
             final tenant = ApiClient().tenant;
             final headers = <String, String>{};
-            if ((token ?? '').isNotEmpty)
+            if ((token ?? '').isNotEmpty) {
               headers['Authorization'] = 'Bearer $token';
-            if ((tenant ?? '').isNotEmpty) headers['X-Tenant-Id'] = tenant!;
-            final head = await Dio().head(logo,
-                options:
-                    Options(headers: headers, validateStatus: (s) => true));
-            final code = head.statusCode ?? 0;
-            if (code >= 200 && code < 300) {
+            }
+            if ((tenant ?? '').isNotEmpty) {
+              headers['X-Tenant-Id'] = tenant!;
+            }
+            final ok = await LogoProbeCache.instance
+                .ensureAvailable(logo, headers: headers);
+            if (ok) {
               await precacheImage(
                   NetworkImage(logo, headers: headers), context);
             }
@@ -137,30 +140,32 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
         }
       } catch (_) {}
     }
-    // If pulled master from cache, still try to get metadata once
-    if (_titleText == null) {
+    // If pulled master from cache, still try to get metadata once (but avoid duplicate network calls)
+    if (_titleText == null && (_masterUrl ?? '').isNotEmpty) {
       try {
-        final res = await ApiClient().get('/live/${widget.slug}/');
+        // We already have the master URL; fetch metadata once if needed
+        final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
         final m = Map<String, dynamic>.from(res.data as Map);
         _titleText = (m['title'] ?? '').toString();
         _channelName =
             (m['channel_name'] ?? m['channel_slug'] ?? '').toString();
         _channelLogoUrl = (m['channel_logo_url'] ?? '').toString();
-        // Prefetch logo in the cache-metadata path as well (HEAD check first)
+        // Prefetch logo in the cache-metadata path as well (LogoProbeCache first)
         try {
           final logo = _channelLogoUrl ?? '';
           if (logo.isNotEmpty && mounted) {
             final token = ApiClient().getAccessToken();
             final tenant = ApiClient().tenant;
             final headers = <String, String>{};
-            if ((token ?? '').isNotEmpty)
+            if ((token ?? '').isNotEmpty) {
               headers['Authorization'] = 'Bearer $token';
-            if ((tenant ?? '').isNotEmpty) headers['X-Tenant-Id'] = tenant!;
-            final head = await Dio().head(logo,
-                options:
-                    Options(headers: headers, validateStatus: (s) => true));
-            final code = head.statusCode ?? 0;
-            if (code >= 200 && code < 300) {
+            }
+            if ((tenant ?? '').isNotEmpty) {
+              headers['X-Tenant-Id'] = tenant!;
+            }
+            final ok = await LogoProbeCache.instance
+                .ensureAvailable(logo, headers: headers);
+            if (ok) {
               await precacheImage(
                   NetworkImage(logo, headers: headers), context);
             }
@@ -183,6 +188,10 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
 
     // Start playback if needed (pick lowest variant when possible)
     if (tv.controller == null || tv.slug != widget.slug) {
+      // Strictly replace any previous Live session when switching slugs
+      try {
+        await TvController.instance.stop();
+      } catch (_) {}
       String? startUrl = _masterUrl;
       try {
         if ((_masterUrl ?? '').toLowerCase().endsWith('.m3u8')) {

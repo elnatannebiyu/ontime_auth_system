@@ -1,19 +1,33 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../auth/tenant_auth_client.dart';
 import '../series_service.dart';
 import 'series_seasons_page.dart';
 import 'series_episodes_page.dart';
+import '../../../core/widgets/offline_banner.dart';
+import '../../../core/localization/l10n.dart';
 
 class SeriesShowsPage extends StatefulWidget {
   final AuthApi api;
   final String tenantId;
-  const SeriesShowsPage({super.key, required this.api, required this.tenantId});
+  final LocalizationController? localizationController;
+
+  const SeriesShowsPage({
+    super.key,
+    required this.api,
+    required this.tenantId,
+    this.localizationController,
+  });
 
   @override
   State<SeriesShowsPage> createState() => _SeriesShowsPageState();
 }
 
-class _SeriesShowsPageState extends State<SeriesShowsPage> {
+class _SeriesShowsPageState extends State<SeriesShowsPage>
+    with AutomaticKeepAliveClientMixin<SeriesShowsPage> {
   late final SeriesService _service;
   bool _loading = true;
   String? _error;
@@ -22,18 +36,38 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
   List<Map<String, dynamic>> _allShows = const [];
   List<Map<String, dynamic>> _categoryShows = const [];
   bool _navigating = false; // guard against multiple rapid taps
+  bool _offline = false;
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
+
+  LocalizationController get _lc =>
+      widget.localizationController ?? LocalizationController();
+  String _t(String key) => _lc.t(key);
 
   @override
   void initState() {
     super.initState();
     _service = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _load();
+    _connSub = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
+      final isOffline =
+          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+      if (!mounted) return;
+      setState(() {
+        _offline = isOffline;
+        if (!isOffline && _allShows.isEmpty && !_loading) {
+          _load();
+        }
+      });
+    });
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _offline = false;
     });
     try {
       final cats = await _service.getCategories();
@@ -50,9 +84,15 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
           });
       }
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load shows';
-      });
+      if (e is DioException && e.type == DioExceptionType.connectionError) {
+        setState(() {
+          _offline = true;
+        });
+      } else {
+        setState(() {
+          _error = 'Failed to load shows';
+        });
+      }
     } finally {
       setState(() {
         _loading = false;
@@ -102,8 +142,10 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
         const SnackBar(content: Text('Failed to open show')),
       );
     } finally {
-      if (mounted) setState(() => _navigating = false);
-      else _navigating = false;
+      if (mounted)
+        setState(() => _navigating = false);
+      else
+        _navigating = false;
     }
   }
 
@@ -127,6 +169,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // for AutomaticKeepAliveClientMixin
     return RefreshIndicator(
       onRefresh: _load,
       child: _loading
@@ -134,14 +177,17 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 12),
               children: [
-                if (_error != null)
+                if (_offline || _error != null)
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(_error!,
-                        style: const TextStyle(color: Colors.red)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: OfflineBanner(
+                      title: _t('you_are_offline'),
+                      subtitle: _t('some_actions_offline'),
+                      onRetry: _load,
+                    ),
                   ),
                 _Section(
-                  title: 'Categories',
+                  title: _t('categories'),
                   child: SizedBox(
                     height: 44,
                     child: ListView.separated(
@@ -212,6 +258,9 @@ class _SeriesShowsPageState extends State<SeriesShowsPage> {
             ),
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class _ShowCard extends StatelessWidget {

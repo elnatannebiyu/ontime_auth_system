@@ -6,6 +6,8 @@ import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
 import '../../core/services/social_auth.dart';
 import '../../config.dart';
+import '../../live/tv_controller.dart';
+import '../../live/audio_controller.dart';
 
 /// Simple session manager that works with existing auth infrastructure
 class SimpleSessionManager {
@@ -98,8 +100,9 @@ class SimpleSessionManager {
         final status = e.response?.statusCode;
         if (status == 401) {
           final data = e.response?.data;
-          final detail =
-              (data is Map && data['detail'] is String) ? data['detail'] as String : '';
+          final detail = (data is Map && data['detail'] is String)
+              ? data['detail'] as String
+              : '';
           if (detail.contains('Refresh token not found')) {
             // Likely missing cookie due to offline/network; do not logout.
             return;
@@ -125,13 +128,21 @@ class SimpleSessionManager {
     } finally {
       // Also sign out of Google so the account chooser appears next time
       try {
-        await SocialAuthService(serverClientId: kGoogleWebClientId).signOutGoogle();
+        await SocialAuthService(serverClientId: kGoogleWebClientId)
+            .signOutGoogle();
       } catch (_) {}
       await _tokenStore.clear();
       _apiClient.setAccessToken(null);
       _isLoggedIn = false;
       _sessionController.add(false);
       _stopRefreshTimer();
+      // Also stop any ongoing media sessions so mini players are cleared on logout
+      try {
+        await TvController.instance.stop();
+      } catch (_) {}
+      try {
+        await AudioController.instance.stop();
+      } catch (_) {}
     }
   }
 

@@ -46,6 +46,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   bool _inFlight = false; // guard against double submits
   String? _error;
+  bool _socialLoading = false; // loading state for Google/Apple flows
 // deprecated in minimal UI (kept for potential future use)
 
   @override
@@ -176,24 +177,31 @@ class _LoginPageState extends State<LoginPage> {
           : (e.message ?? '');
       final detail = rawDetail.toString();
       if (kDebugMode) {
-        debugPrint('[login] DioException code=$code detail=$detail data=${e.response?.data}');
+        debugPrint(
+            '[login] DioException code=$code detail=$detail data=${e.response?.data}');
       }
       // Normalize common backend responses
       String uiMsg = 'Login failed';
       if (detail == 'password_auth_not_set') {
-        uiMsg = 'This account was created with Google. Use “Continue with Google” or set a password first.';
+        uiMsg =
+            'This account was created with Google. Use “Continue with Google” or set a password first.';
       } else if (detail.contains('No active account found')) {
         uiMsg = 'Incorrect email or password.';
-      } else if (code == 403 && detail.contains('Not a member of this tenant')) {
-        uiMsg = "Your account isn't a member of this tenant ('${widget.tenantId}').";
+      } else if (code == 403 &&
+          detail.contains('Not a member of this tenant')) {
+        uiMsg =
+            "Your account isn't a member of this tenant ('${widget.tenantId}').";
       } else if (code == 429 || detail.toLowerCase().contains('too many')) {
         uiMsg = 'Too many attempts. Please wait a minute and try again.';
       } else if (detail.toLowerCase().contains('locked')) {
-        uiMsg = 'Account temporarily locked due to failed attempts. Try again later.';
+        uiMsg =
+            'Account temporarily locked due to failed attempts. Try again later.';
       } else if (detail.isNotEmpty) {
         uiMsg = detail;
       }
-      setState(() { _error = uiMsg; });
+      setState(() {
+        _error = uiMsg;
+      });
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[login] non-Dio error: $e');
@@ -230,200 +238,260 @@ class _LoginPageState extends State<LoginPage> {
               )
             : null,
         bottom: const VersionBadge(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Social sign-in buttons
-            SocialAuthButtons(
-              onGoogle: () async {
-                final service =
-                    SocialAuthService(serverClientId: kGoogleWebClientId);
-                try {
-                  // Force account chooser to appear after a prior social session
-                  final result =
-                      await service.signInWithGoogle(signOutFirst: true);
-                  // Step 1: attempt login without creating a new account
-                  Tokens tokens;
-                  try {
-                    tokens = await widget.api.socialLogin(
-                      tenantId: widget.tenantId,
-                      provider: 'google',
-                      token: result.idToken!,
-                      allowCreate: false,
-                    );
-                  } on DioException catch (e) {
-                    final code = e.response?.statusCode ?? 0;
-                    final data = e.response?.data;
-                    final errKey = (data is Map && data['error'] is String)
-                        ? (data['error'] as String)
-                        : '';
-                    if (code == 404 && errKey == 'user_not_found') {
-                      // Ask the user for permission to create a new account
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Create new account?'),
-                          content: Text(
-                              'No account exists for ${result.email ?? 'this Google account'}. Create one now?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.of(ctx).pop(true),
-                              child: const Text('Create'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed != true) return;
-                      // Step 2: create account and login
-                      tokens = await widget.api.socialLogin(
-                        tenantId: widget.tenantId,
-                        provider: 'google',
-                        token: result.idToken!,
-                        allowCreate: true,
-                        userData: {
-                          if (result.email != null) 'email': result.email,
-                          if (result.displayName != null)
-                            'name': result.displayName,
-                        },
-                      );
-                    } else {
-                      rethrow;
-                    }
-                  }
-                  await widget.tokenStore
-                      .setTokens(tokens.access, tokens.refresh);
-                  await widget.api.me();
-                  // Optional: show backend-provided first-login announcement for parity with password login
-                  await _maybeShowFirstLoginAnnouncement();
-                  // Ask for notifications permission before registering FCM to ensure APNs is available on iOS
-                  if (mounted) {
-                    await NotificationPermissionManager()
-                        .ensurePermissionFlow(context);
-                  }
-                  // Now register FCM token with backend
-                  await FcmManager().ensureRegisteredWithBackend();
-                  if (!mounted) return;
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/home', (_) => false);
-                } on DioException catch (e) {
-                  // If server enforced update (426), let the global modal handle UX
-                  if (e.response?.statusCode == 426) {
-                    return;
-                  }
-                  final data = e.response?.data;
-                  final err = (data is Map && data['error'] is String)
-                      ? data['error'] as String
-                      : e.message ?? 'Google sign-in failed';
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text(err)));
-                } catch (e) {
-                  // If a 426 slipped through as a generic error, do not show snackbar
-                  final msg = '$e';
-                  if (msg.contains('426') ||
-                      msg.contains('APP_UPDATE_REQUIRED')) {
-                    return;
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Google sign-in error: $e')),
-                  );
-                }
-              },
-              onApple: () async {
-                final service = SocialAuthService();
-                try {
-                  await service.signInWithApple();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Apple sign-in coming soon')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Apple sign-in error: $e')),
-                  );
-                }
-              },
-              showApple: Theme.of(context).platform == TargetPlatform.iOS,
-            ),
-            const SizedBox(height: 8),
+        child: _socialLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Social sign-in buttons
+                  SocialAuthButtons(
+                    onGoogle: () async {
+                      final service =
+                          SocialAuthService(serverClientId: kGoogleWebClientId);
+                      try {
+                        setState(() {
+                          _socialLoading = true;
+                          _error = null;
+                        });
+                        // Force account chooser to appear after a prior social session
+                        final result =
+                            await service.signInWithGoogle(signOutFirst: true);
+                        // Step 1: attempt login without creating a new account
+                        Tokens tokens;
+                        try {
+                          tokens = await widget.api.socialLogin(
+                            tenantId: widget.tenantId,
+                            provider: 'google',
+                            token: result.idToken!,
+                            allowCreate: false,
+                          );
+                        } on DioException catch (e) {
+                          final code = e.response?.statusCode ?? 0;
+                          final data = e.response?.data;
+                          final errKey =
+                              (data is Map && data['error'] is String)
+                                  ? (data['error'] as String)
+                                  : '';
+                          if (code == 404 && errKey == 'user_not_found') {
+                            // Ask the user for permission to create a new account
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Create new account?'),
+                                content: Text(
+                                    'No account exists for ${result.email ?? 'this Google account'}. Create one now?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    child: const Text('Create'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) return;
+                            // Step 2: create account and login
+                            tokens = await widget.api.socialLogin(
+                              tenantId: widget.tenantId,
+                              provider: 'google',
+                              token: result.idToken!,
+                              allowCreate: true,
+                              userData: {
+                                if (result.email != null) 'email': result.email,
+                                if (result.displayName != null)
+                                  'name': result.displayName,
+                              },
+                            );
+                          } else {
+                            rethrow;
+                          }
+                        }
+                        await widget.tokenStore
+                            .setTokens(tokens.access, tokens.refresh);
+                        await widget.api.me();
+                        // Optional: show backend-provided first-login announcement for parity with password login
+                        await _maybeShowFirstLoginAnnouncement();
+                        // Ask for notifications permission before registering FCM to ensure APNs is available on iOS
+                        if (mounted) {
+                          await NotificationPermissionManager()
+                              .ensurePermissionFlow(context);
+                        }
+                        // Now register FCM token with backend
+                        await FcmManager().ensureRegisteredWithBackend();
+                        if (!mounted) return;
+                        Navigator.of(context)
+                            .pushNamedAndRemoveUntil('/home', (_) => false);
+                      } on DioException catch (e) {
+                        // If server enforced update (426), let the global modal handle UX
+                        if (e.response?.statusCode == 426) {
+                          if (mounted) {
+                            setState(() => _socialLoading = false);
+                          }
+                          return;
+                        }
+                        final data = e.response?.data;
+                        final err = (data is Map && data['error'] is String)
+                            ? data['error'] as String
+                            : e.message ?? 'Google sign-in failed.';
+                        if (mounted) {
+                          setState(() {
+                            _socialLoading = false;
+                            _error = err;
+                          });
+                        }
+                      } catch (e) {
+                        // If a 426 slipped through as a generic error, do not show snackbar
+                        final msg = '$e';
+                        if (msg.contains('426') ||
+                            msg.contains('APP_UPDATE_REQUIRED')) {
+                          if (mounted) {
+                            setState(() => _socialLoading = false);
+                          }
+                          return;
+                        }
+                        // If user cancelled/no account selected, ignore quietly
+                        if (msg.toLowerCase().contains('aborted') ||
+                            msg.toLowerCase().contains('canceled') ||
+                            msg.toLowerCase().contains('cancelled')) {
+                          if (mounted) {
+                            setState(() => _socialLoading = false);
+                          }
+                          return;
+                        }
+                        if (mounted) {
+                          setState(() {
+                            _socialLoading = false;
+                            _error = kDebugMode
+                                ? 'Google sign-in error: $e'
+                                : 'Google sign-in failed. Please try again.';
+                          });
+                        }
+                      }
+                    },
+                    onApple: () async {
+                      final service = SocialAuthService();
+                      try {
+                        setState(() {
+                          _socialLoading = true;
+                          _error = null;
+                        });
+                        await service.signInWithApple();
+                        if (mounted) {
+                          setState(() {
+                            _socialLoading = false;
+                            _error = 'Apple sign-in coming soon.';
+                          });
+                        }
+                      } catch (e) {
+                        final msg = '$e';
+                        // Treat user cancellation quietly
+                        if (msg.toLowerCase().contains('aborted') ||
+                            msg.toLowerCase().contains('canceled') ||
+                            msg.toLowerCase().contains('cancelled')) {
+                          if (mounted) {
+                            setState(() => _socialLoading = false);
+                          }
+                          return;
+                        }
+                        if (mounted) {
+                          setState(() {
+                            _socialLoading = false;
+                            _error = kDebugMode
+                                ? 'Apple sign-in error: $e'
+                                : 'Apple sign-in failed. Please try again.';
+                          });
+                        }
+                      }
+                    },
+                    showApple: Theme.of(context).platform == TargetPlatform.iOS,
+                  ),
+                  const SizedBox(height: 8),
 
-            if (_error != null)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withOpacity(.25)),
-                ),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
-              ),
-            // Minimal email/password form
-            if (_kEnablePasswordLogin)
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _username,
-                      autofocus: true,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.alternate_email),
-                        labelText: 'Email or username',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Enter your email/username'
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _obscure,
-                      onFieldSubmitted: (_) => _login(),
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        labelText: 'Password',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                              _obscure ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Enter password' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
+                  if (_error != null)
+                    Container(
                       width: double.infinity,
-                      height: 48,
-                      child: FilledButton(
-                        onPressed: _loading ? null : _login,
-                        child: _loading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Sign in'),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withOpacity(.25)),
+                      ),
+                      child: Text(_error!,
+                          style: const TextStyle(color: Colors.red)),
+                    ),
+                  // Minimal email/password form
+                  if (_kEnablePasswordLogin)
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _username,
+                            autofocus: true,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.alternate_email),
+                              labelText: 'Email or username',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Enter your email/username'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _password,
+                            obscureText: _obscure,
+                            onFieldSubmitted: (_) => _login(),
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              labelText: 'Password',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                icon: Icon(_obscure
+                                    ? Icons.visibility
+                                    : Icons.visibility_off),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                              ),
+                            ),
+                            validator: (v) => (v == null || v.isEmpty)
+                                ? 'Enter password'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: FilledButton(
+                              onPressed: _loading ? null : _login,
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Text('Sign in'),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
 
-            // Phone OTP entry point disabled (coming soon)
-            if (_kEnablePasswordLogin)
-              TextButton(
-                onPressed: null,
-                child: const Text('Use phone (coming soon)'),
+                  // Phone OTP entry point disabled (coming soon)
+                  if (_kEnablePasswordLogin)
+                    TextButton(
+                      onPressed: null,
+                      child: const Text('Use phone (coming soon)'),
+                    ),
+                ],
               ),
-          ],
-        ),
       ),
     );
   }

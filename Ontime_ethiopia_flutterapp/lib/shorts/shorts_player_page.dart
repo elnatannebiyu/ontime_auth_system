@@ -1,8 +1,9 @@
-// ignore_for_file: unused_element_parameter, unused_element
+// ignore_for_file: unused_element_parameter, unused_element, prefer_interpolation_to_compose_strings, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../api_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
@@ -12,9 +13,15 @@ class ShortsPlayerPage extends StatefulWidget {
   final List<Map<String, dynamic>>
       videos; // expects at least fields: video_id, title
   final int initialIndex;
+  final bool isOffline;
+  final void Function(int index)? onIndexChanged;
 
   const ShortsPlayerPage(
-      {super.key, required this.videos, this.initialIndex = 0});
+      {super.key,
+      required this.videos,
+      this.initialIndex = 0,
+      this.isOffline = false,
+      this.onIndexChanged});
 
   @override
   State<ShortsPlayerPage> createState() => _ShortsPlayerPageState();
@@ -27,10 +34,45 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   // In-app HLS playback using video_player only
   final Map<int, VideoPlayerController> _hlsControllers = {};
   bool _muted = false; // default sound ON
+  // Track items that failed to initialize (e.g., offline/network error)
+  final Map<int, bool> _initFailed = {};
+  bool _effectiveOffline = false;
   static String get _mediaBase {
     if (Platform.isAndroid) return 'http://10.0.2.2:8080';
     if (Platform.isIOS || Platform.isMacOS) return 'http://127.0.0.1:8080';
     return 'http://127.0.0.1:8080';
+  }
+
+  // Try to extract a reasonable thumbnail/preview URL from a shorts item
+  String? _thumbFromItem(Map<String, dynamic> m) {
+    const keys = [
+      'thumbnail',
+      'thumbnail_url',
+      'thumb',
+      'thumb_url',
+      'image',
+      'image_url',
+      'poster',
+      'poster_url',
+      'cover_image',
+    ];
+    for (final k in keys) {
+      final v = m[k];
+      if (v is String && v.isNotEmpty) return v;
+    }
+    final t = m['thumbnails'];
+    if (t is Map) {
+      for (final size in ['high', 'medium', 'default', 'standard']) {
+        final s = t[size];
+        if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
+          return s['url'] as String;
+        }
+      }
+      if (t['url'] is String && (t['url'] as String).isNotEmpty) {
+        return t['url'] as String;
+      }
+    }
+    return null;
   }
 
   /// Normalize HLS URLs to be reachable from real devices:
@@ -63,6 +105,19 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   @override
   void initState() {
     super.initState();
+    _effectiveOffline = widget.isOffline;
+    // One-time connectivity check to avoid race where parent still thinks we're online
+    Connectivity().checkConnectivity().then((results) {
+      if (!mounted) return;
+      final list = results;
+      final actuallyOffline =
+          list.isEmpty || list.every((r) => r == ConnectivityResult.none);
+      if (actuallyOffline != _effectiveOffline) {
+        setState(() {
+          _effectiveOffline = actuallyOffline;
+        });
+      }
+    }).catchError((_) {});
     // Show system safe zones (status/navigation bars)
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -80,6 +135,15 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   }
 
   Future<void> _ensureHlsController(int i) async {
+    if (_effectiveOffline) {
+      // When offline, don’t try to create controllers at all – just show thumbnails
+      if (mounted) {
+        setState(() {
+          _initFailed[i] = true;
+        });
+      }
+      return;
+    }
     if (i < 0 || i >= widget.videos.length) return;
     if (_hlsControllers[i] != null) return;
     final absFromItem = (widget.videos[i]['absolute_hls'] ?? '').toString();
@@ -91,14 +155,11 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
       url = _normalizeHls(rel);
     }
     if (url.isEmpty) {
-      // No HLS available for this short → skip ahead, never fallback to YouTube
-      if (mounted && i == _index) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('This short is not available. Skipping...'),
-              duration: Duration(seconds: 1)),
-        );
-        _jumpToNext();
+      // No HLS available for this short – mark as failed and show placeholder
+      if (mounted) {
+        setState(() {
+          _initFailed[i] = true;
+        });
       }
       return;
     }
@@ -109,16 +170,15 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
       await ctrl.setLooping(true); // loop on finish
       await ctrl.setVolume(_muted ? 0.0 : 1.0);
       if (i == _index) ctrl.play();
-      setState(() {});
+      setState(() {
+        _initFailed.remove(i);
+      });
     } catch (_) {
-      // Unplayable stream – move to next. Never fallback to YouTube.
-      if (mounted && i == _index) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Cannot play this short. Skipping...'),
-              duration: Duration(seconds: 1)),
-        );
-        _jumpToNext();
+      // Unplayable stream (often offline). Show placeholder instead of skipping.
+      if (mounted) {
+        setState(() {
+          _initFailed[i] = true;
+        });
       }
     }
   }
@@ -146,6 +206,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
 
   void _onPageChanged(int i) {
     setState(() => _index = i);
+    widget.onIndexChanged?.call(i);
     // Preload neighbors
     _ensureHlsController(i - 1);
     _ensureHlsController(i + 1);
@@ -189,6 +250,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   String _jobIdForIndex(int i) => (widget.videos[i]['job_id'] ?? '').toString();
 
   Future<void> _prefetchReactions(int i) async {
+    if (_effectiveOffline) return; // skip reaction calls when offline
     final jobId = _jobIdForIndex(i);
     if (jobId.isEmpty || _reactions.containsKey(jobId)) return;
     try {
@@ -283,7 +345,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   Widget _buildPage(int i) {
     _ensureHlsController(i);
     final vc = _hlsControllers[i];
+    final failed = _initFailed[i] == true;
     final title = (widget.videos[i]['title'] ?? '').toString();
+    final thumb = _thumbFromItem(widget.videos[i]);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -291,7 +355,26 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
         ColoredBox(
           color: Colors.black,
           child: (vc == null || !vc.value.isInitialized)
-              ? const Center(child: CircularProgressIndicator())
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (thumb != null && thumb.isNotEmpty)
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        child: Image.network(
+                          thumb,
+                          errorBuilder: (_, __, ___) =>
+                              Container(color: Colors.black),
+                        ),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    if (!failed)
+                      const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                  ],
+                )
               : GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
@@ -323,6 +406,35 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                   ),
                 ),
         ),
+        // Offline helper message when the whole player is marked offline
+        if (_effectiveOffline)
+          Positioned(
+            top: 40,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              top: true,
+              bottom: false,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Offline · Connect to load shorts',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         const Positioned.fill(
           child: IgnorePointer(
             child: DecoratedBox(
@@ -424,74 +536,76 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
           ),
         ),
         // Side action column centered vertically on the right, above navigator
-        Positioned.fill(
-          child: SafeArea(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _CircleIconButton(
-                      icon: Icons.favorite_border,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Save coming soon')),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _CircleIconButton(
-                      icon: (_reactions[_jobIdForIndex(i)]?.user == 'like')
-                          ? Icons.thumb_up
-                          : Icons.thumb_up_alt_outlined,
-                      color: (_reactions[_jobIdForIndex(i)]?.user == 'like')
-                          ? Colors.lightBlueAccent
-                          : Colors.white,
-                      label: (_reactions[_jobIdForIndex(i)]?.likes ?? 0)
-                          .toString(),
-                      onTap: () {
-                        final current = _reactions[_jobIdForIndex(i)]?.user;
-                        _setReaction(i, current == 'like' ? null : 'like');
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _CircleIconButton(
-                      icon: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
-                          ? Icons.thumb_down
-                          : Icons.thumb_down_alt_outlined,
-                      color: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
-                          ? Colors.redAccent
-                          : Colors.white,
-                      label: (_reactions[_jobIdForIndex(i)]?.dislikes ?? 0)
-                          .toString(),
-                      onTap: () {
-                        final current = _reactions[_jobIdForIndex(i)]?.user;
-                        _setReaction(
-                            i, current == 'dislike' ? null : 'dislike');
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _CircleIconButton(
-                      icon: _muted ? Icons.volume_off : Icons.volume_up,
-                      onTap: () {
-                        setState(() {
-                          _muted = !_muted;
-                          for (final v in _hlsControllers.values) {
-                            if (v.value.isInitialized) {
-                              v.setVolume(_muted ? 0.0 : 1.0);
+        if (!widget.isOffline)
+          Positioned.fill(
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _CircleIconButton(
+                        icon: Icons.favorite_border,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Save coming soon')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _CircleIconButton(
+                        icon: (_reactions[_jobIdForIndex(i)]?.user == 'like')
+                            ? Icons.thumb_up
+                            : Icons.thumb_up_alt_outlined,
+                        color: (_reactions[_jobIdForIndex(i)]?.user == 'like')
+                            ? Colors.lightBlueAccent
+                            : Colors.white,
+                        label: (_reactions[_jobIdForIndex(i)]?.likes ?? 0)
+                            .toString(),
+                        onTap: () {
+                          final current = _reactions[_jobIdForIndex(i)]?.user;
+                          _setReaction(i, current == 'like' ? null : 'like');
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _CircleIconButton(
+                        icon: (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
+                            ? Icons.thumb_down
+                            : Icons.thumb_down_alt_outlined,
+                        color:
+                            (_reactions[_jobIdForIndex(i)]?.user == 'dislike')
+                                ? Colors.redAccent
+                                : Colors.white,
+                        label: (_reactions[_jobIdForIndex(i)]?.dislikes ?? 0)
+                            .toString(),
+                        onTap: () {
+                          final current = _reactions[_jobIdForIndex(i)]?.user;
+                          _setReaction(
+                              i, current == 'dislike' ? null : 'dislike');
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _CircleIconButton(
+                        icon: _muted ? Icons.volume_off : Icons.volume_up,
+                        onTap: () {
+                          setState(() {
+                            _muted = !_muted;
+                            for (final v in _hlsControllers.values) {
+                              if (v.value.isInitialized) {
+                                v.setVolume(_muted ? 0.0 : 1.0);
+                              }
                             }
-                          }
-                        });
-                      },
-                    ),
-                  ],
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
         // Top-left back button rendered last, with glass style like other buttons
         Positioned(
           left: 8,

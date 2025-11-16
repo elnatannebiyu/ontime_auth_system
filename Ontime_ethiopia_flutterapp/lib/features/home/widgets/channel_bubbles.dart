@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../api_client.dart';
 
 class ChannelBubbles extends StatelessWidget {
@@ -42,47 +43,53 @@ class ChannelBubbles extends StatelessWidget {
           final name = item['name'] ?? '';
           final slug = item['slug'] ?? name;
           final thumb = item['thumbUrl'];
+          final fallback = Center(
+            child: Text(
+              (name.isNotEmpty ? name.characters.first : '?').toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          );
           return Column(
             children: [
               MouseRegion(
-                cursor: onTapChannel != null ? SystemMouseCursors.click : MouseCursor.defer,
+                cursor: onTapChannel != null
+                    ? SystemMouseCursors.click
+                    : MouseCursor.defer,
                 child: Tooltip(
                   message: name,
                   child: Material(
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: onTapChannel != null ? () => onTapChannel!(slug) : null,
+                      onTap: onTapChannel != null
+                          ? () => onTapChannel!(slug)
+                          : null,
                       customBorder: const CircleBorder(),
                       child: Ink(
                         decoration: ShapeDecoration(
                           shape: CircleBorder(
-                            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+                            side: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant),
                           ),
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                         ),
                         width: 52,
                         height: 52,
                         child: thumb == null || thumb.isEmpty
-                            ? Center(
-                                child: Text(
-                                  (name.isNotEmpty ? name.characters.first : '?').toUpperCase(),
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                              )
+                            ? fallback
                             : ClipOval(
-                                child: Image.network(
-                                  thumb,
+                                child: CachedNetworkImage(
+                                  imageUrl: thumb,
                                   width: 52,
                                   height: 52,
                                   fit: BoxFit.cover,
-                                  headers: _authHeadersFor(thumb),
-                                  errorBuilder: (_, __, ___) => Center(
-                                    child: Text(
-                                      (name.isNotEmpty ? name.characters.first : '?').toUpperCase(),
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                  ),
+                                  httpHeaders: _authHeadersFor(thumb),
+                                  placeholder: (_, __) => fallback,
+                                  errorWidget: (_, __, ___) => fallback,
                                 ),
                               ),
                       ),

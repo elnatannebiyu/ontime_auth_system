@@ -1,9 +1,10 @@
 // ignore_for_file: unused_field
 
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../live/audio_controller.dart';
 import '../live/tv_controller.dart';
 import '../auth/tenant_auth_client.dart';
@@ -18,16 +19,18 @@ import '../features/series/pages/series_seasons_page.dart';
 import '../features/series/pages/series_episodes_page.dart';
 import '../features/home/widgets/channel_bubbles.dart';
 import '../core/widgets/brand_title.dart';
+import '../core/widgets/offline_banner.dart';
 import '../features/series/pages/series_shows_page.dart';
 import '../api_client.dart';
 import '../core/cache/channel_cache.dart';
+import '../core/cache/home_trending_cache.dart';
 import '../live/live_page.dart';
 import '../core/notifications/notification_permission_manager.dart';
 import '../shorts/shorts_page.dart';
 import '../shorts/shorts_player_page.dart';
 
 // Overflow menu actions for Home AppBar
-enum _HomeMenuAction { profile, settings, about, switchLanguage }
+enum _HomeMenuAction { profileSettings, settings, about, switchLanguage }
 
 class HomePage extends StatefulWidget {
   final AuthApi api;
@@ -59,6 +62,7 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _trendingShows = const [];
   List<Map<String, dynamic>> _newShorts = const [];
   bool _tabListenerAttached = false;
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -79,6 +83,21 @@ class _HomePageState extends State<HomePage> {
     });
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _loadTrendingNew();
+    _connSub = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
+      final isOffline =
+          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+      if (!mounted) return;
+      setState(() {
+        _offline = isOffline;
+        if (!isOffline && _error == null && !_loading) {
+          // Came back online: auto refresh For You once
+          _load();
+          _loadTrendingNew();
+        }
+      });
+    });
   }
 
   Future<void> _load() async {
@@ -89,8 +108,10 @@ class _HomePageState extends State<HomePage> {
     });
     try {
       widget.api.setTenant(widget.tenantId);
-      // Prefer a fresh cached me to avoid duplicate call right after login/register
-      final cached = ApiClient().getFreshMe();
+      // Prefer a cached me with a generous TTL so we don't spam /me on refresh
+      final cached = ApiClient().getFreshMe(
+        ttl: const Duration(minutes: 10),
+      );
       if (cached != null) {
         setState(() {
           _me = cached;
@@ -207,11 +228,29 @@ class _HomePageState extends State<HomePage> {
 
   // Load trending and new releases for For You
   Future<void> _loadTrendingNew() async {
+    final client = ApiClient();
+    final tenant = client.tenant ?? widget.tenantId;
+    // 1) Prime from disk cache so Home feels instant after relaunch/offline
+    try {
+      final cachedTrending = await HomeTrendingCache.loadTrending(tenant);
+      final cachedShorts = await HomeTrendingCache.loadShorts(tenant);
+      if (mounted && (cachedTrending.isNotEmpty || cachedShorts.isNotEmpty)) {
+        setState(() {
+          if (cachedTrending.isNotEmpty) {
+            _trendingShows = cachedTrending;
+          }
+          if (cachedShorts.isNotEmpty) {
+            _newShorts = cachedShorts;
+          }
+        });
+      }
+    } catch (_) {}
+
+    // 2) Refresh from network
     try {
       final trending = await _series.getTrendingShows();
       // Load shorts feed for "New releases"
       widget.api.setTenant(widget.tenantId);
-      final client = ApiClient();
       final res =
           await client.get('/channels/shorts/ready/feed/', queryParameters: {
         'limit': '15',
@@ -231,6 +270,11 @@ class _HomePageState extends State<HomePage> {
           _newShorts = shorts;
         });
       }
+      // Persist latest data for fast next startup
+      try {
+        unawaited(HomeTrendingCache.saveTrending(tenant, trending));
+        unawaited(HomeTrendingCache.saveShorts(tenant, shorts));
+      } catch (_) {}
     } catch (_) {
       // Non-fatal for home; leave placeholders if fetch fails
     }
@@ -270,11 +314,72 @@ class _HomePageState extends State<HomePage> {
         );
       }
     } catch (_) {
+      // Swallow errors silently; Shows tab handles its own error states.
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to open show')),
-      );
     }
+  }
+
+  String _profileInitial() {
+    final name = (_me?['name'] ?? _me?['first_name'] ?? _me?['email'] ?? '')
+        .toString()
+        .trim();
+    if (name.isEmpty) return '?';
+    return name[0].toUpperCase();
+  }
+
+  void _showProfileSheet() {
+    showModalBottomSheet<_HomeMenuAction>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final lang = widget.localizationController.language;
+        final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.account_circle_outlined),
+                  title: Text(_t('profile_settings')),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushNamed('/profile');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: Text(_t('settings')),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushNamed('/settings');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(_t('about')),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushNamed('/about');
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.translate),
+                  title: Text('${_t('switch_language')} ($switchTo)'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    widget.localizationController.toggleLanguage();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // (_logout removed – not used on Home streaming UI)
@@ -311,8 +416,9 @@ class _HomePageState extends State<HomePage> {
                         builder: (_, __) {
                           final onShorts = tc.index == 3; // Shorts tab
                           final onLiveTab = tc.index == 2; // Live tab
-                          if (onShorts || onLiveTab)
+                          if (onShorts || onLiveTab) {
                             return const SizedBox.shrink();
+                          }
                           return FloatingActionButton.extended(
                             onPressed: () {
                               // Switch to Live tab instead of opening PlayerPage
@@ -341,104 +447,22 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                           actions: [
-                            IconButton(
-                              tooltip: _t('search'),
-                              icon: const Icon(Icons.search),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content:
-                                          Text('Search ${_t('coming_soon')}')),
-                                );
-                              },
-                            ),
-                            PopupMenuButton<_HomeMenuAction>(
-                              tooltip: _t('menu'),
-                              itemBuilder: (context) {
-                                final lang =
-                                    widget.localizationController.language;
-                                final switchTo =
-                                    lang == AppLanguage.en ? 'AM' : 'EN';
-                                return <PopupMenuEntry<_HomeMenuAction>>[
-                                  PopupMenuItem(
-                                    value: _HomeMenuAction.profile,
-                                    height: kMinInteractiveDimension,
-                                    child: SizedBox(
-                                      height: kMinInteractiveDimension,
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                              Icons.account_circle_outlined),
-                                          const SizedBox(width: 12),
-                                          Text(_t('profile')),
-                                        ],
-                                      ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(999),
+                                onTap: _showProfileSheet,
+                                child: CircleAvatar(
+                                  radius: 16,
+                                  child: Text(
+                                    _profileInitial(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  PopupMenuItem(
-                                    value: _HomeMenuAction.settings,
-                                    height: kMinInteractiveDimension,
-                                    child: SizedBox(
-                                      height: kMinInteractiveDimension,
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.settings_outlined),
-                                          const SizedBox(width: 12),
-                                          Text(_t('settings')),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  PopupMenuItem(
-                                    value: _HomeMenuAction.about,
-                                    height: kMinInteractiveDimension,
-                                    child: SizedBox(
-                                      height: kMinInteractiveDimension,
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.info_outline),
-                                          const SizedBox(width: 12),
-                                          Text(_t('about')),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  PopupMenuItem(
-                                    value: _HomeMenuAction.switchLanguage,
-                                    height: kMinInteractiveDimension,
-                                    child: SizedBox(
-                                      height: kMinInteractiveDimension,
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.translate),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                              '${_t('switch_language')} ($switchTo)'),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ];
-                              },
-                              onSelected: (value) {
-                                switch (value) {
-                                  case _HomeMenuAction.profile:
-                                    Navigator.of(context).pushNamed('/profile');
-                                    break;
-                                  case _HomeMenuAction.settings:
-                                    Navigator.of(context)
-                                        .pushNamed('/settings');
-                                    break;
-                                  case _HomeMenuAction.about:
-                                    Navigator.of(context).pushNamed('/about');
-                                    break;
-                                  case _HomeMenuAction.switchLanguage:
-                                    widget.localizationController
-                                        .toggleLanguage();
-                                    break;
-                                }
-                              },
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -450,9 +474,19 @@ class _HomePageState extends State<HomePage> {
                         _buildForYou(context),
                         // Shows tab
                         SeriesShowsPage(
-                            api: widget.api, tenantId: widget.tenantId),
-                        const LivePage(),
-                        ShortsPage(api: widget.api, tenantId: widget.tenantId),
+                          api: widget.api,
+                          tenantId: widget.tenantId,
+                          localizationController: widget.localizationController,
+                        ),
+                        LivePage(
+                          localizationController: widget.localizationController,
+                        ),
+                        ShortsPage(
+                          api: widget.api,
+                          tenantId: widget.tenantId,
+                          initialItems: _newShorts,
+                          localizationController: widget.localizationController,
+                        ),
                       ],
                     ),
                   ),
@@ -471,6 +505,20 @@ class _HomePageState extends State<HomePage> {
   Widget _buildForYou(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async {
+        // If we're clearly offline, avoid spamming network calls and
+        // just surface the offline banner immediately.
+        final results = await Connectivity().checkConnectivity();
+        final isOffline = results.isEmpty ||
+            results.every((r) => r == ConnectivityResult.none);
+        if (isOffline) {
+          if (mounted) {
+            setState(() {
+              _offline = true;
+              // Keep any existing data; just show offline banner.
+            });
+          }
+          return;
+        }
         await _load();
         await _loadTrendingNew();
       },
@@ -487,15 +535,13 @@ class _HomePageState extends State<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_offline)
-                          Card(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            child: ListTile(
-                              leading: const Icon(Icons.wifi_off),
-                              title: Text(_t('you_are_offline')),
-                              subtitle: Text(_t('some_actions_offline')),
-                            ),
+                          OfflineBanner(
+                            title: _t('you_are_offline'),
+                            subtitle: _t('some_actions_offline'),
+                            onRetry: () async {
+                              await _load();
+                              await _loadTrendingNew();
+                            },
                           )
                         else if (_error != null)
                           Padding(
@@ -507,7 +553,11 @@ class _HomePageState extends State<HomePage> {
                         HeroCarousel(
                           liveLabel: _t('live'),
                           playLabel: _t('play'),
-                          onPlay: () {},
+                          onPlay: () {
+                            // Jump to Live tab in the main Home tab controller
+                            final tc = DefaultTabController.of(context);
+                            tc.animateTo(2);
+                          },
                         ),
                         const SizedBox(height: 12),
                         // Browse Channels section header (extracted)
@@ -613,6 +663,7 @@ class _HomePageState extends State<HomePage> {
                                 builder: (_) => ShortsPlayerPage(
                                   videos: _newShorts,
                                   initialIndex: idx,
+                                  isOffline: _offline,
                                 ),
                               ),
                             );

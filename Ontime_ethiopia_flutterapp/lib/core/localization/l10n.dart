@@ -59,8 +59,21 @@ class LocalizationController extends ChangeNotifier {
       'dark': 'Dark',
       'language': 'Language',
       'profile': 'Profile',
+      'profile_settings': 'Profile',
       'about': 'About',
       'switch_language': 'Switch language',
+      'english': 'English',
+      'amharic': 'Amharic',
+      // Settings page
+      'security': 'Security',
+      'active_sessions': 'Active sessions',
+      'active_sessions_subtitle': 'View and manage your active sessions',
+      'session_security': 'Session security',
+      'session_security_subtitle': 'Configure security settings',
+      'notifications_section': 'Notifications',
+      'notification_inbox': 'Notification inbox',
+      'notification_inbox_subtitle':
+          'View announcements and push notifications',
       // Channels page
       'offline_mode': 'Offline mode',
       'showing_cached': 'Showing cached channels until you reconnect.',
@@ -120,6 +133,24 @@ class LocalizationController extends ChangeNotifier {
       'you_are_offline': 'You are offline',
       'some_actions_offline': 'Some actions may not work until you reconnect.',
       'coming_soon': 'coming soon',
+      // Profile page
+      'profile_details': 'Profile details',
+      'first_name': 'First name',
+      'last_name': 'Last name',
+      'edit': 'Edit',
+      'cancel': 'Cancel',
+      'save_changes': 'Save changes',
+      'sign_out': 'Sign out',
+      'danger_zone': 'Danger zone',
+      'delete_account': 'Delete account',
+      'delete_account_title': 'Delete account',
+      'delete_account_body':
+          'This will permanently delete your account and related data. This action cannot be undone.',
+      'delete_account_not_implemented':
+          'Account deletion is not implemented yet. Please contact support.',
+      'profile_load_error': 'Problem loading profile',
+      'profile_update_success': 'Profile updated',
+      'profile_update_error': 'Failed to update profile',
     };
     const am = {
       'home': 'መነሻ',
@@ -148,8 +179,20 @@ class LocalizationController extends ChangeNotifier {
       'dark': 'ጨለማ',
       'language': 'ቋንቋ',
       'profile': 'መገለጫ',
+      'profile_settings': 'የመገለጫ',
       'about': 'ስለ መተግበሪያው',
       'switch_language': 'ቋንቋ መቀየር',
+      'english': 'እንግሊዝኛ',
+      'amharic': 'አማርኛ',
+      // Settings page
+      'security': 'ደህንነት',
+      'active_sessions': 'ንቁ ክፍለጊዜዎች',
+      'active_sessions_subtitle': 'ንቁ ክፍለጊዜዎችን ይመልከቱና ያቆጣጠሩ',
+      'session_security': 'የክፍለጊዜ ደህንነት',
+      'session_security_subtitle': 'የደህንነት ቅንብሮችን ያቀናብሩ',
+      'notifications_section': 'ማሳወቂያዎች',
+      'notification_inbox': 'የማሳወቂያ መልዕክት ሳጥን',
+      'notification_inbox_subtitle': 'ማሳወቂያዎችንና ማስታወቂያዎችን ይመልከቱ',
       // Channels page
       'offline_mode': 'ከመስመር ውጭ ሁነታ',
       'showing_cached': 'እስከሚገናኙ ድረስ የተቀመጡ ቻናሎች እየታዩ ናቸው።',
@@ -208,6 +251,24 @@ class LocalizationController extends ChangeNotifier {
       'you_are_offline': 'ከመስመር ውጭ ነዎት',
       'some_actions_offline': 'እስክትገናኙ ድረስ አንዳንድ እርምጃዎች ላይ ሊሰሩ አይችሉም።',
       'coming_soon': 'ለቅርብ ጊዜ',
+      // Profile page
+      'profile_details': 'የመገለጫ ዝርዝር',
+      'first_name': 'የመጀመሪያ ስም',
+      'last_name': 'የአባት ስም',
+      'edit': 'አርትዕ',
+      'cancel': 'ሰርዝ',
+      'save_changes': 'ለውጦቹን አስቀምጥ',
+      'sign_out': 'ዘግተው ውጡ',
+      'danger_zone': 'አደገኛ ክፍል',
+      'delete_account': 'መለያ ሰርዝ',
+      'delete_account_title': 'መለያ ማጥፋት',
+      'delete_account_body':
+          'መለያዎን መሰረዝ የመገለጫዎን መረጃ በፍጹም ያስወግዳል። ይህን ድርጊት መመለስ አይቻልም።',
+      'delete_account_not_implemented':
+          'የመለያ ማጥፋት ገና አልተተገበረም። እባክዎ ከድጋፍ ጋር ይገናኙ።',
+      'profile_load_error': 'የመገለጫ መጫን ችግኝ ተፈጥሯል',
+      'profile_update_success': 'መገለጫዎ ተዘምኗል',
+      'profile_update_error': 'መገለጫዎን ማዘመን አልተሳካም',
     };
     final dict = _lang == AppLanguage.en ? en : am;
     return dict[key] ?? key;

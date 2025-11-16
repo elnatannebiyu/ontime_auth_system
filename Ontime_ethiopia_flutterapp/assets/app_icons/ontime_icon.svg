@@ -1,0 +1,245 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rolex-style watch face">
+  <defs>
+    <!-- Dial gradient (kept similar to your original) -->
+    <linearGradient id="dialGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7B1FA2"/>
+      <stop offset="100%" stop-color="#0288D1"/>
+    </linearGradient>
+
+    <!-- Subtle radial vignette for depth -->
+    <radialGradient id="dialVignette" cx="50%" cy="48%" r="60%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.06)"/>
+      <stop offset="1" stop-color="rgba(0,0,0,0.20)"/>
+    </radialGradient>
+
+    <!-- Gold metal gradient for hands/indices -->
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0" stop-color="#f5e1b3"/>
+      <stop offset="0.45" stop-color="#f0ca6b"/>
+      <stop offset="1" stop-color="#b8862b"/>
+    </linearGradient>
+
+    <!-- Polished steel bezel gradient -->
+    <linearGradient id="bezelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0" stop-color="#f5f6f7"/>
+      <stop offset="0.5" stop-color="#d1d3d6"/>
+      <stop offset="1" stop-color="#f8f9fa"/>
+    </linearGradient>
+
+    <!-- Glass reflection overlay -->
+    <linearGradient id="glassShine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,255,255,0.45)"/>
+      <stop offset="0.35" stop-color="rgba(255,255,255,0.12)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+
+    <!-- Shadow under case -->
+    <filter id="caseShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18" result="b"/>
+      <feOffset in="b" dy="24" result="o"/>
+      <feComponentTransfer in="o">
+        <feFuncA type="linear" slope="0.25"/>
+      </feComponentTransfer>
+      <feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- small lume white for hands -->
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="0.6" />
+    </filter>
+
+    <!-- reusable minute tick (short) -->
+    <g id="tick">
+      <line x1="512" y1="142" x2="512" y2="164" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    </g>
+
+    <!-- reusable hour baton (applied index) -->
+    <g id="hourbaton">
+      <!-- outer gold applied plate -->
+      <rect x="498" y="126" width="28" height="72" rx="8" fill="url(#gold)" />
+      <!-- inner lume -->
+      <rect x="506" y="138" width="16" height="48" rx="4" fill="#ffffff"/>
+    </g>
+
+  </defs>
+
+  <!-- Ground shadow -->
+  <ellipse cx="512" cy="970" rx="260" ry="46" fill="rgba(0,0,0,0.20)"/>
+
+  <!-- Case + bezel group -->
+  <g filter="url(#caseShadow)">
+    <!-- outer case -->
+    <circle cx="512" cy="512" r="460" fill="#efefef"/>
+
+    <!-- bezel ring -->
+    <circle cx="512" cy="512" r="420" fill="url(#bezelGrad)" stroke="#cfcfcf" stroke-width="4"/>
+
+    <!-- bezel inner black insert -->
+    <circle cx="512" cy="512" r="390" fill="#0a0a0a"/>
+
+    <!-- bezel minute markers (white) - using stroke-dash to create fine markers -->
+    <circle cx="512" cy="512" r="372" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="butt"
+      stroke-dasharray="2 8" transform="rotate(-90 512 512)"/>
+    <!-- bezel 12 o'clock triangle -->
+    <polygon points="512,118 526,146 498,146" fill="#ffffff"/>
+  </g>
+
+  <!-- Dial plate -->
+  <g>
+    <!-- thin chapter ring -->
+    <circle cx="512" cy="512" r="356" fill="#050505" opacity="0.06"/>
+
+    <!-- main dial -->
+    <circle cx="512" cy="512" r="340" fill="url(#dialGrad)"/>
+    <!-- subtle vignette for depth -->
+    <circle cx="512" cy="512" r="340" fill="url(#dialVignette)" style="mix-blend-mode:multiply" opacity="0.45"/>
+
+    <!-- Applied hour indices (12 pieces) rotated around center -->
+    <g id="hourGroup">
+      <!-- place 12 applied batons by rotating the hourbaton group -->
+      <use href="#hourbaton" transform="rotate(0 512 512)"/>
+      <use href="#hourbaton" transform="rotate(30 512 512)"/>
+      <use href="#hourbaton" transform="rotate(60 512 512)"/>
+      <use href="#hourbaton" transform="rotate(90 512 512)"/>
+      <use href="#hourbaton" transform="rotate(120 512 512)"/>
+      <use href="#hourbaton" transform="rotate(150 512 512)"/>
+      <use href="#hourbaton" transform="rotate(180 512 512)"/>
+      <use href="#hourbaton" transform="rotate(210 512 512)"/>
+      <use href="#hourbaton" transform="rotate(240 512 512)"/>
+      <use href="#hourbaton" transform="rotate(270 512 512)"/>
+      <use href="#hourbaton" transform="rotate(300 512 512)"/>
+      <use href="#hourbaton" transform="rotate(330 512 512)"/>
+    </g>
+
+    <!-- center pinion highlight -->
+    <circle cx="512" cy="512" r="28" fill="url(#gold)" stroke="#fff" stroke-width="2"/>
+    <circle cx="512" cy="512" r="12" fill="#ffffff"/>
+
+    <!-- minute ticks (60) using <use> for short ticks rotated at 6° increments -->
+    <g id="minuteTicks">
+      <!-- generate 60 ticks -->
+      <use href="#tick" transform="rotate(0 512 512)"/>
+      <use href="#tick" transform="rotate(6 512 512)"/>
+      <use href="#tick" transform="rotate(12 512 512)"/>
+      <use href="#tick" transform="rotate(18 512 512)"/>
+      <use href="#tick" transform="rotate(24 512 512)"/>
+      <use href="#tick" transform="rotate(30 512 512)"/>
+      <use href="#tick" transform="rotate(36 512 512)"/>
+      <use href="#tick" transform="rotate(42 512 512)"/>
+      <use href="#tick" transform="rotate(48 512 512)"/>
+      <use href="#tick" transform="rotate(54 512 512)"/>
+      <use href="#tick" transform="rotate(60 512 512)"/>
+      <use href="#tick" transform="rotate(66 512 512)"/>
+      <use href="#tick" transform="rotate(72 512 512)"/>
+      <use href="#tick" transform="rotate(78 512 512)"/>
+      <use href="#tick" transform="rotate(84 512 512)"/>
+      <use href="#tick" transform="rotate(90 512 512)"/>
+      <use href="#tick" transform="rotate(96 512 512)"/>
+      <use href="#tick" transform="rotate(102 512 512)"/>
+      <use href="#tick" transform="rotate(108 512 512)"/>
+      <use href="#tick" transform="rotate(114 512 512)"/>
+      <use href="#tick" transform="rotate(120 512 512)"/>
+      <use href="#tick" transform="rotate(126 512 512)"/>
+      <use href="#tick" transform="rotate(132 512 512)"/>
+      <use href="#tick" transform="rotate(138 512 512)"/>
+      <use href="#tick" transform="rotate(144 512 512)"/>
+      <use href="#tick" transform="rotate(150 512 512)"/>
+      <use href="#tick" transform="rotate(156 512 512)"/>
+      <use href="#tick" transform="rotate(162 512 512)"/>
+      <use href="#tick" transform="rotate(168 512 512)"/>
+      <use href="#tick" transform="rotate(174 512 512)"/>
+      <use href="#tick" transform="rotate(180 512 512)"/>
+      <use href="#tick" transform="rotate(186 512 512)"/>
+      <use href="#tick" transform="rotate(192 512 512)"/>
+      <use href="#tick" transform="rotate(198 512 512)"/>
+      <use href="#tick" transform="rotate(204 512 512)"/>
+      <use href="#tick" transform="rotate(210 512 512)"/>
+      <use href="#tick" transform="rotate(216 512 512)"/>
+      <use href="#tick" transform="rotate(222 512 512)"/>
+      <use href="#tick" transform="rotate(228 512 512)"/>
+      <use href="#tick" transform="rotate(234 512 512)"/>
+      <use href="#tick" transform="rotate(240 512 512)"/>
+      <use href="#tick" transform="rotate(246 512 512)"/>
+      <use href="#tick" transform="rotate(252 512 512)"/>
+      <use href="#tick" transform="rotate(258 512 512)"/>
+      <use href="#tick" transform="rotate(264 512 512)"/>
+      <use href="#tick" transform="rotate(270 512 512)"/>
+      <use href="#tick" transform="rotate(276 512 512)"/>
+      <use href="#tick" transform="rotate(282 512 512)"/>
+      <use href="#tick" transform="rotate(288 512 512)"/>
+      <use href="#tick" transform="rotate(294 512 512)"/>
+      <use href="#tick" transform="rotate(300 512 512)"/>
+      <use href="#tick" transform="rotate(306 512 512)"/>
+      <use href="#tick" transform="rotate(312 512 512)"/>
+      <use href="#tick" transform="rotate(318 512 512)"/>
+      <use href="#tick" transform="rotate(324 512 512)"/>
+      <use href="#tick" transform="rotate(330 512 512)"/>
+      <use href="#tick" transform="rotate(336 512 512)"/>
+      <use href="#tick" transform="rotate(342 512 512)"/>
+      <use href="#tick" transform="rotate(348 512 512)"/>
+      <use href="#tick" transform="rotate(354 512 512)"/>
+    </g>
+
+    <!-- Hour numbers (tiny, subtle) -->
+    <g font-family="Helvetica, Arial, sans-serif" font-size="18" fill="rgba(255,255,255,0.9)" text-anchor="middle" dominant-baseline="middle">
+      <text x="512" y="190" font-weight="600">12</text>
+      <text x="675" y="275" font-weight="400">1</text>
+      <text x="745" y="420" font-weight="400">2</text>
+      <text x="745" y="605" font-weight="400">3</text>
+      <text x="675" y="745" font-weight="400">4</text>
+      <text x="512" y="815" font-weight="400">6</text>
+      <text x="350" y="745" font-weight="400">8</text>
+      <text x="275" y="605" font-weight="400">9</text>
+      <text x="275" y="420" font-weight="400">10</text>
+      <text x="350" y="275" font-weight="400">11</text>
+    </g>
+
+    <!-- Date window with cyclops -->
+    <g>
+      <!-- small white window -->
+      <rect x="640" y="468" width="86" height="64" rx="6" fill="#ffffff" opacity="0.1" />
+      <!-- date number -->
+      <text x="683" y="507" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#0a0a0a" font-weight="700" text-anchor="middle" dominant-baseline="middle">8</text>
+
+      <!-- cyclops lens (magnifier) -->
+      <ellipse cx="683" cy="506" rx="46" ry="34" fill="none" stroke="rgba(0,0,0,0.06)" stroke-width="2"/>
+      <ellipse cx="683" cy="506" rx="46" ry="34" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+    </g>
+
+    <!-- Hands group (time set to ~8:05 exactly) -->
+    <g>
+      <!-- Hour hand - polished gold with white lume center -->
+      <g transform="rotate(242 512 512)">
+        <path d="M512 512 L522 430 L512 378 L502 430 Z" fill="#fff" transform="translate(0,0) scale(1)"/>
+        <path d="M512 512 L520 430 L512 384 L504 430 Z" fill="url(#gold)" transform="translate(0,0) scale(0.98)"/>
+        <!-- thin outline -->
+        <path d="M512 512 L522 430 L512 378 L502 430 Z" fill="none" stroke="#b0892f" stroke-width="1"/>
+      </g>
+
+      <!-- Minute hand - polished gold with white lume -->
+      <g transform="rotate(30 512 512)">
+        <path d="M512 512 L520 260 L512 220 L504 260 Z" fill="#fff"/>
+        <path d="M512 512 L518 260 L512 228 L506 260 Z" fill="url(#gold)"/>
+        <path d="M512 512 L520 260 L512 220 L504 260 Z" fill="none" stroke="#b0892f" stroke-width="1"/>
+      </g>
+
+
+    </g>
+
+    <!-- small applied dots near edge for applied lume (subtle) -->
+    <g>
+      <circle cx="512" cy="162" r="6" fill="#fff"/>
+      <circle cx="742" cy="342" r="6" fill="#fff"/>
+      <circle cx="742" cy="682" r="6" fill="#fff"/>
+      <circle cx="512" cy="862" r="6" fill="#fff"/>
+      <circle cx="282" cy="682" r="6" fill="#fff"/>
+      <circle cx="282" cy="342" r="6" fill="#fff"/>
+    </g>
+
+
+    <!-- subtle bevel around dial edge -->
+    <circle cx="512" cy="512" r="340" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+    <circle cx="512" cy="512" r="336" fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="2" />
+  </g>
+
+</svg>

@@ -1,6 +1,7 @@
 // ignore_for_file: unused_element
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show SocketException, Platform;
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -249,11 +250,24 @@ class ApiClient {
   void setLastMe(Map<String, dynamic> me) {
     _lastMe = Map<String, dynamic>.from(me);
     _lastMeAt = DateTime.now();
+    try {
+      final encoded = jsonEncode(_lastMe);
+      _secure.write(key: 'last_me', value: encoded);
+      _secure.write(key: 'last_me_at', value: _lastMeAt!.toIso8601String());
+    } catch (_) {}
   }
 
-  Map<String, dynamic>? getFreshMe({Duration ttl = const Duration(seconds: 5)}) {
+  Map<String, dynamic>? getFreshMe(
+      {Duration ttl = const Duration(seconds: 5)}) {
     if (_lastMe == null || _lastMeAt == null) return null;
     if (DateTime.now().difference(_lastMeAt!) > ttl) return null;
+    return Map<String, dynamic>.from(_lastMe!);
+  }
+
+  /// Returns the last known user payload regardless of age.
+  /// Useful for offline/profile screens that want "best effort" data.
+  Map<String, dynamic>? getCachedMe() {
+    if (_lastMe == null) return null;
     return Map<String, dynamic>.from(_lastMe!);
   }
 
@@ -278,9 +292,13 @@ class ApiClient {
     final hadToken = _accessToken != null && _accessToken!.isNotEmpty;
     debugPrint('[ApiClient] Forcing logout: clearing access token and cookies');
     _accessToken = null;
+    _lastMe = null;
+    _lastMeAt = null;
     try {
       await cookieJar.deleteAll();
       await _secure.delete(key: 'access_token');
+      await _secure.delete(key: 'last_me');
+      await _secure.delete(key: 'last_me_at');
     } catch (_) {}
     final cb = _onForceLogout;
     if (cb != null && hadToken) {
@@ -328,6 +346,20 @@ class ApiClient {
       if (stored != null && stored.isNotEmpty) {
         _accessToken = stored;
       }
+      // Restore last known /me payload if present
+      try {
+        final rawMe = await _secure.read(key: 'last_me');
+        final rawMeAt = await _secure.read(key: 'last_me_at');
+        if (rawMe != null && rawMe.isNotEmpty) {
+          final decoded = jsonDecode(rawMe);
+          if (decoded is Map) {
+            _lastMe = Map<String, dynamic>.from(decoded);
+            if (rawMeAt != null && rawMeAt.isNotEmpty) {
+              _lastMeAt = DateTime.tryParse(rawMeAt);
+            }
+          }
+        }
+      } catch (_) {}
       // Apply default tenant from config
       ensureDefaultTenant();
     } catch (e) {

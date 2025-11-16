@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:convert';
 import '../api_client.dart';
 import '../core/widgets/brand_title.dart';
 import '../core/localization/l10n.dart';
 import '../core/cache/channel_cache.dart';
+import '../core/cache/logo_probe_cache.dart';
+import '../core/widgets/offline_banner.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ChannelsPage extends StatefulWidget {
   final String tenantId;
@@ -32,6 +36,9 @@ class _ChannelsPageState extends State<ChannelsPage> {
   // Playlist counts per channel, set when that channel's playlists are fetched
   final Map<String, int> _playlistCounts = {};
   bool _hideEmpty = false;
+  // Logo availability cache for fallback /logo/ URLs per channel slug
+  final Map<String, bool> _logoAvailable = {};
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   // Simple in-memory cache of last successful channels fetch (per app session)
   static List<dynamic> _cachedChannels = const [];
@@ -45,6 +52,18 @@ class _ChannelsPageState extends State<ChannelsPage> {
     } catch (_) {
       return 'en';
     }
+  }
+
+  Future<void> _probeLogo(String slug, String url) async {
+    try {
+      final headers = _authHeadersFor(url);
+      final ok = await LogoProbeCache.instance
+          .ensureAvailable(url, headers: headers ?? const {});
+      if (!mounted) return;
+      setState(() {
+        _logoAvailable[slug] = ok;
+      });
+    } catch (_) {}
   }
 
   String _channelDisplayName(Map<String, dynamic> ch) {
@@ -67,6 +86,25 @@ class _ChannelsPageState extends State<ChannelsPage> {
     // Ensure ApiClient has restored cookies and access token so image headers can be attached
     _initializeClient();
     _primeFromCacheThenLoad();
+    _connSub = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
+      final isOffline =
+          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+      if (!mounted) return;
+      setState(() {
+        _offline = isOffline;
+        if (!isOffline && _channels.isEmpty && !_loading) {
+          _loadChannels(clearCaches: false);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel();
+    super.dispose();
   }
 
   // ---- Channel details modal ----
@@ -255,105 +293,10 @@ class _ChannelsPageState extends State<ChannelsPage> {
   }
 
   Widget _buildOfflineCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final tenant = _client.tenant ?? widget.tenantId;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      color: colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHigh,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(Icons.wifi_off, color: colorScheme.primary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('offline_mode'),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(_t('showing_cached')),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                TextButton.icon(
-                  onPressed:
-                      _loading ? null : () => _loadChannels(clearCaches: false),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(_t('retry')),
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      showDragHandle: true,
-                      builder: (ctx) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_t('connection_details'),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Text('${_t('server')}:'),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                      child: Text(kApiBase,
-                                          style: const TextStyle(
-                                              fontFamily: 'monospace'))),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Text('${_t('tenant')}:'),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: Text(tenant)),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(_t('tip_pull_refresh')),
-                              const SizedBox(height: 8),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  icon: const Icon(Icons.info_outline),
-                  label: Text(_t('details')),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return OfflineBanner(
+      title: _t('you_are_offline'),
+      subtitle: _t('some_actions_offline'),
+      onRetry: _loading ? null : () => _loadChannels(clearCaches: false),
     );
   }
 
@@ -531,6 +474,16 @@ class _ChannelsPageState extends State<ChannelsPage> {
           debugPrint(
               '[ChannelsPage] ch[$i] images=${ch['images']} sources=${ch['sources']} handle=${ch['handle']} yt_handle=${ch['youtube_handle']}');
         }
+      }
+      // Prime logo availability for channels that rely on fallback /logo/ URLs
+      for (final dynamic raw in all) {
+        final ch = raw as Map<String, dynamic>;
+        final slug = (ch['id_slug'] ?? '').toString();
+        if (slug.isEmpty) continue;
+        final primary = _thumbFromMap(ch);
+        if (primary != null && primary.isNotEmpty) continue;
+        final logoUrl = '$kApiBase/api/channels/$slug/logo/';
+        unawaited(_probeLogo(slug, logoUrl));
       }
       // After channels reload, for any channels currently expanded,
       // force-clear and re-fetch their playlists so UI shows fresh data
@@ -763,8 +716,14 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                 final slug = (ch['id_slug'] ?? '').toString();
                                 final title = _channelDisplayName(ch);
                                 String? thumbUrlPrimary = _thumbFromMap(ch);
-                                String thumbUrl = thumbUrlPrimary ??
-                                    '$kApiBase/api/channels/$slug/logo/';
+                                String? thumbUrl = thumbUrlPrimary;
+                                if (thumbUrl == null || thumbUrl.isEmpty) {
+                                  final avail = _logoAvailable[slug];
+                                  if (avail != false) {
+                                    thumbUrl =
+                                        '$kApiBase/api/channels/$slug/logo/';
+                                  }
+                                }
                                 final int? count = _playlistCounts[slug];
                                 final lang = (ch['language'] ?? '').toString();
                                 return InkWell(

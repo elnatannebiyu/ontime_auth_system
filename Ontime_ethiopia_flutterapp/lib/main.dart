@@ -223,7 +223,6 @@ class _MyAppState extends State<MyApp> {
       _showUpdateDialog(ctx, message, storeUrl);
     });
 
-
     // Initialize Firebase Cloud Messaging (mobile only)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FcmManager().initialize(context: _navKey.currentContext);
@@ -341,7 +340,9 @@ class _MyAppState extends State<MyApp> {
             '/session-management': (_) => const SessionManagementPage(),
             '/session-security': (_) => const SessionSecurityPage(),
             '/about': (_) => const AboutPage(),
-            '/profile': (_) => const ProfilePage(),
+            '/profile': (_) => ProfilePage(
+                  localizationController: localizationController,
+                ),
             '/live': (_) => const LivePage(),
             // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
             '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
@@ -396,13 +397,6 @@ class _SplashGateState extends State<SplashGate> {
       if (e.type == DioExceptionType.connectionError ||
           e.error is SocketException) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content:
-                  Text('You appear to be offline. Some actions may not work.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
           Navigator.of(context).pushReplacementNamed('/home');
         }
         return;

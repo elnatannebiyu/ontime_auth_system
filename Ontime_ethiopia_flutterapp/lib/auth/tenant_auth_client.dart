@@ -86,7 +86,9 @@ class AuthApi {
 
   Future<Map<String, dynamic>> me() async {
     final res = await _client.get('/me/');
-    return Map<String, dynamic>.from(res.data as Map);
+    final me = Map<String, dynamic>.from(res.data as Map);
+    _client.setLastMe(me);
+    return me;
   }
 
   Future<Tokens> socialLogin({
@@ -120,7 +122,9 @@ class AuthApi {
 
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
     final res = await _client.put('/me/', data: data);
-    return Map<String, dynamic>.from(res.data as Map);
+    final me = Map<String, dynamic>.from(res.data as Map);
+    _client.setLastMe(me);
+    return me;
   }
 
   Future<void> logout() async {
@@ -129,8 +133,10 @@ class AuthApi {
   }
 
   // ---- Series APIs ----
-  Future<List<Map<String, dynamic>>> seriesShows({Map<String, dynamic>? queryParameters}) async {
-    final res = await _client.get('/series/shows/', queryParameters: queryParameters);
+  Future<List<Map<String, dynamic>>> seriesShows(
+      {Map<String, dynamic>? queryParameters}) async {
+    final res =
+        await _client.get('/series/shows/', queryParameters: queryParameters);
     final data = res.data;
     if (data is List) {
       return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -156,7 +162,8 @@ class AuthApi {
     return <Map<String, dynamic>>[];
   }
 
-  Future<List<Map<String, dynamic>>> seriesSeasonsForShow(String showSlug) async {
+  Future<List<Map<String, dynamic>>> seriesSeasonsForShow(
+      String showSlug) async {
     final res = await _client.get('/series/seasons/', queryParameters: {
       'show': showSlug,
     });
@@ -171,19 +178,42 @@ class AuthApi {
     return <Map<String, dynamic>>[];
   }
 
-  Future<List<Map<String, dynamic>>> seriesEpisodesForSeason(int seasonId) async {
-    final res = await _client.get('/series/episodes/', queryParameters: {
-      'season': seasonId,
-    });
-    final data = res.data;
-    if (data is List) {
-      return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  Future<List<Map<String, dynamic>>> seriesEpisodesForSeason(
+      int seasonId) async {
+    // Fetch all episodes for a season, following DRF-style pagination if present.
+    final List<Map<String, dynamic>> all = [];
+    int page = 1;
+    while (true) {
+      final res = await _client.get(
+        '/series/episodes/',
+        queryParameters: {
+          'season': seasonId,
+          'page': page,
+        },
+      );
+      final data = res.data;
+      List<dynamic> pageItems;
+      if (data is List) {
+        // Unpaginated response: treat as full list and return once.
+        pageItems = data;
+      } else if (data is Map && data['results'] is List) {
+        pageItems = data['results'] as List;
+      } else {
+        break;
+      }
+
+      if (pageItems.isEmpty) {
+        break;
+      }
+      all.addAll(pageItems.map((e) => Map<String, dynamic>.from(e as Map)));
+
+      // If response is not a paginated map with a next page indicator, stop.
+      if (data is! Map || data['next'] == null) {
+        break;
+      }
+      page += 1;
     }
-    if (data is Map && data['results'] is List) {
-      final list = data['results'] as List;
-      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    }
-    return <Map<String, dynamic>>[];
+    return all;
   }
 
   Future<Map<String, dynamic>> seriesEpisodePlay(int episodeId) async {
