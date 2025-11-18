@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Typography, Stack, TextField, Button } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, TextField, Button, MenuItem } from '@mui/material';
 import api from '../services/api';
 
 const AppVersions: React.FC = () => {
@@ -37,7 +37,18 @@ const AppVersions: React.FC = () => {
         <CardContent>
           <Typography variant="h6">Version Check</Typography>
           <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-            <TextField size="small" label="Platform" value={platform} onChange={e=>setPlatform(e.target.value)} />
+            <TextField
+              select
+              size="small"
+              label="Platform"
+              value={platform}
+              onChange={e => setPlatform(e.target.value)}
+              sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="web">web</MenuItem>
+              <MenuItem value="android">android</MenuItem>
+              <MenuItem value="ios">ios</MenuItem>
+            </TextField>
             <TextField size="small" label="Version" value={version} onChange={e=>setVersion(e.target.value)} />
             <Button variant="contained" onClick={doCheck}>Check</Button>
           </Stack>

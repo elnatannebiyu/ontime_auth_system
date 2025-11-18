@@ -95,8 +95,6 @@ const Dashboard: React.FC = () => {
       try {
         const list = Array.isArray(channelsRes.data) ? channelsRes.data : (channelsRes.data?.results || []);
         const first = list[0] || {};
-        // eslint-disable-next-line no-console
-        console.debug('[dashboard] /channels shape', { keys: Object.keys(first || {}), sample: list.slice(0,3) });
         const getActive = (it:any) => {
           if (typeof it?.is_active === 'boolean') return it.is_active;
           if (typeof it?.active === 'boolean') return it.active;
@@ -117,12 +115,6 @@ const Dashboard: React.FC = () => {
       try {
         const list = Array.isArray(sessionsRes.data) ? sessionsRes.data : (sessionsRes.data?.results || []);
         const first = list[0] || {};
-        // eslint-disable-next-line no-console
-        console.debug('[dashboard] /sessions shape', {
-          count: sCount,
-          keys: Object.keys(first || {}),
-          sample: list.slice(0, 3),
-        });
       } catch {}
       // Build 7-day users trend if timestamps available
       try {
@@ -184,8 +176,6 @@ const Dashboard: React.FC = () => {
             const sampled = list.slice(0, 5).map((it:any) => ({
               tsKey: keys.find(k => !!it?.[k]) || 'none',
             }));
-            // eslint-disable-next-line no-console
-            console.debug('[dashboard] sessions ts keys sample', sampled);
           } catch {}
         }
       } catch {}
@@ -399,8 +389,26 @@ const Dashboard: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>Features</Typography>
               {features ? (
-                <Box component="pre" sx={{ p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 12, maxHeight: 180, overflow: 'auto' }}>
-                  {JSON.stringify(features, null, 2)}
+                <Box>
+                  {features.platform && (
+                    <Typography variant="body2">Platform: {String(features.platform)}</Typography>
+                  )}
+                  {features.version && (
+                    <Typography variant="body2">Version: {String(features.version)}</Typography>
+                  )}
+                  {features.user_id && (
+                    <Typography variant="body2">User ID: {String(features.user_id)}</Typography>
+                  )}
+                  {features.features && typeof features.features === 'object' && (
+                    <Typography variant="body2" color="text.secondary">
+                      Features enabled: {Object.keys(features.features).length}
+                    </Typography>
+                  )}
+                  {!features.platform && !features.version && !features.user_id && !features.features && (
+                    <Typography variant="body2" color="text.secondary">
+                      Features data loaded.
+                    </Typography>
+                  )}
                 </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">No features data.</Typography>

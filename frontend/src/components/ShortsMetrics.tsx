@@ -30,7 +30,11 @@ const ShortsMetrics: React.FC = () => {
     load();
   }, []);
 
-  const metricsPretty = data ? JSON.stringify(data.metrics ?? {}, null, 2) : '';
+  const fmtGb = (bytes: number | undefined | null) => {
+    if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return null;
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)} GB`;
+  };
 
   return (
     <Box>
@@ -58,10 +62,56 @@ const ShortsMetrics: React.FC = () => {
                 </Typography>
               </Box>
               <Box>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>Raw Metrics JSON</Typography>
-                <Box component="pre" sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
-                  {metricsPretty}
-                </Box>
+                <Typography variant="subtitle1" sx={{ mb: 1 }}>Storage & Job Metrics</Typography>
+                {data.metrics ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {data.metrics.ts && (
+                      <Typography variant="body2" color="text.secondary">
+                        Last updated: {String(data.metrics.ts)}
+                      </Typography>
+                    )}
+                    {data.metrics.counts && (
+                      <Typography variant="body2" color="text.secondary">
+                        READY shorts: {String(data.metrics.counts.ready ?? 0)} | FAILED: {String(data.metrics.counts.failed ?? 0)}
+                      </Typography>
+                    )}
+                    {fmtGb(data.metrics.used_bytes) && (
+                      <Typography variant="body2" color="text.secondary">
+                        Used storage: {fmtGb(data.metrics.used_bytes)}
+                      </Typography>
+                    )}
+                    {fmtGb(data.metrics.cap_soft) && (
+                      <Typography variant="body2" color="text.secondary">
+                        Soft capacity: {fmtGb(data.metrics.cap_soft)}
+                      </Typography>
+                    )}
+                    {fmtGb(data.metrics.cap_hard) && (
+                      <Typography variant="body2" color="text.secondary">
+                        Hard capacity: {fmtGb(data.metrics.cap_hard)}
+                      </Typography>
+                    )}
+                    {typeof data.metrics.pct_soft === 'number' && (
+                      <Typography variant="body2" color="text.secondary">
+                        Usage vs soft cap: {String(data.metrics.pct_soft)}%
+                      </Typography>
+                    )}
+                    {typeof data.metrics.pct_hard === 'number' && (
+                      <Typography variant="body2" color="text.secondary">
+                        Usage vs hard cap: {String(data.metrics.pct_hard)}%
+                      </Typography>
+                    )}
+                    {!data.metrics.ts && !data.metrics.counts &&
+                      typeof data.metrics.used_bytes === 'undefined' &&
+                      typeof data.metrics.cap_soft === 'undefined' &&
+                      typeof data.metrics.cap_hard === 'undefined' && (
+                        <Typography variant="body2" color="text.secondary">
+                          Metrics loaded.
+                        </Typography>
+                      )}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">No metrics payload.</Typography>
+                )}
               </Box>
             </Box>
           )}
