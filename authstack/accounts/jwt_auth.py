@@ -33,10 +33,12 @@ class TokenVersionMixin:
     
     def validate(self, attrs):
         # First, validate credentials. If invalid, provide a more specific error
-        # when the account exists but has no usable password (i.e., social-only).
+        # when the account exists but has no usable password (i.e., social-only),
+        # and otherwise normalize the message so clients always see a generic
+        # "invalid username and password" string instead of SimpleJWT defaults.
         try:
             data = super().validate(attrs)
-        except AuthenticationFailed:
+        except AuthenticationFailed as exc:
             username = attrs.get('username') or ''
             # Look up user case-insensitively by username or email
             user = (User.objects.filter(username__iexact=username).first()
@@ -44,8 +46,8 @@ class TokenVersionMixin:
             if user is not None and not user.has_usable_password():
                 # Distinct signal for social-only accounts
                 raise AuthenticationFailed('password_auth_not_set')
-            # Otherwise propagate the original authentication failure
-            raise
+            # For all other credential failures, return a consistent generic message
+            raise AuthenticationFailed('invalid username and password') from exc
         
         # Check if user has token_version attribute
         if hasattr(self.user, 'token_version'):
