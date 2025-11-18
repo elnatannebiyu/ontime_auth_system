@@ -271,7 +271,7 @@ SWAGGER_SETTINGS = {
 # Console logging (enable DEBUG for common.tenancy to trace tenant resolution)
 # Django-axes configuration for brute force protection
 AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
-AXES_COOLOFF_TIME = 1  # Cooloff period in hours
+AXES_COOLOFF_TIME = 5 / 60  # Cooloff period in hours
 AXES_LOCKOUT_PARAMETERS = [[ "ip_address"]]  # Lock by username+IP combo
 AXES_RESET_ON_SUCCESS = True
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
