@@ -116,6 +116,17 @@ class TokenObtainPairWithCookieView(TokenObtainPairView):
                 {"detail": "Password-based login is disabled.", "error": "password_auth_disabled"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        # If django-ratelimit has flagged this request as limited, return a clear 429.
+        # This protects against brute-force attempts at the view layer in addition to DRF throttling.
+        try:
+            if getattr(request, "limited", False):
+                return Response(
+                    {"detail": "Too many login attempts from this IP. Please wait a few minutes before trying again."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+        except Exception:
+            # If anything goes wrong while checking ratelimit, fall through to normal handling.
+            pass
         res = super().post(request, *args, **kwargs)
         if res.status_code == 200 and "refresh" in res.data:
             refresh = res.data.pop("refresh")

@@ -14,16 +14,52 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [failedCount, setFailedCount] = useState(0);
+  const [lockUntil, setLockUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const LOCK_KEY = 'auth:loginLockUntil';
+  const FAIL_KEY = 'auth:loginFailCount';
+  const MAX_ATTEMPTS = 5;
+  const LOCK_DURATION_MS = 5 * 60 * 1000;
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('auth:lastUser');
       if (saved) setUsername(saved);
+      const rawLock = localStorage.getItem(LOCK_KEY);
+      const rawFail = localStorage.getItem(FAIL_KEY);
+      if (rawFail) setFailedCount(Number(rawFail) || 0);
+      if (rawLock) {
+        const ts = Number(rawLock) || 0;
+        if (ts > Date.now()) setLockUntil(ts);
+        else localStorage.removeItem(LOCK_KEY);
+      }
     } catch {}
   }, []);
 
+  useEffect(() => {
+    if (!lockUntil) return;
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+      if (lockUntil <= Date.now()) {
+        setLockUntil(null);
+        setFailedCount(0);
+        try {
+          localStorage.removeItem(LOCK_KEY);
+          localStorage.removeItem(FAIL_KEY);
+        } catch {}
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [lockUntil]);
+
+  const remainingLockSeconds = lockUntil ? Math.max(0, Math.ceil((lockUntil - now) / 1000)) : 0;
+  const isLocked = !!lockUntil && remainingLockSeconds > 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
     setError('');
     setLoading(true);
     try {
@@ -31,10 +67,38 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       if (remember) {
         try { localStorage.setItem('auth:lastUser', username); } catch {}
       }
+      try {
+        localStorage.removeItem(LOCK_KEY);
+        localStorage.removeItem(FAIL_KEY);
+      } catch {}
+      setFailedCount(0);
+      setLockUntil(null);
       onLogin();
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Invalid credentials');
+      let message = err?.response?.data?.detail || 'Invalid credentials';
+      const status = err?.response?.status;
+
+      if (status === 429) {
+        message = typeof message === 'string' ? message : 'Too many attempts, please try again later.';
+      } else {
+        const nextFailed = failedCount + 1;
+        setFailedCount(nextFailed);
+        try { localStorage.setItem(FAIL_KEY, String(nextFailed)); } catch {}
+        if (nextFailed >= MAX_ATTEMPTS) {
+          const until = Date.now() + LOCK_DURATION_MS;
+          setLockUntil(until);
+          try { localStorage.setItem(LOCK_KEY, String(until)); } catch {}
+          message = `Too many failed attempts. Please wait a few minutes before trying again.`;
+        } else {
+          const remaining = MAX_ATTEMPTS - nextFailed;
+          if (remaining <= 2) {
+            message = `${message} (${remaining} attempt${remaining === 1 ? '' : 's'} remaining before temporary lockout.)`;
+          }
+        }
+      }
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -85,6 +149,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
         )}
 
+        {isLocked && (
+          <div className="banner warning" role="status">
+            <span className="banner-text">Login temporarily locked due to multiple failed attempts. Try again in {remainingLockSeconds} seconds.</span>
+          </div>
+        )}
+
         <form className="form" onSubmit={handleSubmit} noValidate>
           <div className="field">
             <label htmlFor="email">Email</label>
@@ -92,7 +162,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <span className="leading-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="none" stroke="currentColor"/><path d="M22 6l-10 7L2 6" fill="none" stroke="currentColor"/></svg>
               </span>
-              <input id="email" type="email" value={username} onChange={(e) => setUsername(e.target.value)} inputMode="email" autoComplete="email" placeholder="you@company.com" required disabled={loading} />
+              <input id="email" type="email" value={username} onChange={(e) => setUsername(e.target.value)} inputMode="email" autoComplete="email" placeholder="you@company.com" required disabled={loading || isLocked} />
             </div>
           </div>
 
@@ -102,7 +172,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <span className="leading-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2" fill="none" stroke="currentColor"/><path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor"/></svg>
               </span>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" required disabled={loading} />
+              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" required disabled={loading || isLocked} />
             </div>
           </div>
 
@@ -114,7 +184,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <a href="#" className="link" onClick={(e) => { e.preventDefault(); /* TODO: route to forgot */ }}>Forgot password?</a>
           </div>
 
-          <button className="btn primary w-full" disabled={loading} aria-busy={loading}>
+          <button className="btn primary w-full" disabled={loading || isLocked} aria-busy={loading}>
             <span>{loading ? 'Signing in…' : 'Sign in'}</span>
           </button>
         </form>

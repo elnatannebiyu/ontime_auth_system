@@ -55,6 +55,59 @@ function LogoutWatcher() {
   );
 }
 
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+const LAST_ACTIVE_KEY = 'admin_fe_lastActive';
+
+function InactivityWatcher() {
+  useEffect(() => {
+    const updateLastActive = () => {
+      if (!getAccessToken() || isLoggedOut()) return;
+      try {
+        localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+      } catch {}
+    };
+
+    const events: (keyof WindowEventMap)[] = ['click', 'keydown', 'mousemove', 'scroll', 'focus'];
+    events.forEach((evt) => window.addEventListener(evt, updateLastActive));
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LAST_ACTIVE_KEY && e.newValue) {
+        // No local state to update; presence of this handler keeps effect subscribed
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    updateLastActive();
+
+    const id = window.setInterval(async () => {
+      if (!getAccessToken() || isLoggedOut()) return;
+      let last = 0;
+      try {
+        const raw = localStorage.getItem(LAST_ACTIVE_KEY);
+        if (raw) last = Number(raw) || 0;
+      } catch {}
+      if (!last) {
+        try { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())); } catch {}
+        return;
+      }
+      const inactiveFor = Date.now() - last;
+      if (inactiveFor >= INACTIVITY_LIMIT_MS) {
+        try {
+          await apiLogout();
+        } catch {}
+      }
+    }, 30000);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, updateLastActive));
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  return null;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { mode, toggle } = useThemeMode();
   const navigate = useNavigate2();
@@ -158,6 +211,7 @@ function App() {
     <AppThemeProvider>
       <Router>
         <LogoutWatcher />
+        <InactivityWatcher />
         <Routes>
           <Route path="/login" element={ isAuthenticated && !isLoggedOut() ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} /> } />
           <Route path="/dashboard" element={<RequireAdmin><Shell><Dashboard /></Shell></RequireAdmin>} />
