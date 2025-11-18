@@ -110,10 +110,6 @@ const Dashboard: React.FC = () => {
           setChannelsInactive(i);
         }
       } catch {}
-      // Dev logging to inspect sessions payload shape
-      try {
-        const list = Array.isArray(sessionsRes.data) ? sessionsRes.data : (sessionsRes.data?.results || []);
-      } catch {}
       // Build 7-day users trend if timestamps available
       try {
         const list = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.results || []);
