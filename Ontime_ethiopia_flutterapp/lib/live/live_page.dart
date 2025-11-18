@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously, unnecessary_brace_in_string_interps, control_flow_in_finally
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -98,10 +100,11 @@ class _LivePageState extends State<LivePage>
         });
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
         });
+      }
     }
   }
 
@@ -505,8 +508,9 @@ class _TvTabState extends State<_TvTab>
   @override
   Widget build(BuildContext context) {
     super.build(context); // for AutomaticKeepAliveClientMixin
-    if (_loading && _items.isEmpty)
+    if (_loading && _items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
+    }
 
     final size = MediaQuery.of(context).size;
     final cross = size.width > 720 ? 3 : (size.width > 480 ? 2 : 1);
@@ -559,8 +563,9 @@ class _TvTabState extends State<_TvTab>
                   crossAxisSpacing: 12),
               itemCount: _items.length + (_hasNext ? 1 : 0),
               itemBuilder: (context, i) {
-                if (_hasNext && i == _items.length)
+                if (_hasNext && i == _items.length) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final m = _items[i];
                 final title = (m['title'] ??
                         m['channel_name'] ??

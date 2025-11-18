@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
@@ -163,10 +165,11 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
         final cur = TvController.instance.playbackUrl;
         if (cur != null && cur.isNotEmpty) {
           final match = _variantOptions.where((v) => v.url == cur).toList();
-          if (match.isNotEmpty)
+          if (match.isNotEmpty) {
             _currentQuality = match.first.label;
-          else
+          } else {
             _currentQuality = 'Auto';
+          }
         }
       } catch (_) {}
     }
@@ -446,8 +449,9 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
                                                   size: 28),
                                           frameBuilder: (context, child, frame,
                                               wasSynchronouslyLoaded) {
-                                            if (wasSynchronouslyLoaded)
+                                            if (wasSynchronouslyLoaded) {
                                               return child;
+                                            }
                                             return AnimatedOpacity(
                                                 opacity:
                                                     frame == null ? 0.0 : 1.0,
@@ -515,13 +519,13 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
                                     Chip(
                                         avatar: const Icon(Icons.headphones,
                                             size: 16),
-                                        label: Text(
-                                            'Listeners: ${_listenerCount}')),
+                                        label:
+                                            Text('Listeners: $_listenerCount')),
                                   if (_totalListens != null)
                                     Chip(
                                         avatar: const Icon(Icons.equalizer,
                                             size: 16),
-                                        label: Text('Total: ${_totalListens}')),
+                                        label: Text('Total: $_totalListens')),
                                   if (_variantChips.isNotEmpty)
                                     Chip(
                                         avatar: const Icon(Icons.high_quality,
@@ -640,10 +644,11 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
       _qualityToastTimer?.cancel();
     } catch (_) {}
     _qualityToastTimer = Timer(const Duration(seconds: 1), () {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _qualityToast = null;
         });
+      }
     });
   }
 
@@ -659,10 +664,11 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
       _controlsTimer?.cancel();
     } catch (_) {}
     _controlsTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _showControls = false;
         });
+      }
     });
   }
 

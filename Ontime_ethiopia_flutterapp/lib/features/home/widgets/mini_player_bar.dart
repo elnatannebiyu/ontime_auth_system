@@ -1,10 +1,13 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class MiniPlayerBar extends StatelessWidget {
   final VoidCallback onClose;
   final String nowPlayingLabel;
-  const MiniPlayerBar({super.key, required this.onClose, required this.nowPlayingLabel});
+  const MiniPlayerBar(
+      {super.key, required this.onClose, required this.nowPlayingLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,10 @@ class MiniPlayerBar extends StatelessWidget {
                   color: Theme.of(context).colorScheme.surface.withOpacity(0.6),
                   border: Border(
                     top: BorderSide(
-                      color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outlineVariant
+                          .withOpacity(0.5),
                       width: 0.8,
                     ),
                   ),
@@ -59,7 +65,10 @@ class MiniPlayerBar extends StatelessWidget {
                         nowPlayingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     IconButton(

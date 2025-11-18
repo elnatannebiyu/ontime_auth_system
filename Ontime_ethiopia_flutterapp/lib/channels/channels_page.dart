@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'dart:async' show StreamSubscription, unawaited;
-import 'dart:convert';
 import '../api_client.dart';
 import '../core/widgets/brand_title.dart';
 import '../core/localization/l10n.dart';
@@ -30,7 +29,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
   final Map<String, List<dynamic>> _videosByPlaylist = {};
   // In-flight fetch caches to avoid duplicate network calls on rebuilds
   final Map<String, Future<void>> _playlistsFetching = {};
-  final Map<String, Future<void>> _videosFetching = {};
   final Set<String> _expandedChannels = <String>{};
   bool _offline = false;
   // Playlist counts per channel, set when that channel's playlists are fetched
@@ -108,45 +106,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
   }
 
   // ---- Channel details modal ----
-  String _fmt(dynamic v) {
-    if (v == null) return '—';
-    if (v is String) return v.isEmpty ? '—' : v;
-    if (v is bool) return v.toString();
-    if (v is num) return v.toString();
-    if (v is List) {
-      if (v.isEmpty) return '[]';
-      return '[${v.map((e) => e is Map ? e.toString() : e.toString()).join(', ')}]';
-    }
-    if (v is Map) {
-      return v.isEmpty ? '{}' : v.toString();
-    }
-    return v.toString();
-  }
-
-  Widget _kv(String label, dynamic value) {
-    final val = _fmt(value);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 150,
-            child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              val,
-              style: const TextStyle(fontFamily: 'monospace'),
-              softWrap: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showChannelPlaylists(String channelSlug, Map<String, dynamic> ch) {
     final playlists = _playlistsByChannel[channelSlug] ?? const [];
@@ -205,86 +164,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
                     ),
                   ),
               ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _logChannelDetails(Map<String, dynamic> ch) {
-    if (!kDebugMode) return;
-    final slug = (ch['id_slug'] ?? '').toString();
-    final pretty = const JsonEncoder.withIndent('  ').convert(ch);
-    const max = 800;
-    int parts = (pretty.length / max).ceil();
-    if (parts == 0) parts = 1;
-    for (int i = 0; i < parts; i++) {
-      final start = i * max;
-      final end = start + max > pretty.length ? pretty.length : start + max;
-      debugPrint(
-          '[ChannelsPage] channel:$slug part ${i + 1}/$parts\n${pretty.substring(start, end)}');
-    }
-  }
-
-  void _showChannelDetails(Map<String, dynamic> ch) {
-    _logChannelDetails(ch);
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                          child: Text(_t('channel_details'),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16))),
-                      IconButton(
-                        tooltip: _t('close'),
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _kv(_t('tenant_label'),
-                      ch['tenant'] ?? _client.tenant ?? widget.tenantId),
-                  _kv(_t('id_slug'), ch['id_slug']),
-                  _kv(_t('default_locale'), ch['default_locale']),
-                  _kv(_t('name_am'), ch['name_am']),
-                  _kv(_t('name_en'), ch['name_en']),
-                  _kv(_t('aliases'), ch['aliases']),
-                  _kv(_t('youtube_handle'), ch['youtube_handle']),
-                  _kv(_t('channel_handle'), ch['handle']),
-                  _kv(_t('youtube_channel_id'), ch['youtube_channel_id']),
-                  _kv(_t('resolved_channel_id'), ch['resolved_channel_id']),
-                  _kv(_t('images'), ch['images']),
-                  _kv(_t('sources'), ch['sources']),
-                  _kv(_t('genres'), ch['genres']),
-                  _kv(_t('language_label'), ch['language']),
-                  _kv(_t('country'), ch['country']),
-                  _kv(_t('tags'), ch['tags']),
-                  _kv(_t('is_active'), ch['is_active']),
-                  _kv(_t('platforms'), ch['platforms']),
-                  _kv(_t('drm_required'), ch['drm_required']),
-                  _kv(_t('sort_order'), ch['sort_order']),
-                  _kv(_t('featured'), ch['featured']),
-                  _kv(_t('rights'), ch['rights']),
-                  _kv(_t('audit'), ch['audit']),
-                  _kv(_t('uid'), ch['uid']),
-                  _kv(_t('created_at'), ch['created_at']),
-                  _kv(_t('updated_at'), ch['updated_at']),
-                  const SizedBox(height: 12),
-                ],
-              ),
             ),
           ),
         );
@@ -584,60 +463,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
             '[ChannelsPage] Failed to load playlists for $channelSlug: $e');
       }
       // Suppress SnackBar to avoid duplicate offline messaging; rely on offline UI
-    }
-  }
-
-  Future<void> _ensureVideos(String playlistId) async {
-    if (_videosByPlaylist.containsKey(playlistId)) return;
-    if (_videosFetching.containsKey(playlistId)) {
-      return _videosFetching[playlistId]!;
-    }
-    final future = _doFetchVideos(playlistId);
-    _videosFetching[playlistId] = future;
-    try {
-      await future;
-    } finally {
-      _videosFetching.remove(playlistId);
-    }
-  }
-
-  Future<void> _doFetchVideos(String playlistId) async {
-    if (kDebugMode) {
-      debugPrint('[ChannelsPage] Fetching videos for playlist=$playlistId');
-    }
-    try {
-      final res = await _client.get('/channels/videos/', queryParameters: {
-        'playlist': playlistId,
-      });
-      final raw = res.data;
-      List<dynamic> data;
-      if (raw is Map && raw['results'] is List) {
-        data = List<dynamic>.from(raw['results'] as List);
-      } else if (raw is List) {
-        data = raw;
-      } else {
-        data = const [];
-      }
-      setState(() {
-        _videosByPlaylist[playlistId] = data;
-      });
-      if (kDebugMode) {
-        debugPrint(
-            '[ChannelsPage] Videos loaded for $playlistId: count=${data.length}');
-        final int sample = data.length < 3 ? data.length : 3;
-        for (int i = 0; i < sample; i++) {
-          final v = data[i] as Map<String, dynamic>;
-          debugPrint(
-              '[ChannelsPage] v[$i] video_id=${v['video_id']} title=${v['title']} thumbs=${v['thumbnails'] ?? v['thumbnail'] ?? v['image']}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[ChannelsPage] Failed to load videos for $playlistId: $e');
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load videos')),
-      );
     }
   }
 

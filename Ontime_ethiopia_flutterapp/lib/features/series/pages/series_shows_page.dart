@@ -1,8 +1,9 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../auth/tenant_auth_client.dart';
 import '../series_service.dart';
 import 'series_seasons_page.dart';
@@ -37,7 +38,6 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
   List<Map<String, dynamic>> _categoryShows = const [];
   bool _navigating = false; // guard against multiple rapid taps
   bool _offline = false;
-  StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   LocalizationController get _lc =>
       widget.localizationController ?? LocalizationController();
@@ -48,19 +48,6 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
     super.initState();
     _service = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _load();
-    _connSub = Connectivity()
-        .onConnectivityChanged
-        .listen((List<ConnectivityResult> results) {
-      final isOffline =
-          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
-      if (!mounted) return;
-      setState(() {
-        _offline = isOffline;
-        if (!isOffline && _allShows.isEmpty && !_loading) {
-          _load();
-        }
-      });
-    });
   }
 
   Future<void> _load() async {
@@ -78,10 +65,11 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
       });
       if (_selectedCategorySlug != null) {
         final list = await _service.getShowsByCategory(_selectedCategorySlug!);
-        if (mounted)
+        if (mounted) {
           setState(() {
             _categoryShows = list;
           });
+        }
       }
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.connectionError) {
@@ -142,10 +130,11 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
         const SnackBar(content: Text('Failed to open show')),
       );
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() => _navigating = false);
-      else
+      } else {
         _navigating = false;
+      }
     }
   }
 

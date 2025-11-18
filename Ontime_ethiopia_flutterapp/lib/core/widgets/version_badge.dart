@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -13,7 +15,11 @@ class VersionBadge extends StatelessWidget {
         final info = snap.data!;
         final text = 'v${info.version}+${info.buildNumber}';
         final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
+              color: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.color
+                  ?.withOpacity(0.6),
             );
         return Text(text, textAlign: TextAlign.center, style: style);
       },

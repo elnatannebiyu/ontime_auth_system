@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 class HeroCarousel extends StatefulWidget {
@@ -45,14 +47,16 @@ class _HeroCarouselState extends State<HeroCarousel> {
             itemCount: widget.itemCount,
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (context, i) {
-              final page = _controller.page ?? _controller.initialPage.toDouble();
+              final page =
+                  _controller.page ?? _controller.initialPage.toDouble();
               final isActive = (page - i).abs() < .5;
               return AnimatedScale(
                 duration: const Duration(milliseconds: 200),
                 scale: isActive ? 1 : .95,
                 child: Card(
                   clipBehavior: Clip.antiAlias,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
                   child: Stack(
                     children: [
                       Positioned.fill(
@@ -76,9 +80,15 @@ class _HeroCarouselState extends State<HeroCarousel> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(999)),
-                              child: Text(widget.liveLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(999)),
+                              child: Text(widget.liveLabel,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900)),
                             ),
                             const SizedBox(width: 8),
                             const Expanded(
@@ -86,7 +96,9 @@ class _HeroCarouselState extends State<HeroCarousel> {
                                 'Prime Story — Feature',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800),
                               ),
                             ),
                             const SizedBox(width: 12),

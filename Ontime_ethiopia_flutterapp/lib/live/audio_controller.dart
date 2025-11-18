@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_final_fields
+
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
@@ -40,7 +42,8 @@ class AudioController extends ChangeNotifier {
     debugPrint('[AudioController] fetching radio detail for $slug');
     final res = await ApiClient().get('/live/radio/$slug/');
     final m = Map<String, dynamic>.from(res.data as Map);
-    final primary = (m['stream_url'] ?? m['url_resolved'] ?? m['url'] ?? '').toString();
+    final primary =
+        (m['stream_url'] ?? m['url_resolved'] ?? m['url'] ?? '').toString();
     final backup = (m['backup_stream_url'] ?? '').toString();
     final name = (m['name'] ?? slug).toString();
     if (primary.isEmpty && backup.isEmpty) {
@@ -48,7 +51,7 @@ class AudioController extends ChangeNotifier {
     }
     _currentTitle = name;
     // Try primary then backup with timeouts
-    Future<void> _setAndPlay(String u) async {
+    Future<void> setAndPlay(String u) async {
       _currentUrl = u;
       try {
         final t0 = DateTime.now();
@@ -71,7 +74,8 @@ class AudioController extends ChangeNotifier {
         }
         final src = AudioSource.uri(Uri.parse(u), headers: hdrs);
         await _player.setAudioSource(src).timeout(const Duration(seconds: 8));
-        debugPrint('[AudioController] setAudioSource OK in ${DateTime.now().difference(t0).inMilliseconds}ms');
+        debugPrint(
+            '[AudioController] setAudioSource OK in ${DateTime.now().difference(t0).inMilliseconds}ms');
         // Make the MiniAudioBar appear as soon as we have a valid source
         notifyListeners();
       } on TimeoutException {
@@ -85,26 +89,33 @@ class AudioController extends ChangeNotifier {
       debugPrint('[AudioController] play()');
       await _player.play();
       var ok = false;
-      for (int i = 0; i < 14; i++) { // ~7s window
+      for (int i = 0; i < 14; i++) {
+        // ~7s window
         final st = _player.playerState;
-        if (st.playing || st.processingState == ProcessingState.ready || st.processingState == ProcessingState.buffering) {
-          ok = true; break;
+        if (st.playing ||
+            st.processingState == ProcessingState.ready ||
+            st.processingState == ProcessingState.buffering) {
+          ok = true;
+          break;
         }
         await Future.delayed(const Duration(milliseconds: 500));
       }
       if (ok || _player.playing) {
-        debugPrint('[AudioController] play() OK in ${DateTime.now().difference(t1).inMilliseconds}ms');
+        debugPrint(
+            '[AudioController] play() OK in ${DateTime.now().difference(t1).inMilliseconds}ms');
       } else {
         debugPrint('[AudioController] play() TIMEOUT');
         throw TimeoutException('play did not start in time');
       }
     }
+
     // Build candidate URLs with common Icecast/Shoutcast variants
-    List<String> _candidates() {
+    List<String> candidates0() {
       String norm(String s) => s.trim();
       final cands = <String>[];
       // Always try backend proxy first; it normalizes headers/Range and avoids client quirks
-      final baseApi = kApiBase; // e.g., http://localhost:8000 or http://192.168.x.x:8000
+      final baseApi =
+          kApiBase; // e.g., http://localhost:8000 or http://192.168.x.x:8000
       final t = ApiClient().tenant ?? 'ontime';
       cands.add('$baseApi/api/live/radio/$slug/stream/?tenant=$t');
       if (primary.isNotEmpty) cands.add(norm(primary));
@@ -115,7 +126,8 @@ class AudioController extends ChangeNotifier {
       if (!tokenHost) {
         for (final base in [primary, backup]) {
           if (base.isEmpty) continue;
-          final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+          final b =
+              base.endsWith('/') ? base.substring(0, base.length - 1) : base;
           cands.add('$b/live');
           cands.add('$b/live.mp3');
           cands.add('$b/stream');
@@ -128,7 +140,8 @@ class AudioController extends ChangeNotifier {
         // Tokenized streams usually only work with exact URL; try minimal safe suffixes
         for (final base in [primary, backup]) {
           if (base.isEmpty) continue;
-          final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+          final b =
+              base.endsWith('/') ? base.substring(0, base.length - 1) : base;
           cands.add('$b/live');
           cands.add('$b/live.mp3');
         }
@@ -143,23 +156,28 @@ class AudioController extends ChangeNotifier {
       return out;
     }
 
-    final candidates = _candidates();
+    final candidates = candidates0();
     Exception? lastErr;
     for (var i = 0; i < candidates.length; i++) {
       final u = candidates[i];
       try {
-        debugPrint('[AudioController] attempt ${i + 1}/${candidates.length}: $u');
-        await _setAndPlay(u);
+        debugPrint(
+            '[AudioController] attempt ${i + 1}/${candidates.length}: $u');
+        await setAndPlay(u);
         lastErr = null;
         break;
       } on TimeoutException catch (e) {
         lastErr = e;
-        try { await _player.stop(); } catch (_) {}
+        try {
+          await _player.stop();
+        } catch (_) {}
         debugPrint('[AudioController] attempt ${i + 1} TIMEOUT');
       } catch (e) {
         // Other errors: proceed to next
         lastErr = Exception(e.toString());
-        try { await _player.stop(); } catch (_) {}
+        try {
+          await _player.stop();
+        } catch (_) {}
         debugPrint('[AudioController] attempt ${i + 1} failed: $e');
       }
     }
@@ -220,8 +238,12 @@ class AudioController extends ChangeNotifier {
 
   @override
   void dispose() {
-    try { _psSub?.cancel(); } catch (_) {}
-    try { _evSub?.cancel(); } catch (_) {}
+    try {
+      _psSub?.cancel();
+    } catch (_) {}
+    try {
+      _evSub?.cancel();
+    } catch (_) {}
     _cancelHeartbeat();
     _player.dispose();
     super.dispose();
@@ -234,11 +256,12 @@ class AudioController extends ChangeNotifier {
     final a = r.nextInt(1 << 32);
     final b = r.nextInt(1 << 32);
     return 'r${t.toRadixString(36)}-${a.toRadixString(36)}${b.toRadixString(36)}';
-    }
+  }
 
   Future<void> _sendStart(String slug) async {
     try {
-      debugPrint('[AudioController] listen START -> $slug session=$_listenSessionId');
+      debugPrint(
+          '[AudioController] listen START -> $slug session=$_listenSessionId');
       await ApiClient().post('/live/radio/$slug/listen/start/', data: {
         'session_id': _listenSessionId,
       });
@@ -247,7 +270,8 @@ class AudioController extends ChangeNotifier {
 
   Future<void> _sendHeartbeat(String slug) async {
     try {
-      debugPrint('[AudioController] listen HEARTBEAT -> $slug session=$_listenSessionId');
+      debugPrint(
+          '[AudioController] listen HEARTBEAT -> $slug session=$_listenSessionId');
       await ApiClient().post('/live/radio/$slug/listen/heartbeat/', data: {
         'session_id': _listenSessionId,
       });
@@ -256,7 +280,8 @@ class AudioController extends ChangeNotifier {
 
   Future<void> _sendStop(String slug) async {
     try {
-      debugPrint('[AudioController] listen STOP -> $slug session=$_listenSessionId');
+      debugPrint(
+          '[AudioController] listen STOP -> $slug session=$_listenSessionId');
       await ApiClient().post('/live/radio/$slug/listen/stop/', data: {
         'session_id': _listenSessionId,
       });
@@ -274,28 +299,37 @@ class AudioController extends ChangeNotifier {
   }
 
   void _cancelHeartbeat() {
-    try { _hbTimer?.cancel(); } catch (_) {}
+    try {
+      _hbTimer?.cancel();
+    } catch (_) {}
     _hbTimer = null;
   }
 
   void _attachPlayerLogging() {
     _detachPlayerLogging();
     _psSub = _player.playerStateStream.listen((s) {
-      debugPrint('[AudioController] state: playing=${s.playing} processing=${s.processingState}');
+      debugPrint(
+          '[AudioController] state: playing=${s.playing} processing=${s.processingState}');
     }, onError: (e) {
       debugPrint('[AudioController] playerStateStream error: $e');
     });
     _evSub = _player.playbackEventStream.listen((e) {
-      debugPrint('[AudioController] event: buf=${e.bufferedPosition} dur=${e.duration}');
+      debugPrint(
+          '[AudioController] event: buf=${e.bufferedPosition} dur=${e.duration}');
     }, onError: (e) {
       debugPrint('[AudioController] playbackEventStream error: $e');
     });
   }
 
   void _detachPlayerLogging() {
-    try { _psSub?.cancel(); } catch (_) {}
-    try { _evSub?.cancel(); } catch (_) {}
-    _psSub = null; _evSub = null;
+    try {
+      _psSub?.cancel();
+    } catch (_) {}
+    try {
+      _evSub?.cancel();
+    } catch (_) {}
+    _psSub = null;
+    _evSub = null;
   }
 }
 
@@ -354,7 +388,8 @@ class _MiniAudioBarState extends State<MiniAudioBar> {
                   final playing = snap.data?.playing ?? ctrl.player.playing;
                   return IconButton(
                     tooltip: playing ? 'Pause' : 'Play',
-                    icon: Icon(playing ? Icons.pause_circle : Icons.play_circle),
+                    icon:
+                        Icon(playing ? Icons.pause_circle : Icons.play_circle),
                     iconSize: 30,
                     onPressed: () async {
                       if (playing) {

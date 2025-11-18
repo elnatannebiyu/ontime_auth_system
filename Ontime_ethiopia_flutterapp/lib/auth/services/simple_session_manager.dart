@@ -152,9 +152,7 @@ class SimpleSessionManager {
     // Refresh every 4 minutes (tokens expire in 5 minutes)
     _refreshTimer = Timer.periodic(const Duration(minutes: 4), (_) {
       if (_isLoggedIn) {
-        refreshToken().catchError((e) {
-          print('Auto-refresh failed: $e');
-        });
+        refreshToken().catchError((e) {});
       }
     });
   }

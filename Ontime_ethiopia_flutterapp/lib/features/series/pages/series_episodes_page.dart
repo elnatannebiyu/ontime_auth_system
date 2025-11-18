@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -63,7 +65,8 @@ class _PlayerHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBindingObserver {
+class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
+    with WidgetsBindingObserver {
   late final SeriesService _service;
   bool _loading = true;
   String? _error;
@@ -84,7 +87,7 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    return h > 0 ? '${h}:${two(m)}:${two(s)}' : '${m}:${two(s)}';
+    return h > 0 ? '$h:${two(m)}:${two(s)}' : '$m:${two(s)}';
   }
 
   @override
@@ -109,7 +112,9 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
     try {
       _controlsHideTimer?.cancel();
     } catch (_) {}
-    try { WidgetsBinding.instance.removeObserver(this); } catch (_) {}
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     super.dispose();
   }
 
@@ -127,7 +132,8 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
   void _syncFullscreenWithOrientation(BuildContext context) {
     final c = _yt;
     if (c == null) return;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     if (_lastLandscape == isLandscape) return; // unchanged, skip
     _lastLandscape = isLandscape;
     final fs = c.value.isFullScreen;
@@ -293,7 +299,9 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
 
   void _showControlsTemporarily() {
     setState(() => _showFsControls = true);
-    try { _controlsHideTimer?.cancel(); } catch (_) {}
+    try {
+      _controlsHideTimer?.cancel();
+    } catch (_) {}
     _controlsHideTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _showFsControls = false);
     });
@@ -373,9 +381,8 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                         final mq = MediaQuery.of(ctx);
                         final widthDerivedHeight = mq.size.width * 9 / 16;
                         final availableHeight = mq.size.height;
-                        final playerHeight = math.min(widthDerivedHeight, availableHeight);
-                        final pos = _yt?.value.position ?? Duration.zero;
-                        final dur = _yt?.value.metaData.duration ?? Duration.zero;
+                        final playerHeight =
+                            math.min(widthDerivedHeight, availableHeight);
                         return SizedBox(
                           height: playerHeight,
                           child: KeyedSubtree(
@@ -387,124 +394,14 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                   controller: _yt!,
                                   showVideoProgressIndicator: true,
                                 ),
-                                      // Tap to show controls (portrait and fullscreen)
-                                      Positioned.fill(
-                                        child: GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: _showControlsTemporarily,
-                                          child: const SizedBox.shrink(),
-                                        ),
-                                      ),
-                                      // Back button: in fullscreen draw without SafeArea for true full bleed
-                                      if (!(_yt?.value.isFullScreen ?? false) ||
-                                          (_isFullScreen && _showFsControls))
-                                        Positioned(
-                                          top: 0,
-                                          left: 0,
-                                          child: (_isFullScreen
-                                              ? Padding(
-                                                  padding: const EdgeInsets.all(8.0),
-                                                  child: Material(
-                                                    color: Colors.black45,
-                                                    shape: const CircleBorder(),
-                                                    child: IconButton(
-                                                      icon: const Icon(
-                                                          Icons.arrow_back,
-                                                          color: Colors.white),
-                                                      tooltip: 'Back',
-                                                      onPressed: () {
-                                                        final v = _yt?.value;
-                                                        try { _yt?.pause(); } catch (_) {}
-                                                        if (v != null && v.isFullScreen) {
-                                                          try { _yt?.toggleFullScreenMode(); } catch (_) {}
-                                                        }
-                                                        // Close player (hide header) but stay on page
-                                                        final old = _yt;
-                                                        setState(() {
-                                                          _yt = null;
-                                                          _currentVideoId = null;
-                                                        });
-                                                        try { old?.dispose(); } catch (_) {}
-                                                      },
-                                                    ),
-                                                  ),
-                                                )
-                                              : SafeArea(
-                                                  bottom: false,
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(8.0),
-                                                    child: Material(
-                                                      color: Colors.black45,
-                                                      shape: const CircleBorder(),
-                                                      child: IconButton(
-                                                        icon: const Icon(
-                                                            Icons.arrow_back,
-                                                            color: Colors.white),
-                                                        tooltip: 'Back',
-                                                        onPressed: () {
-                                                          // Close player (hide header) but stay on page
-                                                          try { _yt?.pause(); } catch (_) {}
-                                                          final old = _yt;
-                                                          setState(() {
-                                                            _yt = null;
-                                                            _currentVideoId = null;
-                                                          });
-                                                          try { old?.dispose(); } catch (_) {}
-                                                        },
-                                                      ),
-                                                    ),
-                                                  ),
-                                                )),
-                                      ),
-                                      // Controls bar (portrait and fullscreen) - centered and smaller icons
-                                      if (_showFsControls)
-                                        Positioned.fill(
-                                          child: IgnorePointer(
-                                            ignoring: false,
-                                            child: Center(
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    _FsIcon(
-                                                      icon: Icons.skip_previous,
-                                                      size: 28,
-                                                      onPressed: _playPrev,
-                                                    ),
-                                                    const SizedBox(width: 14),
-                                                    _FsIcon(
-                                                      icon: Icons.replay_10,
-                                                      size: 28,
-                                                      onPressed: () => _seekBy(-10),
-                                                    ),
-                                                    const SizedBox(width: 14),
-                                                    _FsIcon(
-                                                      icon: (_yt?.value.isPlaying ?? false)
-                                                          ? Icons.pause_circle_filled
-                                                          : Icons.play_circle_fill,
-                                                      size: 36,
-                                                      onPressed: _togglePlayPause,
-                                                    ),
-                                                    const SizedBox(width: 14),
-                                                    _FsIcon(
-                                                      icon: Icons.forward_10,
-                                                      size: 28,
-                                                      onPressed: () => _seekBy(10),
-                                                    ),
-                                                    const SizedBox(width: 14),
-                                                    _FsIcon(
-                                                      icon: Icons.skip_next,
-                                                      size: 28,
-                                                      onPressed: _playNext,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
+                                // Tap to show controls (portrait and fullscreen)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: _showControlsTemporarily,
+                                    child: const SizedBox.shrink(),
+                                  ),
+                                ),
                                 // Back button: in fullscreen draw without SafeArea for true full bleed
                                 if (!(_yt?.value.isFullScreen ?? false) ||
                                     (_isFullScreen && _showFsControls))
@@ -524,9 +421,14 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                                 tooltip: 'Back',
                                                 onPressed: () {
                                                   final v = _yt?.value;
-                                                  try { _yt?.pause(); } catch (_) {}
-                                                  if (v != null && v.isFullScreen) {
-                                                    try { _yt?.toggleFullScreenMode(); } catch (_) {}
+                                                  try {
+                                                    _yt?.pause();
+                                                  } catch (_) {}
+                                                  if (v != null &&
+                                                      v.isFullScreen) {
+                                                    try {
+                                                      _yt?.toggleFullScreenMode();
+                                                    } catch (_) {}
                                                   }
                                                   // Close player (hide header) but stay on page
                                                   final old = _yt;
@@ -534,7 +436,9 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                                     _yt = null;
                                                     _currentVideoId = null;
                                                   });
-                                                  try { old?.dispose(); } catch (_) {}
+                                                  try {
+                                                    old?.dispose();
+                                                  } catch (_) {}
                                                 },
                                               ),
                                             ),
@@ -554,13 +458,17 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                                   tooltip: 'Back',
                                                   onPressed: () {
                                                     // Close player (hide header) but stay on page
-                                                    try { _yt?.pause(); } catch (_) {}
+                                                    try {
+                                                      _yt?.pause();
+                                                    } catch (_) {}
                                                     final old = _yt;
                                                     setState(() {
                                                       _yt = null;
                                                       _currentVideoId = null;
                                                     });
-                                                    try { old?.dispose(); } catch (_) {}
+                                                    try {
+                                                      old?.dispose();
+                                                    } catch (_) {}
                                                   },
                                                 ),
                                               ),
@@ -574,7 +482,8 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                       ignoring: false,
                                       child: Center(
                                         child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -591,7 +500,131 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                               ),
                                               const SizedBox(width: 14),
                                               _FsIcon(
-                                                icon: (_yt?.value.isPlaying ?? false)
+                                                icon: (_yt?.value.isPlaying ??
+                                                        false)
+                                                    ? Icons.pause_circle_filled
+                                                    : Icons.play_circle_fill,
+                                                size: 36,
+                                                onPressed: _togglePlayPause,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.forward_10,
+                                                size: 28,
+                                                onPressed: () => _seekBy(10),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.skip_next,
+                                                size: 28,
+                                                onPressed: _playNext,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                // Back button: in fullscreen draw without SafeArea for true full bleed
+                                if (!(_yt?.value.isFullScreen ?? false) ||
+                                    (_isFullScreen && _showFsControls))
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    child: (_isFullScreen
+                                        ? Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Material(
+                                              color: Colors.black45,
+                                              shape: const CircleBorder(),
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                    Icons.arrow_back,
+                                                    color: Colors.white),
+                                                tooltip: 'Back',
+                                                onPressed: () {
+                                                  final v = _yt?.value;
+                                                  try {
+                                                    _yt?.pause();
+                                                  } catch (_) {}
+                                                  if (v != null &&
+                                                      v.isFullScreen) {
+                                                    try {
+                                                      _yt?.toggleFullScreenMode();
+                                                    } catch (_) {}
+                                                  }
+                                                  // Close player (hide header) but stay on page
+                                                  final old = _yt;
+                                                  setState(() {
+                                                    _yt = null;
+                                                    _currentVideoId = null;
+                                                  });
+                                                  try {
+                                                    old?.dispose();
+                                                  } catch (_) {}
+                                                },
+                                              ),
+                                            ),
+                                          )
+                                        : SafeArea(
+                                            bottom: false,
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
+                                              child: Material(
+                                                color: Colors.black45,
+                                                shape: const CircleBorder(),
+                                                child: IconButton(
+                                                  icon: const Icon(
+                                                      Icons.arrow_back,
+                                                      color: Colors.white),
+                                                  tooltip: 'Back',
+                                                  onPressed: () {
+                                                    // Close player (hide header) but stay on page
+                                                    try {
+                                                      _yt?.pause();
+                                                    } catch (_) {}
+                                                    final old = _yt;
+                                                    setState(() {
+                                                      _yt = null;
+                                                      _currentVideoId = null;
+                                                    });
+                                                    try {
+                                                      old?.dispose();
+                                                    } catch (_) {}
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                          )),
+                                  ),
+                                // Controls bar (portrait and fullscreen) - centered and smaller icons
+                                if (_showFsControls)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      ignoring: false,
+                                      child: Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _FsIcon(
+                                                icon: Icons.skip_previous,
+                                                size: 28,
+                                                onPressed: _playPrev,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: Icons.replay_10,
+                                                size: 28,
+                                                onPressed: () => _seekBy(-10),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              _FsIcon(
+                                                icon: (_yt?.value.isPlaying ??
+                                                        false)
                                                     ? Icons.pause_circle_filled
                                                     : Icons.play_circle_fill,
                                                 size: 36,
@@ -625,30 +658,51 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                     child: Builder(
                                       builder: (context) {
                                         final c = _yt;
-                                        final pos = c?.value.position ?? Duration.zero;
-                                        final dur = c?.value.metaData.duration ?? Duration.zero;
-                                        final max = dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
-                                        final value = pos.inSeconds.clamp(0, dur.inSeconds).toDouble();
+                                        final pos =
+                                            c?.value.position ?? Duration.zero;
+                                        final dur =
+                                            c?.value.metaData.duration ??
+                                                Duration.zero;
+                                        final max = dur.inSeconds > 0
+                                            ? dur.inSeconds.toDouble()
+                                            : 1.0;
+                                        final value = pos.inSeconds
+                                            .clamp(0, dur.inSeconds)
+                                            .toDouble();
                                         return Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
-                                                Text(_fmt(pos), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                                Text(_fmt(dur), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                                Text(_fmt(pos),
+                                                    style: const TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 12)),
+                                                Text(_fmt(dur),
+                                                    style: const TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 12)),
                                               ],
                                             ),
                                             SliderTheme(
-                                              data: SliderTheme.of(context).copyWith(
+                                              data: SliderTheme.of(context)
+                                                  .copyWith(
                                                 trackHeight: 2,
-                                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                                overlayShape: SliderComponentShape.noOverlay,
+                                                thumbShape:
+                                                    const RoundSliderThumbShape(
+                                                        enabledThumbRadius: 6),
+                                                overlayShape:
+                                                    SliderComponentShape
+                                                        .noOverlay,
                                               ),
                                               child: Slider(
                                                 min: 0,
                                                 max: max,
-                                                value: value.isFinite ? value : 0,
+                                                value:
+                                                    value.isFinite ? value : 0,
                                                 activeColor: Colors.white,
                                                 inactiveColor: Colors.white24,
                                                 onChanged: (v) {
@@ -656,7 +710,10 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                                   _showControlsTemporarily();
                                                 },
                                                 onChangeEnd: (v) {
-                                                  try { _yt?.seekTo(Duration(seconds: v.round())); } catch (_) {}
+                                                  try {
+                                                    _yt?.seekTo(Duration(
+                                                        seconds: v.round()));
+                                                  } catch (_) {}
                                                   _showControlsTemporarily();
                                                 },
                                               ),
@@ -682,7 +739,9 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                                         color: Colors.white,
                                       ),
                                       onPressed: () {
-                                        try { _yt?.toggleFullScreenMode(); } catch (_) {}
+                                        try {
+                                          _yt?.toggleFullScreenMode();
+                                        } catch (_) {}
                                       },
                                     ),
                                   ),
@@ -726,12 +785,14 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage> with WidgetsBin
                               try {
                                 if (_likedEpisodes.contains(id)) {
                                   await widget.api.seriesEpisodeUnlike(id);
-                                  if (mounted)
+                                  if (mounted) {
                                     setState(() => _likedEpisodes.remove(id));
+                                  }
                                 } else {
                                   await widget.api.seriesEpisodeLike(id);
-                                  if (mounted)
+                                  if (mounted) {
                                     setState(() => _likedEpisodes.add(id));
+                                  }
                                 }
                               } catch (_) {}
                             },

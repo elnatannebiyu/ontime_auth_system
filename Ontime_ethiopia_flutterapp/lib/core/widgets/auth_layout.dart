@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -53,8 +55,10 @@ class _AuthLayoutState extends State<AuthLayout> {
 
     Color lerp(Color a, Color b, double t) => Color.lerp(a, b, t) ?? a;
     final c1 = lerp(color.primary, color.secondary, (_phase + 0.0) % 1);
-    final c2 = lerp(color.tertiary, color.primaryContainer, (_phase + 0.33) % 1);
-    final c3 = lerp(color.secondaryContainer, color.surfaceContainerHighest, (_phase + 0.66) % 1);
+    final c2 =
+        lerp(color.tertiary, color.primaryContainer, (_phase + 0.33) % 1);
+    final c3 = lerp(color.secondaryContainer, color.surfaceContainerHighest,
+        (_phase + 0.66) % 1);
 
     return Container(
       decoration: BoxDecoration(
@@ -73,87 +77,105 @@ class _AuthLayoutState extends State<AuthLayout> {
           children: [
             Center(
               child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withOpacity(0.55),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: theme.dividerColor.withOpacity(.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 22,
-                          offset: const Offset(0, 10),
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: theme.dividerColor.withOpacity(.2)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 22,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Header
-                          Row(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 22, vertical: 26),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: color.primary.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(Icons.lock_outline, color: color.primary),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(widget.title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                                    if (widget.subtitle != null && widget.subtitle!.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          widget.subtitle!,
-                                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7)),
-                                        ),
-                                      ),
+                              // Header
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: color.primary.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(Icons.lock_outline,
+                                        color: color.primary),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(widget.title,
+                                            style: theme.textTheme.headlineSmall
+                                                ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                        if (widget.subtitle != null &&
+                                            widget.subtitle!.isNotEmpty)
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              widget.subtitle!,
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                      color: theme.textTheme
+                                                          .bodyMedium?.color
+                                                          ?.withOpacity(0.7)),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (widget.actions != null) ...[
+                                    const SizedBox(width: 8),
+                                    Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: widget.actions!),
                                   ],
-                                ),
+                                ],
                               ),
-                              if (widget.actions != null) ...[
-                                const SizedBox(width: 8),
-                                Row(mainAxisSize: MainAxisSize.min, children: widget.actions!),
+                              const SizedBox(height: 18),
+
+                              // Body
+                              widget.child,
+
+                              if (widget.footer != null) ...[
+                                const SizedBox(height: 16),
+                                Divider(
+                                    height: 20,
+                                    color: theme.dividerColor.withOpacity(.3)),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: widget.footer!,
+                                ),
                               ],
                             ],
                           ),
-                          const SizedBox(height: 18),
-
-                          // Body
-                          widget.child,
-
-                          if (widget.footer != null) ...[
-                            const SizedBox(height: 16),
-                            Divider(height: 20, color: theme.dividerColor.withOpacity(.3)),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: widget.footer!,
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            ),
             ),
             if (widget.bottom != null)
               Align(

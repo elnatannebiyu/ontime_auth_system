@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -9,7 +11,8 @@ import 'notification_service.dart';
 /// - Post-prompt handling (granted: show confirmation; denied: soft fallback)
 /// - Permanently denied: offer deep-link to Settings
 class NotificationPermissionManager {
-  static final NotificationPermissionManager _instance = NotificationPermissionManager._internal();
+  static final NotificationPermissionManager _instance =
+      NotificationPermissionManager._internal();
   factory NotificationPermissionManager() => _instance;
   NotificationPermissionManager._internal();
 
@@ -55,7 +58,8 @@ class NotificationPermissionManager {
     // Denied but not permanent: show a soft nudge (non-blocking)
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Notifications are off. You can enable them later in Settings.'),
+        content: Text(
+            'Notifications are off. You can enable them later in Settings.'),
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 4),
       ),

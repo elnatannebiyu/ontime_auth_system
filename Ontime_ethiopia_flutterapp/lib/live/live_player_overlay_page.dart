@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -291,12 +293,12 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
               final isLandscape =
                   MediaQuery.of(ctx).orientation == Orientation.landscape;
               // Visual-only drag feedback for the video: translate Y and slight scale
-              final double _animDy = _dragDy.clamp(-120.0, 120.0);
-              final double _pDown =
+              final double animDy = _dragDy.clamp(-120.0, 120.0);
+              final double pDown =
                   _dragDy > 0 ? (_dragDy / 300.0).clamp(0.0, 1.0) : 0.0;
-              final double _pUp =
+              final double pUp =
                   _dragDy < 0 ? ((-_dragDy) / 120.0).clamp(0.0, 1.0) : 0.0;
-              final double _animScale = 1.0 - (0.08 * _pDown) + (0.04 * _pUp);
+              final double animScale = 1.0 - (0.08 * pDown) + (0.04 * pUp);
               return Transform.translate(
                 offset: Offset.zero,
                 child: Transform.scale(
@@ -310,9 +312,9 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                           top: true,
                           bottom: false,
                           child: Transform.translate(
-                            offset: Offset(0, _animDy),
+                            offset: Offset(0, animDy),
                             child: Transform.scale(
-                              scale: _animScale,
+                              scale: animScale,
                               alignment: Alignment.topCenter,
                               child: AspectRatio(
                                 aspectRatio: (c?.value.aspectRatio ?? 0) == 0
@@ -534,9 +536,9 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                           child: Align(
                             alignment: Alignment.topCenter,
                             child: Transform.translate(
-                              offset: Offset(0, _animDy),
+                              offset: Offset(0, animDy),
                               child: Transform.scale(
-                                scale: _animScale,
+                                scale: animScale,
                                 alignment: Alignment.topCenter,
                                 child: AspectRatio(
                                   aspectRatio: (c?.value.aspectRatio ?? 0) == 0
@@ -867,13 +869,13 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                     Chip(
                                         avatar: const Icon(Icons.headphones,
                                             size: 16),
-                                        label: Text(
-                                            'Listeners: ${_listenerCount}')),
+                                        label:
+                                            Text('Listeners: $_listenerCount')),
                                   if (_totalListens != null)
                                     Chip(
                                         avatar: const Icon(Icons.equalizer,
                                             size: 16),
-                                        label: Text('Total: ${_totalListens}')),
+                                        label: Text('Total: $_totalListens')),
                                   if (_variantOptions.isNotEmpty)
                                     Chip(
                                         avatar: const Icon(Icons.settings,

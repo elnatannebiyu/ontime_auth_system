@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 class PosterRow extends StatelessWidget {
@@ -5,7 +7,8 @@ class PosterRow extends StatelessWidget {
   final bool tall;
   final List<Map<String, dynamic>>? items;
   final void Function(Map<String, dynamic>)? onTap;
-  const PosterRow({super.key, this.count = 8, this.tall = false, this.items, this.onTap});
+  const PosterRow(
+      {super.key, this.count = 8, this.tall = false, this.items, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +44,8 @@ class _PosterTile extends StatefulWidget {
   final String title;
   final String? imageUrl;
   final VoidCallback? onTap;
-  const _PosterTile({required this.size, required this.title, this.imageUrl, this.onTap});
+  const _PosterTile(
+      {required this.size, required this.title, this.imageUrl, this.onTap});
 
   @override
   State<_PosterTile> createState() => _PosterTileState();
@@ -89,8 +93,10 @@ class _PosterTileState extends State<_PosterTile> {
                     child: Stack(
                       children: [
                         Positioned.fill(
-                          child: widget.imageUrl != null && widget.imageUrl!.isNotEmpty
-                              ? Image.network(widget.imageUrl!, fit: BoxFit.cover)
+                          child: widget.imageUrl != null &&
+                                  widget.imageUrl!.isNotEmpty
+                              ? Image.network(widget.imageUrl!,
+                                  fit: BoxFit.cover)
                               : Container(color: Colors.black26),
                         ),
                         Positioned.fill(
@@ -108,7 +114,8 @@ class _PosterTileState extends State<_PosterTile> {
                           ),
                         ),
                         const Center(
-                          child: Icon(Icons.play_circle_fill, size: 36, color: Colors.white70),
+                          child: Icon(Icons.play_circle_fill,
+                              size: 36, color: Colors.white70),
                         ),
                       ],
                     ),

@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'tenant_auth_client.dart';
@@ -102,6 +104,7 @@ class _RegisterPageState extends State<RegisterPage> {
             msgs.add('$key: $v');
           }
         }
+
         // Collect common DRF error shapes
         for (final k in ['email', 'password', 'non_field_errors', 'detail']) {
           collect(k);
@@ -196,20 +199,24 @@ class _RegisterPageState extends State<RegisterPage> {
                         allowCreate: true,
                         userData: {
                           if (result.email != null) 'email': result.email,
-                          if (result.displayName != null) 'name': result.displayName,
+                          if (result.displayName != null)
+                            'name': result.displayName,
                         },
                       );
                     } else {
                       rethrow;
                     }
                   }
-                  await widget.tokenStore.setTokens(tokens.access, tokens.refresh);
+                  await widget.tokenStore
+                      .setTokens(tokens.access, tokens.refresh);
                   await widget.api.me();
                   if (mounted) {
-                    await NotificationPermissionManager().ensurePermissionFlow(context);
+                    await NotificationPermissionManager()
+                        .ensurePermissionFlow(context);
                   }
                   if (!mounted) return;
-                  Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/home', (_) => false);
                 } on DioException catch (e) {
                   final data = e.response?.data;
                   final err = (data is Map && data['error'] is String)
@@ -249,8 +256,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.red.withOpacity(.25)),
                 ),
-                child: Text(_error!,
-                    style: const TextStyle(color: Colors.red)),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
             Form(
               key: _formKey,
@@ -277,7 +283,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   // Optional phone number (not required)
                   TextFormField(
                     keyboardType: TextInputType.phone,
-                    inputFormatters: [SimplePhoneInputFormatter(defaultDialCode: '+251')],
+                    inputFormatters: [
+                      SimplePhoneInputFormatter(defaultDialCode: '+251')
+                    ],
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.phone_outlined),
                       labelText: 'Phone (optional)',
@@ -294,22 +302,34 @@ class _RegisterPageState extends State<RegisterPage> {
                       labelText: 'Password',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
+                        icon: Icon(_obscure1
+                            ? Icons.visibility
+                            : Icons.visibility_off),
                         onPressed: () => setState(() => _obscure1 = !_obscure1),
                       ),
                     ),
                     validator: (v) {
                       final val = v ?? '';
                       if (val.isEmpty) return 'Enter password';
-                      if (val.length < 8) return 'Password must be at least 8 characters';
+                      if (val.length < 8) {
+                        return 'Password must be at least 8 characters';
+                      }
                       final upper = RegExp(r'[A-Z]');
                       final lower = RegExp(r'[a-z]');
                       final digit = RegExp(r'\d');
                       final special = RegExp(r'[!@#\$%\^&\*(),.?":{}|<>]');
-                      if (!upper.hasMatch(val)) return 'Password must include an uppercase letter';
-                      if (!lower.hasMatch(val)) return 'Password must include a lowercase letter';
-                      if (!digit.hasMatch(val)) return 'Password must include a number';
-                      if (!special.hasMatch(val)) return 'Password must include a special character';
+                      if (!upper.hasMatch(val)) {
+                        return 'Password must include an uppercase letter';
+                      }
+                      if (!lower.hasMatch(val)) {
+                        return 'Password must include a lowercase letter';
+                      }
+                      if (!digit.hasMatch(val)) {
+                        return 'Password must include a number';
+                      }
+                      if (!special.hasMatch(val)) {
+                        return 'Password must include a special character';
+                      }
                       return null;
                     },
                   ),
@@ -323,7 +343,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       labelText: 'Confirm password',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
+                        icon: Icon(_obscure2
+                            ? Icons.visibility
+                            : Icons.visibility_off),
                         onPressed: () => setState(() => _obscure2 = !_obscure2),
                       ),
                     ),

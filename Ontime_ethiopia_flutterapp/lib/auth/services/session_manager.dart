@@ -122,8 +122,9 @@ class SessionManager {
         }
         if (e.response?.statusCode == 401) {
           final data = e.response?.data;
-          final detail =
-              (data is Map && data['detail'] is String) ? data['detail'] as String : '';
+          final detail = (data is Map && data['detail'] is String)
+              ? data['detail'] as String
+              : '';
           if (detail.contains('Refresh token not found')) {
             // Likely due to missing cookie while offline; keep session.
             return;
@@ -149,7 +150,6 @@ class SessionManager {
       }
     } catch (e) {
       // Continue with logout even if API call fails
-      print('Logout API call failed: $e');
     } finally {
       // Clear local session
       await _clearSession();
@@ -232,9 +232,7 @@ class SessionManager {
     _stopRefreshTimer();
     _refreshTimer = Timer.periodic(refreshInterval, (_) {
       if (_currentSession != null) {
-        refreshToken().catchError((e) {
-          print('Auto-refresh failed: $e');
-        });
+        refreshToken().catchError((e) {});
       }
     });
   }

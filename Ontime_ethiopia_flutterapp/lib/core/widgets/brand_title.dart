@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 /// A reusable brand title for AppBars across the app.
@@ -16,7 +18,10 @@ class BrandTitle extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withOpacity(0.6),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: Theme.of(context).dividerColor.withOpacity(0.4),
@@ -24,11 +29,13 @@ class BrandTitle extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.play_circle_fill, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(Icons.play_circle_fill,
+                  size: 18, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 6),
               Text(
                 'Ontime',
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                style: textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),

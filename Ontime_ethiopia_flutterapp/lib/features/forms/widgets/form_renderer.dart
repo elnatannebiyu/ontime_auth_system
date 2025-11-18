@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 import '../models/form_schema.dart';
@@ -9,7 +11,8 @@ class FormRenderer extends StatefulWidget {
   final void Function(Map<String, dynamic> values)? onChanged;
   final Future<void> Function(Map<String, dynamic> values)? onSubmit;
 
-  const FormRenderer({super.key, required this.schema, this.onChanged, this.onSubmit});
+  const FormRenderer(
+      {super.key, required this.schema, this.onChanged, this.onSubmit});
 
   @override
   State<FormRenderer> createState() => _FormRendererState();
@@ -109,11 +112,13 @@ class _FormRendererState extends State<FormRenderer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.schema.title != null) ...[
-            Text(widget.schema.title!, style: Theme.of(context).textTheme.titleLarge),
+            Text(widget.schema.title!,
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
           ],
           if (widget.schema.description != null) ...[
-            Text(widget.schema.description!, style: Theme.of(context).textTheme.bodyMedium),
+            Text(widget.schema.description!,
+                style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
           ],
           ...visibleFields.map((f) => Padding(
@@ -153,7 +158,11 @@ class _TextishField extends StatelessWidget {
   final String? Function(String?) validator;
   final ValueChanged<String> onChanged;
 
-  const _TextishField({required this.field, required this.value, required this.validator, required this.onChanged});
+  const _TextishField(
+      {required this.field,
+      required this.value,
+      required this.validator,
+      required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +198,11 @@ class _CheckboxField extends StatelessWidget {
   final String? Function(bool) validator;
   final ValueChanged<bool> onChanged;
 
-  const _CheckboxField({required this.field, required this.value, required this.validator, required this.onChanged});
+  const _CheckboxField(
+      {required this.field,
+      required this.value,
+      required this.validator,
+      required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +218,9 @@ class _CheckboxField extends StatelessWidget {
           onChanged(v ?? false);
         },
         controlAffinity: ListTileControlAffinity.leading,
-        secondary: state.hasError ? Icon(Icons.error, color: Theme.of(context).colorScheme.error) : null,
+        secondary: state.hasError
+            ? Icon(Icons.error, color: Theme.of(context).colorScheme.error)
+            : null,
       ),
     );
   }
@@ -217,7 +232,11 @@ class _SelectField extends StatelessWidget {
   final String? Function(dynamic) validator;
   final ValueChanged<dynamic> onChanged;
 
-  const _SelectField({required this.field, required this.value, required this.validator, required this.onChanged});
+  const _SelectField(
+      {required this.field,
+      required this.value,
+      required this.validator,
+      required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -227,12 +246,16 @@ class _SelectField extends StatelessWidget {
       items: [
         for (final opt in options)
           DropdownMenuItem(
-            value: (opt is Map && opt.containsKey('value')) ? opt['value'] : opt,
-            child: Text((opt is Map && opt.containsKey('label')) ? opt['label'].toString() : opt.toString()),
+            value:
+                (opt is Map && opt.containsKey('value')) ? opt['value'] : opt,
+            child: Text((opt is Map && opt.containsKey('label'))
+                ? opt['label'].toString()
+                : opt.toString()),
           )
       ],
       onChanged: onChanged,
-      decoration: InputDecoration(labelText: field.label ?? field.name, helperText: field.helpText),
+      decoration: InputDecoration(
+          labelText: field.label ?? field.name, helperText: field.helpText),
       validator: (v) => validator(v),
     );
   }
@@ -244,7 +267,11 @@ class _RadioField extends StatelessWidget {
   final String? Function(dynamic) validator;
   final ValueChanged<dynamic> onChanged;
 
-  const _RadioField({required this.field, required this.value, required this.validator, required this.onChanged});
+  const _RadioField(
+      {required this.field,
+      required this.value,
+      required this.validator,
+      required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -255,13 +282,18 @@ class _RadioField extends StatelessWidget {
       builder: (state) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (field.label != null) Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: Text(field.label!, style: Theme.of(context).textTheme.bodyLarge),
-          ),
+          if (field.label != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(field.label!,
+                  style: Theme.of(context).textTheme.bodyLarge),
+            ),
           ...options.map((opt) {
-            final val = (opt is Map && opt.containsKey('value')) ? opt['value'] : opt;
-            final label = (opt is Map && opt.containsKey('label')) ? opt['label'].toString() : opt.toString();
+            final val =
+                (opt is Map && opt.containsKey('value')) ? opt['value'] : opt;
+            final label = (opt is Map && opt.containsKey('label'))
+                ? opt['label'].toString()
+                : opt.toString();
             return RadioListTile<dynamic>(
               value: val,
               groupValue: state.value,
@@ -275,7 +307,8 @@ class _RadioField extends StatelessWidget {
           if (state.hasError)
             Padding(
               padding: const EdgeInsets.only(left: 16.0),
-              child: Text(state.errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(state.errorText!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
             )
         ],
       ),
@@ -289,7 +322,11 @@ class _DateField extends StatefulWidget {
   final String? Function(String?) validator;
   final ValueChanged<String?> onChanged;
 
-  const _DateField({required this.field, required this.value, required this.validator, required this.onChanged});
+  const _DateField(
+      {required this.field,
+      required this.value,
+      required this.validator,
+      required this.onChanged});
 
   @override
   State<_DateField> createState() => _DateFieldState();
@@ -339,7 +376,8 @@ class _DateFieldState extends State<_DateField> {
           lastDate: DateTime(now.year + 10),
         );
         if (picked != null) {
-          final iso = DateUtils.dateOnly(picked).toIso8601String().split('T').first;
+          final iso =
+              DateUtils.dateOnly(picked).toIso8601String().split('T').first;
           _ctrl.text = iso;
           widget.onChanged(iso);
         }

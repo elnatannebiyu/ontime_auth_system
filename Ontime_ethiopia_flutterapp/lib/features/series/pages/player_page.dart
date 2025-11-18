@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_final_fields, use_build_context_synchronously
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,7 +47,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    return h > 0 ? '${h}:${two(m)}:${two(s)}' : '${m}:${two(s)}';
+    return h > 0 ? '$h:${two(m)}:${two(s)}' : '$m:${two(s)}';
   }
 
   @override

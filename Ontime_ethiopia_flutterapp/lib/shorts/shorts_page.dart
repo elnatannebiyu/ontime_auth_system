@@ -143,7 +143,7 @@ class _ShortsPageState extends State<ShortsPage> {
   Widget build(BuildContext context) {
     final hasItems = _items.isNotEmpty;
 
-    int _computeInitialIndex() {
+    int computeInitialIndex() {
       if (!hasItems) return 0;
       if (!_watchedLoaded || _watchedShortIds.isEmpty) return 0;
       for (var i = 0; i < _items.length; i++) {
@@ -157,7 +157,7 @@ class _ShortsPageState extends State<ShortsPage> {
       return 0;
     }
 
-    void _onShortIndexChanged(int index) {
+    void onShortIndexChanged(int index) {
       if (index < 0 || index >= _items.length) return;
       final id = (_items[index]['job_id'] ?? '').toString();
       if (id.isEmpty) return;
@@ -187,9 +187,9 @@ class _ShortsPageState extends State<ShortsPage> {
                     // Immediate player when we have items
                     ? ShortsPlayerPage(
                         videos: _items,
-                        initialIndex: _computeInitialIndex(),
+                        initialIndex: computeInitialIndex(),
                         isOffline: _offline,
-                        onIndexChanged: _onShortIndexChanged,
+                        onIndexChanged: onShortIndexChanged,
                       )
                     // No items yet: show a simple player placeholder so page feels like a player
                     : Container(

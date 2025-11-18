@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -51,6 +53,7 @@ class _RadioPlayerPageState extends State<RadioPlayerPage> {
       _error = 'Failed to start radio';
     } finally {
       if (mounted)
+        // ignore: curly_braces_in_flow_control_structures
         setState(() {
           _booting = false;
         });
