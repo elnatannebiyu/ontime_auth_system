@@ -94,7 +94,6 @@ const Dashboard: React.FC = () => {
       // Derive active/inactive from the main channels payload if possible
       try {
         const list = Array.isArray(channelsRes.data) ? channelsRes.data : (channelsRes.data?.results || []);
-        const first = list[0] || {};
         const getActive = (it:any) => {
           if (typeof it?.is_active === 'boolean') return it.is_active;
           if (typeof it?.active === 'boolean') return it.active;
@@ -114,7 +113,6 @@ const Dashboard: React.FC = () => {
       // Dev logging to inspect sessions payload shape
       try {
         const list = Array.isArray(sessionsRes.data) ? sessionsRes.data : (sessionsRes.data?.results || []);
-        const first = list[0] || {};
       } catch {}
       // Build 7-day users trend if timestamps available
       try {
@@ -173,7 +171,7 @@ const Dashboard: React.FC = () => {
           setSessionsTrend(counts);
           // Log detected timestamp keys across first few items
           try {
-            const sampled = list.slice(0, 5).map((it:any) => ({
+            list.slice(0, 5).map((it:any) => ({
               tsKey: keys.find(k => !!it?.[k]) || 'none',
             }));
           } catch {}
