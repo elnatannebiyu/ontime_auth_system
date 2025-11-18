@@ -272,7 +272,7 @@ SWAGGER_SETTINGS = {
 # Django-axes configuration for brute force protection
 AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
 AXES_COOLOFF_TIME = 1  # Cooloff period in hours
-AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]  # Lock by username+IP combo
+AXES_LOCKOUT_PARAMETERS = [[ "ip_address"]]  # Lock by username+IP combo
 AXES_RESET_ON_SUCCESS = True
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
 AXES_LOCKOUT_TEMPLATE = None  # Return 403 instead of template
