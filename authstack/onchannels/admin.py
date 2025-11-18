@@ -21,6 +21,7 @@ import logging
 from django import forms
 from datetime import datetime
 from datetime import timezone as dt_timezone
+from common.fcm_sender import send_to_user
 try:
     from PIL import Image
     _PIL_AVAILABLE = True
@@ -914,6 +915,49 @@ class UserNotificationAdmin(admin.ModelAdmin):
     list_filter = ('tenant', 'read_at', 'created_at')
     search_fields = ('user__username', 'user__email', 'title', 'body')
     ordering = ('-created_at',)
+
+    def save_model(self, request, obj: UserNotification, form, change):
+        """On create, send a push via FCM using the notification model.
+
+        - When adding a new UserNotification in the admin, this will:
+          - Call common.fcm_sender.send_to_user(...) to send a push to the
+            user's registered devices.
+          - Rely on send_to_user to persist a corresponding UserNotification
+            record, so we avoid creating duplicates.
+        - When editing an existing UserNotification, fall back to normal
+          save behavior (no additional push is sent).
+        """
+        if not change:
+            # New notification created via admin form: send push
+            user_id = obj.user_id
+            title = obj.title or ""
+            body = obj.body or ""
+            data = obj.data or {}
+
+            try:
+                send_to_user(
+                    user_id=user_id,
+                    title=title,
+                    body=body,
+                    data={str(k): str(v) for k, v in data.items()} or None,
+                )
+                self.message_user(
+                    request,
+                    f"Push notification sent to user {obj.user}.",
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Surface the error but still allow the admin save to proceed
+                self.message_user(
+                    request,
+                    f"Failed to send push notification: {exc}",
+                    level=logging.ERROR,
+                )
+            # Do not save this object to avoid duplicating the record that
+            # send_to_user already creates in the UserNotification table.
+            return
+
+        # For edits, preserve existing behavior (no push resend)
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(Announcement)
