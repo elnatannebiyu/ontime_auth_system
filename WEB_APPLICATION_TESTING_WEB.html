@@ -1,0 +1,507 @@
+<style>
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #111827;
+    line-height: 1.6;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  h1 {
+    color: #111827;
+    border-bottom: 2px solid #111827;
+    padding-bottom: 6px;
+  }
+  h2, h3 {
+    color: #1f2937;
+    margin-top: 1.4em;
+    page-break-after: avoid;
+  }
+  p, ul, ol, table {
+    page-break-inside: avoid;
+  }
+  code {
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 0.5em;
+  }
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+  }
+  th {
+    background-color: #f3f4f6;
+  }
+  figure {
+    text-align: center;
+  }
+  figure img {
+    max-width: 60%;
+    height: auto;
+  }
+</style>
+
+<h1 id="web-application-testing-ontime-ethiopia">Web Application Testing
+– OnTime Ethiopia</h1>
+<p><strong>Organization:</strong> AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ
+ኋላ/የተ/የግ/ማ<br />
+<strong>Platform:</strong> OnTime Ethiopia (Web Application)<br />
+<strong>Prepared for:</strong> Information Network Security
+Administration (INSA)<br />
+<strong>Date:</strong> November 2025</p>
+<hr />
+<h2 id="business-architecture-and-design">1. Business Architecture and
+Design</h2>
+<h3 id="background-of-the-organization">1.1 Background of the
+Organization</h3>
+<p>AI TECHNOLOGIES PLC (ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ) is an Ethiopian
+technology company focused on building digital platforms that support
+media, communication, and innovative services aligned with the country’s
+digital transformation agenda. The company delivers scalable software
+solutions and streaming platforms for global and regional audiences.</p>
+<p>On behalf of the OnTime Ethiopia team, we would like to extend our
+sincere appreciation to the Information Network Security Administration
+for its continuous efforts in advancing Ethiopia’s digital
+transformation and ensuring the nation’s cybersecurity resilience. The
+Administration’s leadership in creating a secure and empowering digital
+environment plays a crucial role in strengthening innovation, public
+trust, and national development.</p>
+<h3 id="introduction">1.2 Introduction</h3>
+<p>This document provides technical and security-related information
+about the OnTime Ethiopia web application. It is intended to support the
+Information Network Security Administration (INSA) in planning and
+executing a penetration test / security assessment of the platform.</p>
+<h3 id="objective-of-this-certificate-requested">1.3 Objective of this
+Certificate Requested</h3>
+<p>The objective is to obtain an independent security assessment and
+certificate for the OnTime Ethiopia web application, verifying that it
+has been tested against common web application security vulnerabilities
+and that identified issues can be remediated to strengthen the
+platform’s security posture.</p>
+<h3 id="business-architecture-summary">1.4 Business Architecture
+(Summary)</h3>
+<ul>
+<li><strong>Product:</strong> OnTime Ethiopia – an OTT/streaming
+platform providing live TV, shorts, and related content to end
+users.<br />
+</li>
+<li><strong>Core actors:</strong>
+<ul>
+<li>End users (web and mobile) consuming video content.<br />
+</li>
+<li>Admins/editors using an internal web portal for content management
+and configuration.<br />
+</li>
+</ul></li>
+<li><strong>Core backend:</strong> Django REST Framework application
+exposing REST APIs for channels, live TV, shorts ingestion, playlists,
+and authentication.<br />
+</li>
+<li><strong>Frontend:</strong> React-based web frontend consuming these
+APIs over HTTPS.</li>
+</ul>
+<h3 id="data-flow-diagram-text-description">1.5 Data Flow Diagram (Text
+Description)</h3>
+<ol type="1">
+<li>User’s web browser connects over HTTPS to the OnTime Ethiopia web
+frontend.</li>
+<li>The web frontend sends HTTPS REST API requests to the Django backend
+(e.g. <code>/api/channels/</code>, <code>/api/live/</code>,
+<code>/api/channels/shorts/ready/feed/</code>).</li>
+<li>The backend reads/writes data from the application database
+(e.g. PostgreSQL) storing channels, playlists, live metadata, users,
+shorts jobs, etc.</li>
+<li>Celery/background workers process shorts ingestion jobs and interact
+with external services (e.g. YouTube playlists, storage/CDN) and update
+job status in the database.</li>
+<li>The frontend receives JSON responses and renders UI accordingly,
+while media (HLS streams, images) is delivered from streaming
+endpoints/CDN over HTTPS.</li>
+</ol>
+<figure>
+<img src="web_data_flow.png" alt="OnTime Ethiopia Web Data Flow" />
+<figcaption aria-hidden="true">OnTime Ethiopia Web Data
+Flow</figcaption>
+</figure>
+<h3 id="system-architecture-diagram-text-description">1.6 System
+Architecture Diagram (Text Description)</h3>
+<ul>
+<li><strong>Client Layer</strong>
+<ul>
+<li>Web browser (desktop/mobile) running the OnTime Ethiopia web
+SPA.</li>
+</ul></li>
+<li><strong>Application Layer</strong>
+<ul>
+<li>Django REST API application (gunicorn/uWSGI) behind a reverse
+proxy/load balancer.<br />
+</li>
+<li>Celery workers for background processing of shorts ingestion and
+media-related tasks.</li>
+</ul></li>
+<li><strong>Data Layer</strong>
+<ul>
+<li>Relational database (e.g. PostgreSQL) for core application
+data.<br />
+</li>
+<li>Object storage / CDN for video and image assets.</li>
+</ul></li>
+<li><strong>Security/Perimeter</strong>
+<ul>
+<li>Reverse proxy/load balancer providing TLS termination and basic
+protection.<br />
+</li>
+<li>Network firewall restricting non-essential ports.<br />
+</li>
+<li>(If applicable) Additional WAF or cloud-based protections.</li>
+</ul></li>
+</ul>
+<h3 id="database-entity-relationship-diagram">1.7 Database
+Entity-Relationship Diagram</h3>
+<figure>
+<img src="web_db_er.png" alt="OnTime Ethiopia Web DB ER Diagram" />
+<figcaption aria-hidden="true">OnTime Ethiopia Web DB ER
+Diagram</figcaption>
+</figure>
+<hr />
+<h2 id="features-of-the-web-application">2. Features of the Web
+Application</h2>
+<h3 id="development-frameworks">2.1 Development Frameworks</h3>
+<ul>
+<li><strong>Frontend:</strong> React-based single-page application
+(SPA).<br />
+</li>
+<li><strong>Backend:</strong> Django + Django REST Framework
+(DRF).<br />
+</li>
+<li><strong>Task Queue:</strong> Celery for asynchronous processing
+(e.g. shorts ingestion and transcoding).</li>
+</ul>
+<h3 id="libraries-plugins">2.2 Libraries (Plugins)</h3>
+<ul>
+<li><strong>Frontend (examples):</strong>
+<ul>
+<li>React Router for client-side routing.<br />
+</li>
+<li>HTTP client (e.g. Axios/fetch wrapper) for API calls.<br />
+</li>
+<li>UI component libraries for layout, tables, and forms.</li>
+</ul></li>
+<li><strong>Backend (examples):</strong>
+<ul>
+<li>Django REST Framework for API endpoints.<br />
+</li>
+<li>Celery + message broker (e.g. Redis/RabbitMQ) for background
+tasks.<br />
+</li>
+<li>yt-dlp and related tooling for shorts ingestion from external
+playlists.</li>
+</ul></li>
+</ul>
+<h3 id="third-party-integrations">2.3 Third-Party Integrations</h3>
+<ul>
+<li>External video sources (e.g. YouTube playlists) for shorts
+ingestion.<br />
+</li>
+<li>CDN / storage for hosting and delivering HLS playlists and media
+assets.<br />
+</li>
+<li>Optional identity providers (e.g. Google sign-in) for
+authentication, depending on environment.</li>
+</ul>
+<h3 id="custom-development">2.4 Custom Development</h3>
+<ul>
+<li>Custom admin web UI to manage channels, playlists, live TV metadata,
+shorts ingestion jobs, and feature flags.<br />
+</li>
+<li>Custom Django REST endpoints for:
+<ul>
+<li>Live TV channels and slug-based lookup.<br />
+</li>
+<li>ShortJob ingestion pipeline (import, queue, process, mark READY,
+randomized feed).<br />
+</li>
+<li>Tenant-aware content separation.</li>
+</ul></li>
+</ul>
+<h3 id="actor-user-types">2.5 Actor / User Types</h3>
+<ul>
+<li><strong>Anonymous users:</strong> Can access public landing pages
+(depending on configuration).<br />
+</li>
+<li><strong>Authenticated end users:</strong> Can log in to the OnTime
+Ethiopia platform and consume authorized content.<br />
+</li>
+<li><strong>Admin / Editor users:</strong> Manage content, playlists,
+shorts, and configurations via the internal web admin portal.<br />
+</li>
+<li><strong>System / service accounts:</strong> Used by backend workers
+and integrations.</li>
+</ul>
+<h3 id="dependencies-system-minimum-requirements-web-frontend">2.6
+Dependencies / System Minimum Requirements (Web Frontend)</h3>
+<ul>
+<li><strong>Client:</strong> Modern browser with HTML5 support and
+JavaScript enabled.<br />
+</li>
+<li><strong>Network:</strong> Stable internet connection for media
+streaming over HTTPS.<br />
+</li>
+<li><strong>Server:</strong> Linux-based server with Python (Django),
+database (e.g. PostgreSQL), and message broker (e.g. Redis/RabbitMQ);
+Node.js toolchain for building the frontend.</li>
+</ul>
+<h3 id="implemented-security-standards">2.7 Implemented Security
+Standards</h3>
+<ul>
+<li>Web traffic served over HTTPS in production environments.<br />
+</li>
+<li>Authentication and authorization enforced for admin and protected
+operations.<br />
+</li>
+<li>Role-based access control (RBAC) for admin features.<br />
+</li>
+<li>CSRF protection for state-changing requests when using cookie-based
+sessions.<br />
+</li>
+<li>Input validation and server-side validation on critical API
+endpoints.<br />
+</li>
+<li>Consideration of OWASP Top 10 risks in design and
+implementation.</li>
+</ul>
+<h3 id="devices-that-may-impact-penetration-testing">2.8 Devices that
+May Impact Penetration Testing</h3>
+<ul>
+<li><strong>Firewall:</strong> Network firewall restricting inbound
+access to required ports (e.g. 80/443, SSH).<br />
+</li>
+<li><strong>Reverse Proxy / Load Balancer:</strong> May enforce rate
+limiting, TLS policies, and IP filtering.<br />
+</li>
+<li><strong>Web Application Firewall (WAF) (if applicable):</strong> May
+inspect and block certain payloads or exploit attempts.</li>
+</ul>
+<p>Penetration testers should be aware of these controls, as they may
+affect test results.</p>
+<hr />
+<h2 id="scope-of-testing-web-application">3. Scope of Testing (Web
+Application)</h2>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 30%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Name of the Assets to be Audit</th>
+<th>URL/IP</th>
+<th>Test Account as required by the tester</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Public web portal/sites</td>
+<td>https://aitechnologiesplc.com/</td>
+<td>Public browsing (no login) as applicable</td>
+</tr>
+<tr>
+<td>Public application (OnTime)</td>
+<td>https://ontime.aitechnologiesplc.com/</td>
+<td>End-user test account (adminweb/Root@1324)</td>
+</tr>
+<tr>
+<td>Internal web portal</td>
+<td>https://ontime.aitechnologiesplc.com/</td>
+<td>Admin/editor test account with appropriate admin privileges</td>
+</tr>
+<tr>
+<td>Internal local applications</td>
+<td>N/A or not in scope (unless otherwise specified)</td>
+<td>To be provided if any additional internal-only apps are
+included</td>
+</tr>
+</tbody>
+</table>
+<p>Notes: The same base URL may expose both public and authenticated
+functionality depending on login status and user role.</p>
+<hr />
+<h2 id="security-functionality">4. Security Functionality</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 75%" />
+</colgroup>
+<thead>
+<tr>
+<th>Security Functionality</th>
+<th>How the Security Functionality Has Been Implemented</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>User Roles and Access Control</td>
+<td>Roles are defined at the backend, distinguishing end users from
+admin/editor accounts. Admin features are only accessible to
+authenticated users with appropriate permissions, enforced in Django
+viewsets and permissions.</td>
+</tr>
+<tr>
+<td>Authorization Mechanisms</td>
+<td>Protected API endpoints require authenticated requests (session or
+token-based). Authorization checks are enforced server-side to ensure
+that only authorized users can access or modify protected
+resources.</td>
+</tr>
+<tr>
+<td>Input Validation and Sanitization</td>
+<td>Client-side form validation is combined with server-side validation
+in Django serializers/models. Inputs are validated and sanitized before
+being processed or stored to reduce risks such as injection and
+malformed data.</td>
+</tr>
+<tr>
+<td>Session Management</td>
+<td>Authentication is managed by Django’s authentication/session
+framework and/or token-based mechanisms. Sessions have defined
+lifetimes, and users can log out to invalidate their sessions. Secure
+cookie attributes are used where applicable.</td>
+</tr>
+<tr>
+<td>Error Handling and Logging</td>
+<td>In production, API error responses avoid exposing sensitive internal
+details. Detailed errors and exceptions are logged server-side along
+with important security events (such as authentication failures and
+admin actions).</td>
+</tr>
+<tr>
+<td>Secure Communications</td>
+<td>All frontend–backend communication is conducted over HTTPS in
+production deployments. TLS is handled at the reverse proxy/load
+balancer, and mixed-content access is avoided where possible.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="secure-coding-standards">5. Secure Coding Standards</h2>
+<h3 id="coding-rules-guidelines">5.1 Coding Rules / Guidelines</h3>
+<ul>
+<li>General alignment with OWASP Secure Coding Practices.<br />
+</li>
+<li>Use of Django ORM instead of raw SQL to reduce SQL injection
+risks.<br />
+</li>
+<li>Avoidance of unsafe JavaScript constructs (e.g. <code>eval</code>)
+in the frontend.<br />
+</li>
+<li>Code review practices for sensitive or security-relevant
+changes.</li>
+</ul>
+<h3 id="secure-coding-practices-used">5.2 Secure Coding Practices
+Used</h3>
+<ul>
+<li><strong>OWASP Secure Coding Practices</strong>
+<ul>
+<li>Consideration of OWASP Top 10 risks (authentication, access control,
+injection, XSS, CSRF, etc.) in design and implementation.</li>
+</ul></li>
+<li><strong>Secure Input Handling</strong>
+<ul>
+<li>Server-side validation for all critical inputs via Django
+forms/serializers.<br />
+</li>
+<li>Client-side validation to enhance user experience, but not relied
+upon for security.</li>
+</ul></li>
+<li><strong>Secure File Handling</strong>
+<ul>
+<li>Validation of uploaded files (e.g. type/size constraints).<br />
+</li>
+<li>Storage of media files in dedicated locations separate from
+application code.</li>
+</ul></li>
+<li><strong>Authentication and Session Management</strong>
+<ul>
+<li>Use of Django’s authentication mechanisms for handling user
+credentials and sessions.<br />
+</li>
+<li>Passwords stored using secure hashing algorithms (no plaintext
+storage).<br />
+</li>
+<li>Session timeout and logout capabilities provided to users.</li>
+</ul></li>
+<li><strong>Software Patching and Updates</strong>
+<ul>
+<li>Regular updates of Python/Django, React, and third-party libraries
+using dependency management tools (pip, npm/yarn).<br />
+</li>
+<li>Monitoring of third-party libraries for security advisories and
+vulnerability patches.</li>
+</ul></li>
+<li><strong>Review of Third-Party Components</strong>
+<ul>
+<li>Preference for well-maintained, community-vetted libraries.<br />
+</li>
+<li>Periodic review of third-party components and removal or replacement
+of unmaintained libraries when feasible.</li>
+</ul></li>
+<li><strong>Secure Communication</strong>
+<ul>
+<li>Enforcement of HTTPS for production environments to protect data in
+transit.<br />
+</li>
+<li>Proper TLS configuration at the reverse proxy/load balancer
+level.</li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="previous-security-test-reports">6. Previous Security Test
+Reports</h2>
+<p>At the time of preparing this document, there is no formal previous
+external security test report for this specific web application.
+Therefore:</p>
+<ul>
+<li>First phase security testing document: Not available / Not
+previously conducted.<br />
+</li>
+<li>Re-audit security testing document: Not available / Not previously
+conducted.</li>
+</ul>
+<p>If prior internal security reviews or tests exist, they can be shared
+separately as needed.</p>
+<hr />
+<h2 id="contact-information-and-communication-channel">7. Contact
+Information and Communication Channel</h2>
+<p><strong>Company:</strong> AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ
+ኋላ/የተ/የግ/ማ</p>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 13%" />
+<col style="width: 66%" />
+</colgroup>
+<thead>
+<tr>
+<th>Name</th>
+<th>Role</th>
+<th>Address (Email and Mobile)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Elnatan Nebiyou</td>
+<td>Developer</td>
+<td>Email: elnatan.nebiyu@gmail.com</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>Mobile: +251911429639</td>
+</tr>
+</tbody>
+</table>

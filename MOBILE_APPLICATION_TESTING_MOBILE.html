@@ -1,0 +1,494 @@
+<style>
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #111827;
+    line-height: 1.6;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  h1 {
+    color: #111827;
+    border-bottom: 2px solid #111827;
+    padding-bottom: 6px;
+  }
+  h2, h3 {
+    color: #1f2937;
+    margin-top: 1.4em;
+    page-break-after: avoid;
+  }
+  p, ul, ol, table {
+    page-break-inside: avoid;
+  }
+  code {
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 0.5em;
+  }
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+  }
+  th {
+    background-color: #f3f4f6;
+  }
+  figure {
+    text-align: center;
+  }
+  figure img {
+    max-width: 60%;
+    height: auto;
+  }
+</style>
+
+<h1 id="mobile-application-testing-technical-information">Mobile
+Application Testing – Technical Information</h1>
+<p><strong>Organization:</strong> AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ
+ኋላ/የተ/የግ/ማ<br />
+<strong>Platform:</strong> OnTime Ethiopia (Mobile Application)</p>
+<hr />
+<h2
+id="business-architecture-and-design-ecosystem-of-mobile-applications">1.
+Business Architecture and Design / Ecosystem of Mobile Applications</h2>
+<h3 id="background-of-the-organization">1.1 Background of the
+Organization</h3>
+<p>AI TECHNOLOGIES PLC (ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ) is an Ethiopian
+technology company focused on building digital platforms that support
+media, communication, and innovative services aligned with Ethiopia’s
+digital transformation agenda. The company delivers scalable software
+solutions and streaming platforms for local and regional audiences.</p>
+<h3 id="introduction">1.2 Introduction</h3>
+<p>This document provides technical and security-related information
+about the OnTime Ethiopia <strong>mobile application</strong>. It is
+intended to support the Information Network Security Administration
+(INSA) in planning and executing penetration testing and security
+assessments for the mobile app.</p>
+<h3 id="objective">1.3 Objective</h3>
+<p>The objective is to obtain an independent security assessment and
+certificate for the OnTime Ethiopia mobile application, verifying that
+it has been tested against common mobile and web-service vulnerabilities
+and that identified issues can be remediated to strengthen the
+platform’s overall security posture.</p>
+<h3 id="business-architecture-mobile-app">1.4 Business Architecture
+(Mobile App)</h3>
+<ul>
+<li><strong>Product:</strong> OnTime Ethiopia – a mobile OTT/streaming
+application providing live TV, shorts, and related content to end
+users.<br />
+</li>
+<li><strong>Core actors:</strong>
+<ul>
+<li>Mobile end users (Android) consuming video content via the
+app.<br />
+</li>
+<li>Backend services (Django REST API) providing authentication, content
+metadata, and streaming URLs.<br />
+</li>
+</ul></li>
+<li><strong>Core backend:</strong> Django REST Framework application
+exposing REST APIs for channels, live TV, shorts ingestion, playlists,
+and authentication.<br />
+</li>
+<li><strong>Mobile client:</strong> Flutter-based application consuming
+these APIs over HTTPS.</li>
+</ul>
+<h3 id="data-flow-diagram-text-description">1.5 Data Flow Diagram (Text
+Description)</h3>
+<ol type="1">
+<li>The OnTime Ethiopia mobile app (Flutter client) connects to the
+backend over HTTPS.</li>
+<li>The mobile app authenticates the user (for protected features like
+login, account management) and stores an auth token or session-related
+data securely (according to platform best practices).</li>
+<li>The mobile app sends REST API requests to the Django backend
+(e.g. <code>/api/channels/</code>, <code>/api/live/</code>,
+<code>/api/channels/shorts/ready/feed/</code>,
+<code>/api/auth/login/</code>).</li>
+<li>The backend reads/writes data from the application database
+(e.g. PostgreSQL), including user accounts, channels, playlists, live
+metadata, and shorts jobs.</li>
+<li>For media playback, the mobile app receives HLS playlist URLs from
+the backend and then streams audio/video content from streaming
+endpoints/CDN over HTTPS.</li>
+<li>Background analytics and error logging (if enabled) may send
+telemetry from the mobile app to backend logging/monitoring
+services.</li>
+</ol>
+<h3 id="mobile-application-data-flow-diagram-png">1.7 Mobile Application
+Data Flow Diagram (PNG)</h3>
+<p>The following figure shows the same data flow as a rendered diagram
+image (scaled for readability):</p>
+<figure>
+  <img src="Mobile_diagram.png" alt="Mobile application data flow diagram" />
+  <figcaption aria-hidden="true">Mobile application data flow
+  diagram</figcaption>
+</figure>
+<h3
+id="system-architecture-diagram-with-database-relation-text-description">1.8
+System Architecture Diagram with Database Relation (Text
+Description)</h3>
+<ul>
+<li><strong>Mobile Client Layer</strong>
+<ul>
+<li>OnTime Ethiopia Flutter app running on Android devices.</li>
+</ul></li>
+<li><strong>Application Layer</strong>
+<ul>
+<li>Django REST API application that handles authentication,
+authorization, content listing, and live/shorts metadata.<br />
+</li>
+<li>Celery workers for background processing (shorts ingestion,
+transcoding, and housekeeping).</li>
+</ul></li>
+<li><strong>Data Layer</strong>
+<ul>
+<li>Relational database (e.g. PostgreSQL) storing user profiles,
+playlists, channels, live metadata, and shorts ingestion jobs.<br />
+</li>
+<li>Object storage / CDN hosting media artifacts (HLS playlists,
+thumbnails, logos).</li>
+</ul></li>
+</ul>
+<p>The mobile app never accesses the database directly; all access is
+via authenticated and authorized API calls to the backend.</p>
+<h3 id="native-hybrid-and-pwa-classification-mandatory">1.9 Native,
+Hybrid, and PWA Classification (Mandatory)</h3>
+<ul>
+<li><strong>Native applications:</strong>
+<ul>
+<li>OnTime Ethiopia mobile app is built with <strong>Flutter</strong>
+and compiled to native Android binaries (APK/AAB). It uses native
+rendering and integrates with platform-specific components (e.g. video
+player plugins).</li>
+</ul></li>
+<li><strong>Hybrid applications:</strong>
+<ul>
+<li>The application is <strong>not</strong> implemented as a traditional
+hybrid app (e.g. Cordova/PhoneGap) using a WebView for the entire UI. It
+is a Flutter app compiled to native code.</li>
+</ul></li>
+<li><strong>Progressive Web Apps (PWA):</strong>
+<ul>
+<li>OnTime Ethiopia mobile is not a PWA; it is a store-installed native
+app. The PWA model is not used for this mobile client.</li>
+</ul></li>
+</ul>
+<h3 id="threat-model-mapping-high-level">1.10 Threat Model Mapping
+(High-Level)</h3>
+<ul>
+<li><strong>Assets:</strong>
+<ul>
+<li>User accounts and authentication credentials.<br />
+</li>
+<li>Access tokens / session identifiers stored on the device.<br />
+</li>
+<li>Streaming URLs and content metadata.<br />
+</li>
+<li>Configuration and feature flags.</li>
+</ul></li>
+<li><strong>Threats (examples):</strong>
+<ul>
+<li>Interception of network traffic (MitM) if HTTPS is not enforced or
+improperly configured.<br />
+</li>
+<li>Compromise of stored tokens or sensitive data on the device.<br />
+</li>
+<li>API misuse or bypass of access control by tampering with
+requests.<br />
+</li>
+<li>Reverse engineering of the APK to gain insight into API endpoints
+and business logic.</li>
+</ul></li>
+<li><strong>Mitigations (examples):</strong>
+<ul>
+<li>Use of HTTPS for all mobile–backend communication.<br />
+</li>
+<li>Server-side authorization checks for all sensitive operations.<br />
+</li>
+<li>Limited local storage of sensitive data; tokens stored using
+appropriate APIs and with shortest necessary lifetime.<br />
+</li>
+<li>Obfuscation/minification of Flutter build to make reverse
+engineering more difficult (as applicable).</li>
+</ul></li>
+</ul>
+<h3 id="system-functionality-mobile">1.11 System Functionality
+(Mobile)</h3>
+<ul>
+<li>Login / authentication for end users (e.g. email/password or social
+login depending on configuration).<br />
+</li>
+<li>Browse channels and categories.<br />
+</li>
+<li>Watch live TV streams and other media content.<br />
+</li>
+<li>Watch shorts (short-form videos) based on a randomized ready
+feed.<br />
+</li>
+<li>View basic metadata (titles, descriptions, thumbnails, channel
+logos).<br />
+</li>
+<li>Interact with playlists and curated content sections.</li>
+</ul>
+<h3 id="role-system-actor-relationship">1.12 Role / System Actor
+Relationship</h3>
+<ul>
+<li><strong>End User (Mobile):</strong>
+<ul>
+<li>Registers/logs in, views available content, initiates playback of
+live streams and shorts.</li>
+</ul></li>
+<li><strong>Backend Services:</strong>
+<ul>
+<li>Authenticate end users and issue tokens/sessions.<br />
+</li>
+<li>Enforce authorization for protected resources.<br />
+</li>
+<li>Provide content metadata and streaming URLs.</li>
+</ul></li>
+<li><strong>Admin/Editor (via web admin, not directly in mobile
+app):</strong>
+<ul>
+<li>Creates/manages content that the mobile app consumes (channels,
+playlists, shorts).</li>
+</ul></li>
+</ul>
+<h3 id="test-accounts-mandatory">1.13 Test Accounts (Mandatory)</h3>
+<p>The following types of test accounts will be provided to the
+testers:</p>
+<ul>
+<li><strong>End-user account (mobile):</strong><br />
+
+<ul>
+<li>A standard user account with access to typical content and features
+in the mobile app.<br />
+</li>
+<li>Testers may use any valid Gmail-based account (email/password) for
+login, as configured in the app.<br />
+</li>
+</ul></li>
+</ul>
+<p>If additional roles (e.g. beta testers or restricted accounts) exist,
+they can also be provided for testing.</p>
+<hr />
+<h2 id="purpose-and-functionality-of-the-mobile-application">2. Purpose
+and Functionality of the Mobile Application</h2>
+<h3 id="os-supported-by-the-mobile-application">2.1 OS Supported by the
+Mobile Application</h3>
+<ul>
+<li><strong>Primary supported OS:</strong> Android (mobile
+devices).<br />
+</li>
+<li>Additional platforms (e.g. iOS) can be evaluated or added in the
+future; Android is the main focus for current testing.</li>
+</ul>
+<h3 id="source-code-or-binary-apk">2.2 Source Code or Binary (APK)</h3>
+<ul>
+<li><strong>Source code:</strong>
+<ul>
+<li>Flutter project located under the repository directory
+(e.g. <code>Ontime_ethiopia_flutterapp/</code>).</li>
+</ul></li>
+<li><strong>Binary:</strong>
+<ul>
+<li>Android APK/AAB build will be provided to testers for installation
+on test devices.<br />
+</li>
+<li>The official build can be delivered directly or via store (if
+already published) as agreed.</li>
+</ul></li>
+</ul>
+<h3
+id="specific-functionalities-or-components-requiring-detailed-testing">2.3
+Specific Functionalities or Components Requiring Detailed Testing</h3>
+<ul>
+<li>Authentication and session handling in the mobile app (login,
+logout, token management).<br />
+</li>
+<li>Secure handling of API endpoints for live TV and shorts playback
+(including query parameters and authorization).<br />
+</li>
+<li>Handling of mixed content or non-HTTPS media URLs (ensuring secure
+playback where possible).<br />
+</li>
+<li>In-app error handling and failure modes when network or backend
+errors occur.<br />
+</li>
+<li>Any in-app configuration or hidden/debug menus (if present).</li>
+</ul>
+<h3 id="compliance-or-security-requirements">2.4 Compliance or Security
+Requirements</h3>
+<ul>
+<li>Alignment with general security best practices and guidance such as:
+<ul>
+<li>OWASP Mobile Application Security Verification Standard (MASVS) –
+where practically applicable.<br />
+</li>
+<li>Protection against common OWASP Mobile Top 10 risks (insecure
+communication, insecure authentication, insufficient cryptography,
+etc.).<br />
+</li>
+</ul></li>
+<li>Protection of user data and credentials, in alignment with local
+regulatory expectations for privacy and data protection.</li>
+</ul>
+<h3 id="authentication-mechanisms-used-in-the-mobile-application">2.5
+Authentication Mechanisms Used in the Mobile Application</h3>
+<ul>
+<li>User authentication via the backend (Django) using credentials
+(e.g. username/email and password) or social login (if enabled).<br />
+</li>
+<li>The mobile app stores necessary authentication tokens/sessions
+securely on the device and attaches them to subsequent API calls.<br />
+</li>
+<li>Logout functionality is provided to allow users to terminate
+sessions from the app.</li>
+</ul>
+<h3
+id="sensitive-data-stored-or-transmitted-by-the-mobile-application">2.6
+Sensitive Data Stored or Transmitted by the Mobile Application</h3>
+<ul>
+<li><strong>Stored (device):</strong>
+<ul>
+<li>Authentication token / session identifiers (minimal necessary
+information).<br />
+</li>
+</ul></li>
+<li><strong>Transmitted:</strong>
+<ul>
+<li>User credentials during login (over HTTPS).<br />
+</li>
+<li>User identifiers and session tokens in API requests (over
+HTTPS).</li>
+</ul></li>
+</ul>
+<h3 id="handling-of-sensitive-data-within-the-application">2.7 Handling
+of Sensitive Data within the Application</h3>
+<ul>
+<li>All communication of sensitive data (credentials, tokens, user
+identifiers) is performed over HTTPS.<br />
+</li>
+<li>The app does not store passwords in plain text on the device.<br />
+</li>
+<li>Session tokens or similar secrets are stored using mobile platform
+mechanisms intended for secure storage (e.g. secure storage plugins
+where possible) and kept for the shortest necessary duration.<br />
+</li>
+<li>Sensitive information is not logged in plaintext in production
+builds.</li>
+</ul>
+<h3 id="third-party-services-or-apis-integration">2.8 Third-Party
+Services or APIs Integration</h3>
+<ul>
+<li>The mobile app mainly communicates with the organization’s backend
+APIs.<br />
+</li>
+<li>Streaming may involve third-party CDNs or streaming providers,
+accessed via HTTPS URLs delivered by the backend.<br />
+</li>
+<li>Authentication may integrate with third-party identity providers
+(e.g. Google login) depending on configuration.</li>
+</ul>
+<h3 id="restrictions-or-limitations-on-testing-approach">2.9
+Restrictions or Limitations on Testing Approach</h3>
+<ul>
+<li>Penetration testing of the mobile client should avoid causing
+denial-of-service to production backend systems; testing windows and
+rate limits should be agreed in advance.<br />
+</li>
+<li>Store policies (if distributed via app stores) must be
+respected.<br />
+</li>
+<li>Any tests that might impact real users or production data should be
+carefully coordinated.</li>
+</ul>
+<h3 id="known-vulnerabilities-or-security-concerns">2.10 Known
+Vulnerabilities or Security Concerns</h3>
+<ul>
+<li>No formal external mobile security test has been conducted prior to
+this request.<br />
+</li>
+<li>The purpose of this assessment is to identify potential
+vulnerabilities such as insecure communication, improper
+authentication/authorization, insecure storage, or reverse engineering
+risks.</li>
+</ul>
+<hr />
+<h2 id="scope-definition-mandatory">3. Scope Definition (Mandatory)</h2>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 34%" />
+<col style="width: 38%" />
+</colgroup>
+<thead>
+<tr>
+<th>Name of the Assets to be Audit</th>
+<th>APK/Official Link</th>
+<th>Test Account as required by the tester</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OnTime Ethiopia Android Mobile Application</td>
+<td>Official APK/AAB build (to be provided) or store link</td>
+<td>Any valid Gmail-based user account (email)</td>
+</tr>
+</tbody>
+</table>
+<p>For detailed testing activities:</p>
+<ul>
+<li><strong>Static Analysis:</strong>
+<ul>
+<li>Assessment of the APK and, where permitted, review of decompiled
+code and configuration.</li>
+</ul></li>
+<li><strong>Dynamic Analysis:</strong>
+<ul>
+<li>Runtime analysis of the mobile app on test devices/emulators,
+including network traffic inspection and behavior under various
+conditions.</li>
+</ul></li>
+<li><strong>Automated Source Code Analysis:</strong>
+<ul>
+<li>Optional – if direct access to source code is provided, automated
+static analysis tools can be used to identify vulnerabilities in the
+Flutter/Dart code.</li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="contact-information-and-communication-channel">4. Contact
+Information and Communication Channel</h2>
+<p><strong>Company:</strong> AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ
+ኋላ/የተ/የግ/ማ</p>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 13%" />
+<col style="width: 66%" />
+</colgroup>
+<thead>
+<tr>
+<th>Name</th>
+<th>Role</th>
+<th>Address (Email and Mobile)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Elnatan Nebiyou</td>
+<td>Developer</td>
+<td>Email: elnatan.nebiyu@gmail.com</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>Mobile: +251911429639</td>
+</tr>
+</tbody>
+</table>
+<hr />

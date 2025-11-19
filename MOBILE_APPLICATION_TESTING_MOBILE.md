@@ -31,13 +31,20 @@ The objective is to obtain an independent security assessment and certificate fo
 ### 1.5 Data Flow Diagram (Text Description)
 
 1. The OnTime Ethiopia mobile app (Flutter client) connects to the backend over HTTPS.
-2. The mobile app authenticates the user (for protected features) and stores an auth token or session-related data securely (according to platform best practices).
-3. The mobile app sends REST API requests to the Django backend (e.g. `/api/channels/`, `/api/live/`, `/api/channels/shorts/ready/feed/`).
+2. The mobile app authenticates the user (for protected features like login, account management) and stores an auth token or session-related data securely (according to platform best practices).
+3. The mobile app sends REST API requests to the Django backend (e.g. `/api/channels/`, `/api/live/`, `/api/channels/shorts/ready/feed/`, `/api/auth/login/`).
 4. The backend reads/writes data from the application database (e.g. PostgreSQL), including user accounts, channels, playlists, live metadata, and shorts jobs.
 5. For media playback, the mobile app receives HLS playlist URLs from the backend and then streams audio/video content from streaming endpoints/CDN over HTTPS.
 6. Background analytics and error logging (if enabled) may send telemetry from the mobile app to backend logging/monitoring services.
 
-### 1.6 System Architecture Diagram with Database Relation (Text Description)
+
+### 1.7 Mobile Application Data Flow Diagram (PNG)
+
+The following figure shows the same data flow as a rendered diagram image:
+
+![Mobile application data flow diagram](Mobile_diagram.png)
+
+### 1.8 System Architecture Diagram with Database Relation (Text Description)
 
 - **Mobile Client Layer**  
   - OnTime Ethiopia Flutter app running on Android devices.  
@@ -52,7 +59,7 @@ The objective is to obtain an independent security assessment and certificate fo
 
 The mobile app never accesses the database directly; all access is via authenticated and authorized API calls to the backend.
 
-### 1.7 Native, Hybrid, and PWA Classification (Mandatory)
+### 1.9 Native, Hybrid, and PWA Classification (Mandatory)
 
 - **Native applications:**  
   - OnTime Ethiopia mobile app is built with **Flutter** and compiled to native Android binaries (APK/AAB). It uses native rendering and integrates with platform-specific components (e.g. video player plugins).  
@@ -63,7 +70,7 @@ The mobile app never accesses the database directly; all access is via authentic
 - **Progressive Web Apps (PWA):**  
   - OnTime Ethiopia mobile is not a PWA; it is a store-installed native app. The PWA model is not used for this mobile client.  
 
-### 1.8 Threat Model Mapping (High-Level)
+### 1.10 Threat Model Mapping (High-Level)
 
 - **Assets:**  
   - User accounts and authentication credentials.  
@@ -83,7 +90,7 @@ The mobile app never accesses the database directly; all access is via authentic
   - Limited local storage of sensitive data; tokens stored using appropriate APIs and with shortest necessary lifetime.  
   - Obfuscation/minification of Flutter build to make reverse engineering more difficult (as applicable).  
 
-### 1.9 System Functionality (Mobile)
+### 1.11 System Functionality (Mobile)
 
 - Login / authentication for end users (e.g. email/password or social login depending on configuration).  
 - Browse channels and categories.  
@@ -92,7 +99,7 @@ The mobile app never accesses the database directly; all access is via authentic
 - View basic metadata (titles, descriptions, thumbnails, channel logos).  
 - Interact with playlists and curated content sections.
 
-### 1.10 Role / System Actor Relationship
+### 1.12 Role / System Actor Relationship
 
 - **End User (Mobile):**  
   - Registers/logs in, views available content, initiates playback of live streams and shorts.  
@@ -105,7 +112,7 @@ The mobile app never accesses the database directly; all access is via authentic
 - **Admin/Editor (via web admin, not directly in mobile app):**  
   - Creates/manages content that the mobile app consumes (channels, playlists, shorts).  
 
-### 1.11 Test Accounts (Mandatory)
+### 1.13 Test Accounts (Mandatory)
 
 The following types of test accounts will be provided to the testers:
 
@@ -192,7 +199,7 @@ If additional roles (e.g. beta testers or restricted accounts) exist, they can a
 
 | Name of the Assets to be Audit            | APK/Official Link                                      | Test Account as required by the tester                       |
 |-------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------|
-| OnTime Ethiopia Android Mobile Application| Official APK/AAB build (to be provided) or store link | Any valid Gmail-based user account (email/password)         |
+| OnTime Ethiopia Android Mobile Application| Official APK/AAB build (to be provided) or store link | Any valid Gmail-based user account (email)         |
 
 For detailed testing activities:
 
@@ -213,7 +220,7 @@ For detailed testing activities:
 
 | Name           | Role      | Address (Email and Mobile)                           |
 |----------------|-----------|------------------------------------------------------|
-| elnatan nebiyou| Developer | Email: elnatan.nebiyu@gmail.com  
+| Elnatan Nebiyou| Developer | Email: elnatan.nebiyu@gmail.com  
 |                |           | Mobile: +251911429639                                |
 
 ---

@@ -343,7 +343,13 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   }
 
   Widget _buildPage(int i) {
-    _ensureHlsController(i);
+    // Defer controller initialization to after the current frame to avoid
+    // calling setState synchronously during the build phase, which can cause
+    // errors in Sliver/viewport layouts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ensureHlsController(i);
+    });
     final vc = _hlsControllers[i];
     final failed = _initFailed[i] == true;
     final title = (widget.videos[i]['title'] ?? '').toString();

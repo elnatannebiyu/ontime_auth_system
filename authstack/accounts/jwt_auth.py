@@ -2,7 +2,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -18,6 +18,89 @@ from tenants.models import Tenant
 from user_sessions.models import Session as RefreshSession
 
 User = get_user_model()
+
+
+def _get_client_ip(request) -> str:
+    """Return best-effort client IP, preferring X-Forwarded-For over REMOTE_ADDR.
+
+    Falls back to 127.0.0.1 when nothing is available, so existing behavior is
+    preserved for local/dev setups.
+    """
+    try:
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            # X-Forwarded-For may contain multiple IPs, client is first
+            return xff.split(",")[0].strip() or "127.0.0.1"
+    except Exception:
+        pass
+    return request.META.get("REMOTE_ADDR", "") or "127.0.0.1"
+
+
+def _infer_os_from_ua(ua: str) -> Tuple[str, str]:
+    """Very small heuristic to infer OS name/version from User-Agent.
+
+    This is only used when explicit X-OS-Name / X-OS-Version headers are not
+    provided by the client. It is intentionally simple and best-effort.
+    """
+    if not ua:
+        return "Unknown", ""
+    ua_low = ua.lower()
+
+    # Android
+    if "android" in ua_low:
+        name = "Android"
+        # e.g. "Android 14" or "Android 15" in UA
+        try:
+            idx = ua_low.index("android")
+            rest = ua[idx + len("android"):].strip()
+            # First token after "Android" is usually the version
+            version = rest.split(";", 1)[0].split(" ", 1)[0].strip()
+        except Exception:
+            version = ""
+        return name, version
+
+    # iOS (iPhone / iPad)
+    if "iphone" in ua_low or "ipad" in ua_low:
+        name = "iOS"
+        # Versions often appear as "OS 16_5" etc.
+        version = ""
+        try:
+            if " os " in ua_low:
+                part = ua_low.split(" os ", 1)[1]
+                token = part.split(" ", 1)[0]
+                version = token.replace("_", ".")
+        except Exception:
+            version = ""
+        return name, version
+
+    # macOS
+    if "mac os x" in ua_low or "macintosh" in ua_low:
+        name = "macOS"
+        version = ""
+        try:
+            if "mac os x" in ua_low:
+                part = ua_low.split("mac os x", 1)[1]
+                token = part.split(")", 1)[0].strip()
+                # token like "10_15_7" -> "10.15.7"
+                version = token.replace("_", ".").strip()
+        except Exception:
+            version = ""
+        return name, version
+
+    # Windows
+    if "windows nt" in ua_low:
+        name = "Windows"
+        version = ""
+        try:
+            part = ua_low.split("windows nt", 1)[1]
+            token = part.split(";", 1)[0].strip()
+            version = token
+        except Exception:
+            version = ""
+        return name, version
+
+    # Fallback for other platforms
+    return "Unknown", ""
 
 
 class TokenVersionMixin:
@@ -116,6 +199,17 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             # Get access token JTI
             access_token_jti = refresh_token.access_token.payload.get('jti', '')
             
+            # Derive OS info and client IP when headers are missing
+            ua = request.META.get('HTTP_USER_AGENT', '')[:500]
+            os_name = request.META.get('HTTP_X_OS_NAME', '')
+            os_version = request.META.get('HTTP_X_OS_VERSION', '')
+            if not os_name:
+                inferred_name, inferred_ver = _infer_os_from_ua(ua)
+                os_name = inferred_name
+                if not os_version:
+                    os_version = inferred_ver
+            client_ip = _get_client_ip(request)
+
             # Try to find existing session for this device and update it, or create new
             session, created = UserSession.objects.update_or_create(
                 user=self.user,
@@ -123,10 +217,10 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                 defaults={
                     'device_name': request.META.get('HTTP_X_DEVICE_NAME', ''),
                     'device_type': request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
-                    'os_name': request.META.get('HTTP_X_OS_NAME', ''),
-                    'os_version': request.META.get('HTTP_X_OS_VERSION', ''),
-                    'ip_address': request.META.get('REMOTE_ADDR', ''),
-                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                    'os_name': os_name,
+                    'os_version': os_version,
+                    'ip_address': client_ip,
+                    'user_agent': ua,
                     'refresh_token_jti': jti,
                     'access_token_jti': access_token_jti,
                     'expires_at': timezone.now() + timedelta(days=7),
@@ -157,8 +251,8 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                         'refresh_token_hash': refresh_hash,
                         'refresh_token_family': session.refresh_token_jti if hasattr(session, 'refresh_token_jti') else jti or '',
                         'rotation_counter': 0,
-                        'ip_address': request.META.get('REMOTE_ADDR') or '127.0.0.1',
-                        'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                        'ip_address': client_ip,
+                        'user_agent': ua,
                         'revoked_at': None,
                         'revoke_reason': '',
                         # Keep a reasonable expiry for audit; SimpleJWT refresh lifetime is 7 days in settings

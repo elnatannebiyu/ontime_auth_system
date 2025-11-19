@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, CssBaseline, Container, Divider, Snackbar, Alert } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, CssBaseline, Container, Divider, Snackbar, Alert, useTheme, useMediaQuery } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -12,6 +12,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
+import MenuIcon from '@mui/icons-material/Menu';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminUsers from './components/AdminUsers';
@@ -111,78 +112,122 @@ function InactivityWatcher() {
 function Shell({ children }: { children: React.ReactNode }) {
   const { mode, toggle } = useThemeMode();
   const navigate = useNavigate2();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const handleDrawerToggle = () => {
+    setMobileOpen((prev) => !prev);
+  };
   const handleLogout = async () => {
     try { await apiLogout(); } catch {}
     navigate('/login');
   };
+  const drawerContent = (
+    <>
+      <Toolbar />
+      <List sx={{ flexGrow: 1 }}>
+        <ListItemButton component={Link} to="/dashboard" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><DashboardIcon /></ListItemIcon>
+          <ListItemText primary="Dashboard" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/users" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><PeopleIcon /></ListItemIcon>
+          <ListItemText primary="Users & Sessions" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/channels" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><DnsIcon /></ListItemIcon>
+          <ListItemText primary="Channels" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/playlists" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+          <ListItemText primary="Playlists" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/videos" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+          <ListItemText primary="Videos" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/series" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+          <ListItemText primary="Series" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/live" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><LiveTvIcon /></ListItemIcon>
+          <ListItemText primary="Live" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/shorts/import" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><MovieFilterIcon /></ListItemIcon>
+          <ListItemText primary="Shorts Import" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/shorts/metrics" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><QueryStatsIcon /></ListItemIcon>
+          <ListItemText primary="Shorts Metrics" />
+        </ListItemButton>
+        <ListItemButton component={Link} to="/versions" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><SystemUpdateAltIcon /></ListItemIcon>
+          <ListItemText primary="App Versions" />
+        </ListItemButton>
+      </List>
+      <Divider />
+      <Box sx={{ p: 1 }}>
+        <ListItemButton component={Link} to="/profile" onClick={() => isMobile && setMobileOpen(false)}>
+          <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+          <ListItemText primary="My Profile" />
+        </ListItemButton>
+        <ListItemButton onClick={handleLogout}>
+          <ListItemIcon><LogoutIcon /></ListItemIcon>
+          <ListItemText primary="Logout" />
+        </ListItemButton>
+      </Box>
+    </>
+  );
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <CssBaseline />
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
+          {isMobile && (
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2 }}
+              aria-label="open navigation menu"
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Ontime Admin</Typography>
           <IconButton color="inherit" onClick={toggle} aria-label="toggle-theme">
             {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Drawer variant="permanent" sx={{ width: drawerWidth, [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' } }}>
-        <Toolbar />
-        <List sx={{ flexGrow: 1 }}>
-          <ListItemButton component={Link} to="/dashboard">
-            <ListItemIcon><DashboardIcon /></ListItemIcon>
-            <ListItemText primary="Dashboard" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/users">
-            <ListItemIcon><PeopleIcon /></ListItemIcon>
-            <ListItemText primary="Users & Sessions" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/channels">
-            <ListItemIcon><DnsIcon /></ListItemIcon>
-            <ListItemText primary="Channels" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/playlists">
-            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
-            <ListItemText primary="Playlists" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/videos">
-            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
-            <ListItemText primary="Videos" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/series">
-            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
-            <ListItemText primary="Series" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/live">
-            <ListItemIcon><LiveTvIcon /></ListItemIcon>
-            <ListItemText primary="Live" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/shorts/import">
-            <ListItemIcon><MovieFilterIcon /></ListItemIcon>
-            <ListItemText primary="Shorts Import" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/shorts/metrics">
-            <ListItemIcon><QueryStatsIcon /></ListItemIcon>
-            <ListItemText primary="Shorts Metrics" />
-          </ListItemButton>
-          <ListItemButton component={Link} to="/versions">
-            <ListItemIcon><SystemUpdateAltIcon /></ListItemIcon>
-            <ListItemText primary="App Versions" />
-          </ListItemButton>
-        </List>
-        <Divider />
-        <Box sx={{ p: 1 }}>
-          <ListItemButton component={Link} to="/profile">
-            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
-            <ListItemText primary="My Profile" />
-          </ListItemButton>
-          <ListItemButton onClick={handleLogout}>
-            <ListItemIcon><LogoutIcon /></ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItemButton>
-        </Box>
-      </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+      <Box component="nav" sx={{ flexShrink: { sm: 0 } }} aria-label="admin navigation">
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', md: 'flex' },
+            width: drawerWidth,
+            [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
+          }}
+          open
+        >
+          {drawerContent}
+        </Drawer>
+      </Box>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, width: '100%' }}>
         <Toolbar />
         <Container maxWidth="lg">
           {children}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Grid, Card, CardContent, CardActions, Typography, TextField, IconButton, Chip, Skeleton, Pagination, Tooltip, Button, Stack, MenuItem, Select, FormControl, InputLabel, Snackbar, Alert } from '@mui/material';
+import { Box, Grid, Card, CardContent, CardActions, Typography, TextField, IconButton, Chip, Skeleton, Pagination, Tooltip, Button, MenuItem, Select, FormControl, InputLabel, Snackbar, Alert } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import SyncIcon from '@mui/icons-material/Sync';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
@@ -112,39 +112,70 @@ const Channels: React.FC = () => {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-        <Typography variant="h5" component="h1" sx={{ flexGrow: 1 }}>Channels</Typography>
-        <TextField
-          size="small"
-          label="Search"
-          placeholder="Search by name or slug"
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-        />
-        <FormControl size="small">
-          <InputLabel id="order-label">Order by</InputLabel>
-          <Select labelId="order-label" label="Order by" value={ordering} onChange={(e)=>{ setOrdering(e.target.value as string); setPage(1); load(); }}>
-            <MenuItem value="sort_order">Sort order</MenuItem>
-            <MenuItem value="-updated_at">Recently updated</MenuItem>
-            <MenuItem value="id_slug">Slug</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl size="small">
-          <InputLabel id="status-label">Status</InputLabel>
-          <Select labelId="status-label" label="Status" value={status} onChange={(e)=>{ setStatus(e.target.value as any); setPage(1); load(); }}>
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-          </Select>
-        </FormControl>
-        <Tooltip title="Reload">
-          <span>
-            <IconButton onClick={load} aria-label="reload" disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-          </span>
-        </Tooltip>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 1.5,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Typography variant="h5" component="h1" sx={{ flexGrow: 1, minWidth: 160 }}>
+          Channels
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 1,
+            alignItems: 'center',
+            justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+          }}
+        >
+          <TextField
+            size="small"
+            label="Search"
+            placeholder="Search by name or slug"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 220 } }}
+          />
+          <FormControl size="small" sx={{ minWidth: { xs: 140, sm: 160 } }}>
+            <InputLabel id="order-label">Order by</InputLabel>
+            <Select
+              labelId="order-label"
+              label="Order by"
+              value={ordering}
+              onChange={(e)=>{ setOrdering(e.target.value as string); setPage(1); load(); }}
+            >
+              <MenuItem value="sort_order">Sort order</MenuItem>
+              <MenuItem value="-updated_at">Recently updated</MenuItem>
+              <MenuItem value="id_slug">Slug</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: { xs: 120, sm: 140 } }}>
+            <InputLabel id="status-label">Status</InputLabel>
+            <Select
+              labelId="status-label"
+              label="Status"
+              value={status}
+              onChange={(e)=>{ setStatus(e.target.value as any); setPage(1); load(); }}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+          <Tooltip title="Reload">
+            <span>
+              <IconButton onClick={load} aria-label="reload" disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
       </Box>
 
       {loading ? (
@@ -176,21 +207,65 @@ const Channels: React.FC = () => {
               const busy = busyIds.has(ch.id_slug);
               return (
                 <Grid key={ch.uid || ch.id_slug} item xs={12} sm={6} md={4} lg={3}>
-                  <Card>
-                    <Box sx={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover' }}>
+                  <Card
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        height: 140,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'action.hover',
+                        p: 1,
+                      }}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={logo} alt={`${title} logo`} style={{ maxHeight: 120, maxWidth: '90%', objectFit: 'contain' }} onError={(e:any)=>{ e.currentTarget.style.visibility='hidden'; }} />
+                      <img
+                        src={logo}
+                        alt={`${title} logo`}
+                        style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }}
+                        onError={(e:any)=>{ e.currentTarget.style.visibility='hidden'; }}
+                      />
                     </Box>
-                    <CardContent>
+                    <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                         <Typography variant="subtitle1" noWrap title={title}>{title}</Typography>
                         <Chip size="small" color={ch.is_active ? 'success' : 'default'} label={ch.is_active ? 'Active' : 'Inactive'} />
                       </Box>
-                      <Typography variant="caption" color="text.secondary">{ch.id_slug}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>{ch.id_slug}</Typography>
                     </CardContent>
-                    <CardActions sx={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                      <Stack direction="row" spacing={1}>
-                        <Button component={RouterLink} to={`/channels/${encodeURIComponent(ch.id_slug)}`} size="small">Details</Button>
+                    <CardActions
+                      sx={{
+                        pt: 1,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: {
+                            xs: '1fr',
+                            sm: 'repeat(2, minmax(0, 1fr))',
+                          },
+                          gap: 1,
+                          width: '100%',
+                        }}
+                      >
+                        <Button
+                          component={RouterLink}
+                          to={`/channels/${encodeURIComponent(ch.id_slug)}`}
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          sx={{ width: '100%' }}
+                        >
+                          Details
+                        </Button>
                         {isStaff && (
                           <Tooltip title={ch.is_active ? 'Deactivate' : 'Activate'}>
                             <span>
@@ -201,27 +276,46 @@ const Channels: React.FC = () => {
                                 startIcon={ch.is_active ? <ToggleOffIcon /> : <ToggleOnIcon />}
                                 disabled={busy}
                                 onClick={() => toggleActive(ch, !ch.is_active)}
+                                sx={{ width: '100%' }}
                               >
                                 {ch.is_active ? 'Deactivate' : 'Activate'}
                               </Button>
                             </span>
                           </Tooltip>
                         )}
-                      </Stack>
-                      {isStaff && (
-                        <Stack direction="row" spacing={1}>
+                        {isStaff && (
                           <Tooltip title="Sync playlists">
                             <span>
-                              <Button size="small" variant="outlined" startIcon={<PlaylistAddIcon/>} disabled={busyIds.has(`sync-pl-${ch.id_slug}`)} onClick={()=>syncPlaylists(ch.id_slug)}>Sync PL</Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<PlaylistAddIcon/>}
+                                disabled={busyIds.has(`sync-pl-${ch.id_slug}`)}
+                                onClick={()=>syncPlaylists(ch.id_slug)}
+                                sx={{ width: '100%' }}
+                              >
+                                Sync PL
+                              </Button>
                             </span>
                           </Tooltip>
+                        )}
+                        {isStaff && (
                           <Tooltip title="Sync all (playlists + videos)">
                             <span>
-                              <Button size="small" variant="contained" startIcon={<SyncIcon/>} disabled={busyIds.has(`sync-all-${ch.id_slug}`)} onClick={()=>syncAll(ch.id_slug)}>Sync All</Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={<SyncIcon/>}
+                                disabled={busyIds.has(`sync-all-${ch.id_slug}`)}
+                                onClick={()=>syncAll(ch.id_slug)}
+                                sx={{ width: '100%' }}
+                              >
+                                Sync All
+                              </Button>
                             </span>
                           </Tooltip>
-                        </Stack>
-                      )}
+                        )}
+                      </Box>
                     </CardActions>
                   </Card>
                 </Grid>

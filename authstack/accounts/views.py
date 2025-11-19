@@ -14,7 +14,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
-from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation
+from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation, _get_client_ip, _infer_os_from_ua
 from .models import UserSession
 from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer, UserAdminSerializer
 from .permissions import (
@@ -473,14 +473,19 @@ class RegisterView(APIView):
             refresh_jti = rt.payload.get('jti', '')
             access_jti = access["jti"] if "jti" in access else rt.access_token["jti"]
 
-            # Read device headers
+            # Read device headers and infer OS/IP where headers are missing
             dev_id = request.META.get('HTTP_X_DEVICE_ID') or ''
-            dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
+            ua = request.META.get('HTTP_USER_AGENT', '')
+            dev_name = request.META.get('HTTP_X_DEVICE_NAME') or ua[:255]
             dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
             os_name = request.META.get('HTTP_X_OS_NAME', '')
             os_version = request.META.get('HTTP_X_OS_VERSION', '')
-            ip_addr = request.META.get('REMOTE_ADDR') or '127.0.0.1'
-            ua = request.META.get('HTTP_USER_AGENT', '')
+            if not os_name:
+                inferred_name, inferred_ver = _infer_os_from_ua(ua)
+                os_name = inferred_name
+                if not os_version:
+                    os_version = inferred_ver
+            ip_addr = _get_client_ip(request)
 
             # Create legacy session (authoritative session_id UUID)
             legacy = LegacySession.objects.create(

@@ -1,0 +1,26 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault} % Sans serif
+
+% Fix pandoc's tightlist command for compact lists
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% No page header with file name
+\pagestyle{plain}
+
+\begin{document}
+
+$if(title)$
+\begin{center}
+{\huge\bfseries $title$ \par}
+\vspace{0.5cm}
+$endif$
+
+$body$
+
+\end{document}
