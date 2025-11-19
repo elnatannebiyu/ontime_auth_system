@@ -169,13 +169,15 @@ class ApiClient {
     // Handle 401 -> refresh -> retry
     dio.interceptors.add(_TokenRefreshInterceptor(this));
 
-    // Normalize backend version-enforcement (426) to a friendly notification
+    // Normalize backend version-enforcement (426 or explicit APP_UPDATE_REQUIRED code)
+    // to a friendly notification that can show a blocking update dialog.
     dio.interceptors.add(InterceptorsWrapper(
       onResponse:
           (Response response, ResponseInterceptorHandler handler) async {
+        final data = response.data;
+        // Case 1: HTTP 426 Upgrade Required (version enforcement middleware)
         if (response.statusCode == 426) {
           try {
-            final data = response.data;
             final msg = (data is Map && data['message'] is String)
                 ? data['message'] as String
                 : 'Please update the app to continue.';
@@ -187,19 +189,45 @@ class ApiClient {
             final cb = _onUpdateRequired;
             if (cb != null) cb(msg, storeUrl);
           } catch (_) {}
+        } else if (data is Map && data['code'] == 'APP_UPDATE_REQUIRED') {
+          // Case 2: JSON payload explicitly signalling that this endpoint
+          // requires an app update (e.g., social login or other auth flows).
+          try {
+            final msg = (data['message'] is String)
+                ? data['message'] as String
+                : 'This version is no longer supported. Please update to continue.';
+            final storeUrl = (data['store_url'] is String)
+                ? data['store_url'] as String
+                : null;
+            final cb = _onUpdateRequired;
+            if (cb != null) cb(msg, storeUrl);
+          } catch (_) {}
         }
         return handler.next(response);
       },
       onError: (DioException err, ErrorInterceptorHandler handler) async {
+        final data = err.response?.data;
+        // 426 from any endpoint enforces an app update
         if (err.response?.statusCode == 426) {
           try {
-            final data = err.response?.data;
             final msg = (data is Map && data['message'] is String)
                 ? data['message'] as String
                 : 'Please update the app to continue.';
             // Clear any existing credentials to prevent further use
             _forceLogout();
             final storeUrl = (data is Map && data['store_url'] is String)
+                ? data['store_url'] as String
+                : null;
+            final cb = _onUpdateRequired;
+            if (cb != null) cb(msg, storeUrl);
+          } catch (_) {}
+        } else if (data is Map && data['code'] == 'APP_UPDATE_REQUIRED') {
+          // Some endpoints may return APP_UPDATE_REQUIRED with non-426 status codes.
+          try {
+            final msg = (data['message'] is String)
+                ? data['message'] as String
+                : 'This version is no longer supported. Please update to continue.';
+            final storeUrl = (data['store_url'] is String)
                 ? data['store_url'] as String
                 : null;
             final cb = _onUpdateRequired;

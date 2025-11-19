@@ -327,14 +327,20 @@ class _LoginPageState extends State<LoginPage> {
                         Navigator.of(context)
                             .pushNamedAndRemoveUntil('/home', (_) => false);
                       } on DioException catch (e) {
-                        // If server enforced update (426), let the global modal handle UX
-                        if (e.response?.statusCode == 426) {
+                        // If server enforced update (426) or explicit APP_UPDATE_REQUIRED
+                        // code, let the global update handler show the dialog and do not
+                        // surface a red error banner here.
+                        final status = e.response?.statusCode;
+                        final data = e.response?.data;
+                        final appUpdateCode = (data is Map &&
+                            data['code'] is String &&
+                            data['code'] == 'APP_UPDATE_REQUIRED');
+                        if (status == 426 || appUpdateCode) {
                           if (mounted) {
                             setState(() => _socialLoading = false);
                           }
                           return;
                         }
-                        final data = e.response?.data;
                         final err = (data is Map && data['error'] is String)
                             ? data['error'] as String
                             : e.message ?? 'Google sign-in failed.';

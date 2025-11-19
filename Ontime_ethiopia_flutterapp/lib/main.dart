@@ -110,7 +110,6 @@ class _MyAppState extends State<MyApp> {
   late final String tenantId;
   late final ThemeController themeController;
   late final LocalizationController localizationController;
-  static final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   static final GlobalKey<ScaffoldMessengerState> _smKey =
       GlobalKey<ScaffoldMessengerState>();
   bool _updateDialogShown = false;
@@ -191,7 +190,8 @@ class _MyAppState extends State<MyApp> {
           duration: Duration(seconds: 3),
         ),
       );
-      _navKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+      appNavigatorKey.currentState
+          ?.pushNamedAndRemoveUntil('/login', (route) => false);
     });
 
     // Register notifier for offline/info messages from ApiClient
@@ -204,13 +204,13 @@ class _MyAppState extends State<MyApp> {
     // Show a blocking modal when the backend enforces an app update (HTTP 426)
     ApiClient().setUpdateRequiredHandler((message, storeUrl) async {
       // Do not navigate here; ApiClient's force-logout handler already sends user to /login
-      final ctx = _navKey.currentContext;
+      final ctx = appNavigatorKey.currentContext;
       if (ctx == null) {
         // Cache and try again after the next frame when context becomes available
         _pendingUpdateMsg = message;
         _pendingUpdateUrl = storeUrl;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          final ctx2 = _navKey.currentContext;
+          final ctx2 = appNavigatorKey.currentContext;
           if (ctx2 != null &&
               !_updateDialogShown &&
               _pendingUpdateMsg != null) {
@@ -227,8 +227,8 @@ class _MyAppState extends State<MyApp> {
 
     // Initialize Firebase Cloud Messaging (mobile only)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      FcmManager().initialize(context: _navKey.currentContext);
-      final ctx = _navKey.currentContext;
+      FcmManager().initialize(context: appNavigatorKey.currentContext);
+      final ctx = appNavigatorKey.currentContext;
       // If a pending 426 was cached before context existed, show it now
       if (ctx != null && !_updateDialogShown && _pendingUpdateMsg != null) {
         _showUpdateDialog(ctx, _pendingUpdateMsg!, _pendingUpdateUrl);
@@ -260,7 +260,7 @@ class _MyAppState extends State<MyApp> {
               onPressed: (storeUrl == null || storeUrl.isEmpty)
                   ? null
                   : () async {
-                      final ctx2 = _navKey.currentContext ?? ctx;
+                      final ctx2 = appNavigatorKey.currentContext ?? ctx;
                       await _openStoreLinkWithFallback(ctx2, storeUrl);
                     },
               style: ButtonStyle(

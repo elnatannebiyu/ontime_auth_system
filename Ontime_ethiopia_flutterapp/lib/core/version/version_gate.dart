@@ -3,6 +3,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../api_client.dart';
 
 class VersionGate {
@@ -54,9 +55,24 @@ class VersionGate {
               Text(message.isEmpty ? 'Please update to continue.' : message),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                // In production, open the store URL using url_launcher
+              onPressed: () async {
+                if (url.isEmpty) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+                try {
+                  final uri = Uri.parse(url);
+                  // 1) Try external application first (store app / browser)
+                  if (await canLaunchUrl(uri)) {
+                    final ok = await launchUrl(uri,
+                        mode: LaunchMode.externalApplication);
+                    if (ok) return;
+                  }
+                  // 2) Fallback to in-app webview
+                  await launchUrl(uri, mode: LaunchMode.inAppWebView);
+                } catch (_) {
+                  // Swallow errors; user can try again or update manually
+                }
               },
               child: const Text('Update'),
             ),
@@ -75,8 +91,20 @@ class VersionGate {
         action: url.isNotEmpty
             ? SnackBarAction(
                 label: 'Update',
-                onPressed: () {
-                  // In production, open the store URL using url_launcher
+                onPressed: () async {
+                  try {
+                    final uri = Uri.parse(url);
+                    // Prefer external application (store / browser)
+                    if (await canLaunchUrl(uri)) {
+                      final ok = await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                      if (ok) return;
+                    }
+                    // Fallback to in-app webview if available
+                    await launchUrl(uri, mode: LaunchMode.inAppWebView);
+                  } catch (_) {
+                    // Swallow errors; user can try again or update manually
+                  }
                 },
               )
             : null,
