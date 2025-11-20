@@ -181,7 +181,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
               <span>Remember me</span>
             </label>
-            <a href="#" className="link" onClick={(e) => { e.preventDefault(); /* TODO: route to forgot */ }}>Forgot password?</a>
           </div>
 
           <button className="btn primary w-full" disabled={loading || isLocked} aria-busy={loading}>
