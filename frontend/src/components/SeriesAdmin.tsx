@@ -850,7 +850,7 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search by episode title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { load(); } }} />
+        <TextField size="small" label="Search by episode title or number" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {/* Creating new Episodes from this UI is disabled; keep only edit/delete for existing ones. */}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>

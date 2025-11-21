@@ -255,6 +255,20 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         season_id = self.request.query_params.get("season")
         if season_id:
             qs = qs.filter(season__id=season_id)
+        # Manual case-insensitive search by episode title; if search term is numeric,
+        # also match exact episode_number. This avoids DB collation issues.
+        search_term = (self.request.query_params.get("search") or "").strip()
+        if search_term:
+            st = search_term.lower()
+            qs = qs.annotate(_lt=Lower("title"))
+            cond = Q(_lt__contains=st)
+            try:
+                num_val = int(search_term)
+            except (TypeError, ValueError):
+                num_val = None
+            if num_val is not None:
+                cond = cond | Q(episode_number__isnull=False, episode_number=num_val)
+            qs = qs.filter(cond)
         # Public filter: only visible published episodes unless admin
         if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(visible=True, status=Episode.STATUS_PUBLISHED, season__is_enabled=True, season__show__is_active=True)
