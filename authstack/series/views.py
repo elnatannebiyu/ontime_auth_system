@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.conf import settings
 from django.db.models import Max, F, Count, Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.core.management import call_command
 from .models import Show, Season, Episode, Category
@@ -156,9 +157,9 @@ class ShowViewSet(viewsets.ModelViewSet):
 class SeasonViewSet(viewsets.ModelViewSet):
     queryset = Season.objects.select_related("show").all()
     serializer_class = SeasonSerializer
-    # Allow ordering and search primarily by titles
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["title", "show__title"]
+    # Allow ordering; search is implemented manually in get_queryset for
+    # consistent case-insensitive behavior across DB backends
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ["number", "updated_at"]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
@@ -172,6 +173,13 @@ class SeasonViewSet(viewsets.ModelViewSet):
         show_slug = self.request.query_params.get("show")
         if show_slug:
             qs = qs.filter(show__slug=show_slug)
+        # Manual case-insensitive search by season title or show title, regardless of DB collation
+        search_term = (self.request.query_params.get("search") or "").strip()
+        if search_term:
+            st = search_term.lower()
+            qs = qs.annotate(_lt=Lower("title"), _lst=Lower("show__title")).filter(
+                Q(_lt__contains=st) | Q(_lst__contains=st)
+            )
         # Only enabled seasons for non-admins
         if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(is_enabled=True)
@@ -232,10 +240,9 @@ class SeasonViewSet(viewsets.ModelViewSet):
 class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.select_related("season", "season__show").all()
     serializer_class = EpisodeSerializer
-    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    # Allow ordering; search is implemented manually in get_queryset
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ["episode_number", "source_published_at", "updated_at"]
-    # Search only by episode title for admin UI simplicity
-    search_fields = ["title"]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     def list(self, request, *args, **kwargs):

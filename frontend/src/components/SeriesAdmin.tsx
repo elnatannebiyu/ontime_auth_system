@@ -69,6 +69,7 @@ interface CategoryItem {
 }
 
 const SHOWS_PAGE_SIZE = 20;
+const EPISODES_PAGE_SIZE = 200;
 
 function useIsStaff() {
   const [user, setUser] = useState<User | null>(null);
@@ -375,6 +376,10 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [expandedSeasonIds, setExpandedSeasonIds] = useState<Record<number, boolean>>({});
+  const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, EpisodeItem[]>>({});
+  const [epDialogOpen, setEpDialogOpen] = useState(false);
+  const [epEditing, setEpEditing] = useState<EpisodeItem | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -419,6 +424,70 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
     }
   };
 
+  const toggleSeasonExpanded = async (season: SeasonItem) => {
+    const currentlyOpen = !!expandedSeasonIds[season.id];
+    if (currentlyOpen) {
+      setExpandedSeasonIds(prev => ({ ...prev, [season.id]: false }));
+      return;
+    }
+    setExpandedSeasonIds(prev => ({ ...prev, [season.id]: true }));
+    // Lazy-load episodes for this season if not already fetched
+    if (!seasonEpisodes[season.id]) {
+      try {
+        const { data } = await api.get('/series/episodes/', {
+          params: { season: season.id, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number' },
+        });
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        setSeasonEpisodes(prev => ({ ...prev, [season.id]: list }));
+      } catch (e:any) {
+        onError(e?.response?.data?.detail || 'Failed to load Episodes for season');
+      }
+    }
+  };
+
+  const openEpisodeDialog = (ep: EpisodeItem) => {
+    setEpEditing(ep);
+    setEpDialogOpen(true);
+  };
+
+  const handleEpisodeSave = async (payload: Partial<EpisodeItem>) => {
+    try {
+      if (!epEditing?.id) {
+        onError('Creating new Episodes from the Seasons tab is disabled.');
+        return;
+      }
+      await api.patch(`/series/episodes/${epEditing.id}/`, payload);
+      setEpDialogOpen(false);
+      const seasonId = epEditing.season;
+      // Refresh just this season's episodes list
+      try {
+        const { data } = await api.get('/series/episodes/', {
+          params: { season: seasonId, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number' },
+        });
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        setSeasonEpisodes(prev => ({ ...prev, [seasonId]: list }));
+      } catch (e:any) {
+        onError(e?.response?.data?.detail || 'Failed to refresh Episodes for season');
+      }
+    } catch (e:any) {
+      onError(e?.response?.data?.detail || 'Failed to save Episode');
+    }
+  };
+
+  const handleEpisodeDelete = async (ep: EpisodeItem) => {
+    if (!window.confirm('Delete this Episode?')) return;
+    try {
+      await api.delete(`/series/episodes/${ep.id}/`);
+      const seasonId = ep.season;
+      setSeasonEpisodes(prev => ({
+        ...prev,
+        [seasonId]: (prev[seasonId] || []).filter(e => e.id !== ep.id),
+      }));
+    } catch (e:any) {
+      onError(e?.response?.data?.detail || 'Failed to delete Episode');
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
@@ -429,42 +498,68 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
-            <Box sx={{ flex: 1, minWidth:0 }}>
-              <Typography
-                variant="subtitle1"
-                noWrap
-                title={`${it.show_title || it.show} • S${it.number}${it.title ? ' • ' + it.title : ''}`}
-              >
-                {(it.show_title || it.show)} • S{it.number}{it.title ? ` • ${it.title}` : ''}
-              </Typography>
-              {it.yt_playlist_id && (
+          <Box key={it.id} sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{ flex: 1, minWidth:0 }}>
                 <Typography
-                  variant="caption"
-                  color="text.secondary"
+                  variant="subtitle1"
                   noWrap
-                  title={it.yt_playlist_id}
-                  sx={{ fontFamily:'monospace' }}
+                  title={`${it.show_title || it.show} • S${it.number}${it.title ? ' • ' + it.title : ''}`}
                 >
-                  {it.yt_playlist_id}
+                  {(it.show_title || it.show)} • S{it.number}{it.title ? ` • ${it.title}` : ''}
                 </Typography>
+                {it.yt_playlist_id && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    noWrap
+                    title={it.yt_playlist_id}
+                    sx={{ fontFamily:'monospace' }}
+                  >
+                    {it.yt_playlist_id}
+                  </Typography>
+                )}
+              </Box>
+              <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
+              {isStaff && (
+                <Stack direction="row" spacing={1}>
+                  <Tooltip title="Sync episodes for this Season's channel">
+                    <span>
+                      <IconButton onClick={()=>handleSync(it)} disabled={loading}>
+                        <RefreshIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
+                  <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
+                  <Button size="small" onClick={()=>toggleSeasonExpanded(it)}>
+                    {expandedSeasonIds[it.id] ? 'Hide episodes' : 'Show episodes'}
+                  </Button>
+                </Stack>
               )}
-            </Box>
-            <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
-            {isStaff && (
-              <Stack direction="row" spacing={1}>
-                <Tooltip title="Sync episodes for this Season's channel">
-                  <span>
-                    <IconButton onClick={()=>handleSync(it)} disabled={loading}>
-                      <RefreshIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-                <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
-                <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
+            </Stack>
+            <Collapse in={!!expandedSeasonIds[it.id]} timeout="auto" unmountOnExit>
+              <Stack spacing={0.5} sx={{ mt:1, ml:2 }}>
+                {(seasonEpisodes[it.id] || []).map(ep => (
+                  <Stack key={ep.id} direction="row" spacing={2} alignItems="center" sx={{ p:0.5, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+                    <Box sx={{ flex: 1, minWidth:0 }}>
+                      <Typography variant="body2" noWrap title={ep.title}>{ep.title}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap title={ep.source_video_id} sx={{ fontFamily:'monospace' }}>{ep.source_video_id}</Typography>
+                    </Box>
+                    <Chip size="small" color={ep.visible ? 'success':'default'} label={ep.visible ? 'Visible':'Hidden'} />
+                    <Chip size="small" label={ep.status} />
+                    <Stack direction="row" spacing={1}>
+                      <IconButton onClick={()=>openEpisodeDialog(ep)}><EditIcon/></IconButton>
+                      <IconButton onClick={()=>handleEpisodeDelete(ep)} color="error"><DeleteIcon/></IconButton>
+                    </Stack>
+                  </Stack>
+                ))}
+                {(!seasonEpisodes[it.id] || seasonEpisodes[it.id].length === 0) && (
+                  <Typography variant="caption" color="text.secondary">No episodes yet for this season.</Typography>
+                )}
               </Stack>
-            )}
-          </Stack>
+            </Collapse>
+          </Box>
         ))}
       </Stack>
       <Snackbar open={!!syncMessage} autoHideDuration={4000} onClose={()=>setSyncMessage(null)}>
@@ -476,6 +571,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
         <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
       </Box>
       <SeasonDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
+      <EpisodeDialog open={epDialogOpen} onClose={()=>{ setEpDialogOpen(false); setEpEditing(null); }} initial={epEditing || undefined} onSave={handleEpisodeSave} />
     </Stack>
   );
 }
@@ -665,8 +761,6 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<EpisodeItem | null>(null);
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [count, setCount] = useState(0);
   const [seasons, setSeasons] = useState<SeasonItem[]>([]);
   const [openShows, setOpenShows] = useState<Record<string, boolean>>({});
   const [openSeasons, setOpenSeasons] = useState<Record<string, boolean>>({});
@@ -674,24 +768,22 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   const load = async () => {
     setLoading(true);
     try {
-      const params: any = { ordering: 'episode_number', page };
+      const params: any = { ordering: 'episode_number', page_size: EPISODES_PAGE_SIZE };
       if (search.trim()) params.search = search.trim();
       const { data } = await api.get('/series/episodes/', { params });
       const list = Array.isArray(data) ? data : (data?.results || []);
       setItems(list);
-      setCount(typeof data?.count === 'number' ? data.count : list.length);
     } catch (e1:any) {
       try {
         const { data } = await api.get('/series/episodes/');
         const list = Array.isArray(data) ? data : (data?.results || []);
         setItems(list);
-        setCount(typeof data?.count === 'number' ? data.count : list.length);
       } catch (e2:any) {
         onError(e2?.response?.data?.detail || e1?.response?.data?.detail || 'Failed to load Episodes');
       }
     } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, [page]);
+  useEffect(()=>{ load(); }, []);
 
   useEffect(() => {
     // Load Seasons so we can map episode.season -> show slug and season number
@@ -758,7 +850,7 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search by episode title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
+        <TextField size="small" label="Search by episode title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {/* Creating new Episodes from this UI is disabled; keep only edit/delete for existing ones. */}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
@@ -823,9 +915,6 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
           );
         })}
       </Stack>
-      <Box sx={{ display:'flex', justifyContent:'center' }}>
-        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
-      </Box>
       <EpisodeDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
   );
