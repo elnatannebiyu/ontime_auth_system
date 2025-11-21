@@ -69,7 +69,9 @@ interface CategoryItem {
 }
 
 const SHOWS_PAGE_SIZE = 20;
-const EPISODES_PAGE_SIZE = 200;
+// Use a large page size so that "Show episodes" on a season effectively loads
+// all episodes for that season in one request.
+const EPISODES_PAGE_SIZE = 1000;
 
 function useIsStaff() {
   const [user, setUser] = useState<User | null>(null);

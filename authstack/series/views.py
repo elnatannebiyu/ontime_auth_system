@@ -243,6 +243,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     # Allow ordering; search is implemented manually in get_queryset
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ["episode_number", "source_published_at", "updated_at"]
+    # Disable pagination so callers (admin UI) always receive the full set of
+    # matching episodes in a single response.
+    pagination_class = None
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     def list(self, request, *args, **kwargs):
