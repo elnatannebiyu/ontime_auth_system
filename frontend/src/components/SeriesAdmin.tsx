@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Pagination, Select, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Collapse } from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Pagination, Select, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Collapse, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -380,6 +380,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [expandedSeasonIds, setExpandedSeasonIds] = useState<Record<number, boolean>>({});
   const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, EpisodeItem[]>>({});
+  const [seasonLoading, setSeasonLoading] = useState<Record<number, boolean>>({});
   const [epDialogOpen, setEpDialogOpen] = useState(false);
   const [epEditing, setEpEditing] = useState<EpisodeItem | null>(null);
 
@@ -436,6 +437,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
     // Lazy-load episodes for this season if not already fetched
     if (!seasonEpisodes[season.id]) {
       try {
+        setSeasonLoading(prev => ({ ...prev, [season.id]: true }));
         const { data } = await api.get('/series/episodes/', {
           params: { season: season.id, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number', include_all: 'true' },
         });
@@ -443,6 +445,8 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
         setSeasonEpisodes(prev => ({ ...prev, [season.id]: list }));
       } catch (e:any) {
         onError(e?.response?.data?.detail || 'Failed to load Episodes for season');
+      } finally {
+        setSeasonLoading(prev => ({ ...prev, [season.id]: false }));
       }
     }
   };
@@ -534,15 +538,23 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
                   </Tooltip>
                   <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
                   <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
-                  <Button size="small" onClick={()=>toggleSeasonExpanded(it)}>
-                    {expandedSeasonIds[it.id] ? 'Hide episodes' : 'Show episodes'}
+                  <Button size="small" onClick={()=>toggleSeasonExpanded(it)} disabled={!!seasonLoading[it.id]}>
+                    {seasonLoading[it.id]
+                      ? 'Loading episodes…'
+                      : (expandedSeasonIds[it.id] ? 'Hide episodes' : 'Show episodes')}
                   </Button>
                 </Stack>
               )}
             </Stack>
             <Collapse in={!!expandedSeasonIds[it.id]} timeout="auto" unmountOnExit>
               <Stack spacing={0.5} sx={{ mt:1, ml:2 }}>
-                {(seasonEpisodes[it.id] || []).map(ep => (
+                {seasonLoading[it.id] && (
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ py:0.5 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="caption" color="text.secondary">Loading episodes…</Typography>
+                  </Stack>
+                )}
+                {!seasonLoading[it.id] && (seasonEpisodes[it.id] || []).map(ep => (
                   <Stack key={ep.id} direction="row" spacing={2} alignItems="center" sx={{ p:0.5, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
                     <Box sx={{ flex: 1, minWidth:0 }}>
                       <Typography variant="body2" noWrap title={ep.title}>{ep.title}</Typography>
@@ -556,7 +568,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
                     </Stack>
                   </Stack>
                 ))}
-                {(!seasonEpisodes[it.id] || seasonEpisodes[it.id].length === 0) && (
+                {!seasonLoading[it.id] && (!seasonEpisodes[it.id] || seasonEpisodes[it.id].length === 0) && (
                   <Typography variant="caption" color="text.secondary">No episodes yet for this season.</Typography>
                 )}
               </Stack>
