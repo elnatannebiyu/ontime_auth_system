@@ -269,8 +269,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
             if num_val is not None:
                 cond = cond | Q(episode_number__isnull=False, episode_number=num_val)
             qs = qs.filter(cond)
-        # Public filter: only visible published episodes unless admin
-        if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
+        # Public filter: only visible published episodes unless admin or explicit include_all flag is set.
+        include_all = self.request.query_params.get("include_all") == "true"
+        if not include_all and not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(visible=True, status=Episode.STATUS_PUBLISHED, season__is_enabled=True, season__show__is_active=True)
         # Default ordering: manual episode_number first (nulls last), then publish time, then id
         if not self.request.query_params.get("ordering"):

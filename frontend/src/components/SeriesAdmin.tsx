@@ -435,7 +435,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
     if (!seasonEpisodes[season.id]) {
       try {
         const { data } = await api.get('/series/episodes/', {
-          params: { season: season.id, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number' },
+          params: { season: season.id, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number', include_all: 'true' },
         });
         const list = Array.isArray(data) ? data : (data?.results || []);
         setSeasonEpisodes(prev => ({ ...prev, [season.id]: list }));
@@ -462,7 +462,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
       // Refresh just this season's episodes list
       try {
         const { data } = await api.get('/series/episodes/', {
-          params: { season: seasonId, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number' },
+          params: { season: seasonId, page_size: EPISODES_PAGE_SIZE, ordering: 'episode_number', include_all: 'true' },
         });
         const list = Array.isArray(data) ? data : (data?.results || []);
         setSeasonEpisodes(prev => ({ ...prev, [seasonId]: list }));
