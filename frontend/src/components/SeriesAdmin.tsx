@@ -90,14 +90,12 @@ const SeriesAdmin: React.FC = () => {
       <Tabs value={tab} onChange={(_, v)=>setTab(v)}>
         <Tab label="Shows" />
         <Tab label="Seasons" />
-        <Tab label="Episodes" />
         <Tab label="Categories" />
       </Tabs>
       <Divider />
       {tab === 0 && <ShowsSection isStaff={isStaff} onError={setErr} />}
       {tab === 1 && <SeasonsSection isStaff={isStaff} onError={setErr} />}
-      {tab === 2 && <EpisodesSection isStaff={isStaff} onError={setErr} />}
-      {tab === 3 && <CategoriesSection isStaff={isStaff} onError={setErr} />}
+      {tab === 2 && <CategoriesSection isStaff={isStaff} onError={setErr} />}
       <Snackbar open={!!err} autoHideDuration={4000} onClose={()=>setErr(null)}>
         <Alert severity="error" variant="filled" onClose={()=>setErr(null)} sx={{ width:'100%' }}>{err}</Alert>
       </Snackbar>
@@ -969,7 +967,16 @@ function EpisodeDialog({ open, onClose, initial, onSave }: { open: boolean; onCl
           <TextField label="Source Published At (ISO)" value={publishedAt} onChange={e=>setPublishedAt(e.target.value)} />
           <TextField label="Episode Number" type="number" value={epNum} onChange={e=>setEpNum(e.target.value===''?'': Number(e.target.value))} />
           <FormControlLabel control={<Switch checked={visible} onChange={e=>setVisible(e.target.checked)} />} label="Visible" />
-          <TextField label="Status" value={status} onChange={e=>setStatus(e.target.value)} />
+          <Select
+            fullWidth
+            value={status}
+            onChange={e=>setStatus(String(e.target.value || ''))}
+            displayEmpty
+          >
+            <MenuItem value="published">Published</MenuItem>
+            <MenuItem value="draft">Draft</MenuItem>
+            <MenuItem value="needs_review">Needs review</MenuItem>
+          </Select>
         </Stack>
       </DialogContent>
       <DialogActions>
