@@ -156,9 +156,9 @@ class ShowViewSet(viewsets.ModelViewSet):
 class SeasonViewSet(viewsets.ModelViewSet):
     queryset = Season.objects.select_related("show").all()
     serializer_class = SeasonSerializer
-    # Allow ordering and search by show slug/title and playlist id
+    # Allow ordering and search primarily by titles
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["show__slug", "show__title", "yt_playlist_id"]
+    search_fields = ["title", "show__title"]
     ordering_fields = ["number", "updated_at"]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
@@ -234,12 +234,8 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     serializer_class = EpisodeSerializer
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     ordering_fields = ["episode_number", "source_published_at", "updated_at"]
-    search_fields = [
-        "title",
-        "source_video_id",
-        "season__show__slug",
-        "season__show__title",
-    ]
+    # Search only by episode title for admin UI simplicity
+    search_fields = ["title"]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     def list(self, request, *args, **kwargs):

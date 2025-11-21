@@ -219,6 +219,7 @@ class ShowSerializer(serializers.ModelSerializer):
 
 class SeasonSerializer(serializers.ModelSerializer):
     show = serializers.SlugRelatedField(slug_field="slug", queryset=Show.objects.all())
+    show_title = serializers.SerializerMethodField()
     cover_image = serializers.SerializerMethodField()
 
     class Meta:
@@ -227,6 +228,7 @@ class SeasonSerializer(serializers.ModelSerializer):
             "id",
             "tenant",
             "show",
+            "show_title",
             "number",
             "title",
             "cover_image",
@@ -239,6 +241,12 @@ class SeasonSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ("last_synced_at", "created_at", "updated_at")
+
+    def get_show_title(self, obj: Season) -> str:
+        try:
+            return obj.show.title or obj.show.slug
+        except Exception:
+            return ""
 
     def get_cover_image(self, obj: Season) -> str | None:
         val = (obj.cover_image or "").strip() if getattr(obj, "cover_image", None) else ""

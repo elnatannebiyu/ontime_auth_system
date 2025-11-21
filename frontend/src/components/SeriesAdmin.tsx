@@ -27,6 +27,7 @@ interface ChannelOption {
 interface SeasonItem {
   id: number;
   show: string; // slug
+  show_title?: string;
   number: number;
   title?: string;
   yt_playlist_id?: string;
@@ -421,7 +422,7 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search by show slug or title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
+        <TextField size="small" label="Search by season or show title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Season</Button>}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
@@ -430,8 +431,24 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
         {items.map(it => (
           <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
             <Box sx={{ flex: 1, minWidth:0 }}>
-              <Typography variant="subtitle1" noWrap title={`${it.show} • S${it.number}${it.title? ' • '+it.title:''}`}>{it.show} • S{it.number}{it.title? ` • ${it.title}`:''}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap title={it.yt_playlist_id} sx={{ fontFamily:'monospace' }}>{it.yt_playlist_id}</Typography>
+              <Typography
+                variant="subtitle1"
+                noWrap
+                title={`${it.show_title || it.show} • S${it.number}${it.title ? ' • ' + it.title : ''}`}
+              >
+                {(it.show_title || it.show)} • S{it.number}{it.title ? ` • ${it.title}` : ''}
+              </Typography>
+              {it.yt_playlist_id && (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  noWrap
+                  title={it.yt_playlist_id}
+                  sx={{ fontFamily:'monospace' }}
+                >
+                  {it.yt_playlist_id}
+                </Typography>
+              )}
             </Box>
             <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
             {isStaff && (
@@ -696,12 +713,13 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   }, [seasons]);
 
   const groupedByShow = useMemo(() => {
-    const result: Record<string, { show: string; seasons: Record<number, { season: SeasonItem | null; episodes: EpisodeItem[] }> }> = {};
+    const result: Record<string, { show: string; label: string; seasons: Record<number, { season: SeasonItem | null; episodes: EpisodeItem[] }> }> = {};
     items.forEach(ep => {
       const season = seasonsById[ep.season] || null;
       const showSlug = season?.show || 'unknown-show';
+      const showLabel = season?.show_title || showSlug;
       if (!result[showSlug]) {
-        result[showSlug] = { show: showSlug, seasons: {} };
+        result[showSlug] = { show: showSlug, label: showLabel, seasons: {} };
       }
       if (!result[showSlug].seasons[ep.season]) {
         result[showSlug].seasons[ep.season] = { season, episodes: [] };
@@ -740,7 +758,7 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search title, video id or show" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
+        <TextField size="small" label="Search by episode title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {/* Creating new Episodes from this UI is disabled; keep only edit/delete for existing ones. */}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
@@ -756,7 +774,7 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
           return (
             <Box key={showSlug} sx={{ border:'1px solid', borderColor:'divider', borderRadius:1, p:1 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ cursor:'pointer' }} onClick={() => toggleShow(showSlug)}>
-                <Typography variant="subtitle1" sx={{ flex:1 }}>{showSlug}</Typography>
+                <Typography variant="subtitle1" sx={{ flex:1 }}>{group.label}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {openShows[showSlug] ? 'Hide seasons' : 'Show seasons'}
                 </Typography>
