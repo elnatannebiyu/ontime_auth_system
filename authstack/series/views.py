@@ -232,8 +232,14 @@ class SeasonViewSet(viewsets.ModelViewSet):
 class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.select_related("season", "season__show").all()
     serializer_class = EpisodeSerializer
-    filter_backends = [filters.OrderingFilter]
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     ordering_fields = ["episode_number", "source_published_at", "updated_at"]
+    search_fields = [
+        "title",
+        "source_video_id",
+        "season__show__slug",
+        "season__show__title",
+    ]
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     def list(self, request, *args, **kwargs):

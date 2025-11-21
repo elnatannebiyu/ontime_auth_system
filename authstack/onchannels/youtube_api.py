@@ -150,3 +150,24 @@ def list_playlist_items(playlist_id: str, page_token: Optional[str] = None, max_
         "nextPageToken": data.get("nextPageToken"),
         "prevPageToken": data.get("prevPageToken"),
     }
+
+
+def get_video_privacy_status(video_id: str) -> Optional[str]:
+    """Return the privacyStatus for a single video id.
+
+    Possible values include "public", "unlisted", "private". Returns None if
+    the video is not found or the status cannot be determined.
+    """
+    params = {
+        "part": "status",
+        "id": video_id,
+        "key": _api_key(),
+    }
+    r = requests.get(f"{YOUTUBE_API_BASE}/videos", params=params, timeout=15)
+    if r.status_code != 200:
+        raise YouTubeAPIError(f"YouTube videos status error: {r.status_code} {r.text}")
+    data = r.json()
+    items = data.get("items", [])
+    if not items:
+        return None
+    return items[0].get("status", {}).get("privacyStatus")

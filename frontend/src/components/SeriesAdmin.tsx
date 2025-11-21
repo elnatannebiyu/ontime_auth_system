@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Pagination, Select, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Pagination, Select, Snackbar, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, Collapse } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -67,6 +67,8 @@ interface CategoryItem {
   is_active: boolean;
 }
 
+const SHOWS_PAGE_SIZE = 20;
+
 function useIsStaff() {
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => { (async () => { try { setUser(await getCurrentUser()); } catch {} })(); }, []);
@@ -111,7 +113,7 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
   const load = async () => {
     setLoading(true);
     try {
-      const params: any = { ordering: 'title', page };
+      const params: any = { ordering: 'title', page, page_size: SHOWS_PAGE_SIZE };
       if (search.trim()) params.search = search.trim();
       const { data } = await api.get('/series/shows/', { params });
       const list = Array.isArray(data) ? data : (data?.results || []);
@@ -163,7 +165,7 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
         ))}
       </Stack>
       <Box sx={{ display:'flex', justifyContent:'center' }}>
-        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />
+        <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / SHOWS_PAGE_SIZE))} color="primary" />
       </Box>
       <ShowDialog open={open} onClose={()=>{ setOpen(false); setEditing(null); }} initial={editing || undefined} onSave={handleSave} />
     </Stack>
@@ -648,6 +650,9 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
+  const [seasons, setSeasons] = useState<SeasonItem[]>([]);
+  const [openShows, setOpenShows] = useState<Record<string, boolean>>({});
+  const [openSeasons, setOpenSeasons] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     setLoading(true);
@@ -671,6 +676,50 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   };
   useEffect(()=>{ load(); }, [page]);
 
+  useEffect(() => {
+    // Load Seasons so we can map episode.season -> show slug and season number
+    (async () => {
+      try {
+        const { data } = await api.get('/series/seasons/', { params: { page_size: 500, ordering: 'number' } });
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        setSeasons(list);
+      } catch {
+        // ignore; grouping will fall back to using only season id
+      }
+    })();
+  }, []);
+
+  const seasonsById = useMemo(() => {
+    const map: Record<number, SeasonItem> = {};
+    seasons.forEach(s => { map[s.id] = s; });
+    return map;
+  }, [seasons]);
+
+  const groupedByShow = useMemo(() => {
+    const result: Record<string, { show: string; seasons: Record<number, { season: SeasonItem | null; episodes: EpisodeItem[] }> }> = {};
+    items.forEach(ep => {
+      const season = seasonsById[ep.season] || null;
+      const showSlug = season?.show || 'unknown-show';
+      if (!result[showSlug]) {
+        result[showSlug] = { show: showSlug, seasons: {} };
+      }
+      if (!result[showSlug].seasons[ep.season]) {
+        result[showSlug].seasons[ep.season] = { season, episodes: [] };
+      }
+      result[showSlug].seasons[ep.season].episodes.push(ep);
+    });
+    return result;
+  }, [items, seasonsById]);
+
+  const toggleShow = (slug: string) => {
+    setOpenShows(prev => ({ ...prev, [slug]: !prev[slug] }));
+  };
+
+  const toggleSeason = (showSlug: string, seasonId: number) => {
+    const key = `${showSlug}:${seasonId}`;
+    setOpenSeasons(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const handleSave = async (payload: Partial<EpisodeItem>) => {
     try {
       // Only allow editing existing episodes from this UI; no creation of new episodes
@@ -691,28 +740,70 @@ function EpisodesSection({ isStaff, onError }: { isStaff: boolean; onError: (m: 
   return (
     <Stack spacing={2}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search title or video id" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
+        <TextField size="small" label="Search title, video id or show" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
         <Box sx={{ flexGrow: 1 }} />
         {/* Creating new Episodes from this UI is disabled; keep only edit/delete for existing ones. */}
         <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
       </Stack>
       <Stack spacing={1}>
-        {items.map(it => (
-          <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
-            <Box sx={{ flex: 1, minWidth:0 }}>
-              <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap title={`Season #${it.season} • ${it.source_video_id}`} sx={{ fontFamily:'monospace' }}>Season #{it.season} • {it.source_video_id}</Typography>
-            </Box>
-            <Chip size="small" color={it.visible ? 'success':'default'} label={it.visible ? 'Visible':'Hidden'} />
-            <Chip size="small" label={it.status} />
-            {isStaff && (
-              <Stack direction="row" spacing={1}>
-                <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
-                <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
+        {Object.keys(groupedByShow).sort().map(showSlug => {
+          const group = groupedByShow[showSlug];
+          const seasonsArr = Object.values(group.seasons).sort((a, b) => {
+            const an = a.season?.number ?? 0;
+            const bn = b.season?.number ?? 0;
+            return an - bn;
+          });
+          return (
+            <Box key={showSlug} sx={{ border:'1px solid', borderColor:'divider', borderRadius:1, p:1 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ cursor:'pointer' }} onClick={() => toggleShow(showSlug)}>
+                <Typography variant="subtitle1" sx={{ flex:1 }}>{showSlug}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {openShows[showSlug] ? 'Hide seasons' : 'Show seasons'}
+                </Typography>
               </Stack>
-            )}
-          </Stack>
-        ))}
+              <Collapse in={!!openShows[showSlug]} timeout="auto" unmountOnExit>
+                <Stack spacing={1} sx={{ mt:1 }}>
+                  {seasonsArr.map(({ season, episodes }) => {
+                    const sid = season?.id || episodes[0]?.season;
+                    const key = `${showSlug}:${sid}`;
+                    return (
+                      <Box key={sid} sx={{ ml:1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ cursor:'pointer' }} onClick={() => toggleSeason(showSlug, sid)}>
+                          <Typography variant="subtitle2" sx={{ flex:1 }}>
+                            Season {season?.number ?? episodes[0]?.season}{season?.title ? ` – ${season.title}` : ''}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {openSeasons[key] ? 'Hide episodes' : 'Show episodes'}
+                          </Typography>
+                        </Stack>
+                        <Collapse in={!!openSeasons[key]} timeout="auto" unmountOnExit>
+                          <Stack spacing={0.5} sx={{ mt:0.5 }}>
+                            {episodes.map(it => (
+                              <Stack key={it.id} direction="row" spacing={2} alignItems="center" sx={{ p:0.5, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+                                <Box sx={{ flex: 1, minWidth:0 }}>
+                                  <Typography variant="body2" noWrap title={it.title}>{it.title}</Typography>
+                                  <Typography variant="caption" color="text.secondary" noWrap title={it.source_video_id} sx={{ fontFamily:'monospace' }}>{it.source_video_id}</Typography>
+                                </Box>
+                                <Chip size="small" color={it.visible ? 'success':'default'} label={it.visible ? 'Visible':'Hidden'} />
+                                <Chip size="small" label={it.status} />
+                                {isStaff && (
+                                  <Stack direction="row" spacing={1}>
+                                    <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
+                                    <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
+                                  </Stack>
+                                )}
+                              </Stack>
+                            ))}
+                          </Stack>
+                        </Collapse>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Collapse>
+            </Box>
+          );
+        })}
       </Stack>
       <Box sx={{ display:'flex', justifyContent:'center' }}>
         <Pagination page={page} onChange={(_,p)=>setPage(p)} count={Math.max(1, Math.ceil(count / 24))} color="primary" />

@@ -3,7 +3,7 @@ from django.utils import timezone
 from typing import List, Set
 
 from series.models import Season, Episode
-from onchannels.youtube_api import YouTubeAPIError, get_playlist, list_playlist_items
+from onchannels.youtube_api import YouTubeAPIError, get_playlist, list_playlist_items, get_video_privacy_status
 
 
 EXCLUDE_DEFAULT = [
@@ -92,6 +92,8 @@ class Command(BaseCommand):
                         continue
 
                     # Upsert Episode with minimal fields; episode_number assignment rule can be improved later
+                    # Note: we do not override visibility/status for existing episodes here to respect
+                    # any manual changes made in the admin.
                     ep, was_created = Episode.objects.update_or_create(
                         season=season,
                         source_video_id=vid,
@@ -101,9 +103,22 @@ class Command(BaseCommand):
                             "thumbnails": it.get("thumbnails") or {},
                             "source_published_at": self._parse_published(it.get("publishedAt")),
                             "status": Episode.STATUS_PUBLISHED,
-                            "visible": True,
                         },
                     )
+
+                    if was_created:
+                        # Decide initial visibility based on YouTube privacyStatus.
+                        try:
+                            privacy_status = get_video_privacy_status(vid)
+                        except YouTubeAPIError:
+                            privacy_status = None
+
+                        if privacy_status == "private":
+                            ep.visible = False
+                        else:
+                            # Public/unlisted/unknown -> visible by default
+                            ep.visible = True
+                        ep.save(update_fields=["visible"])
                     if was_created:
                         created += 1
                     else:
