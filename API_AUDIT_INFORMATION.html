@@ -1,79 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>API_AUDIT_INFORMATION.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
 <style>
-  body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #111827;
-    line-height: 1.6;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 24px;
-  }
-  h1 {
-    color: #111827;
-    border-bottom: 2px solid #111827;
-    padding-bottom: 6px;
-  }
-  h2, h3 {
-    color: #1f2937;
-    margin-top: 1.4em;
-    page-break-after: avoid;
-  }
-  p, ul, ol, table {
-    page-break-inside: avoid;
-  }
-  code {
-    color: #1d4ed8;
-    font-weight: 600;
-  }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 0.5em;
-  }
-  th, td {
-    border: 1px solid #e5e7eb;
-    padding: 6px 8px;
-  }
-  th {
-    background-color: #f3f4f6;
-  }
-  figure {
-    text-align: center;
-  }
-  figure img {
-    max-width: 60%;
-    height: auto;
-  }
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
 </style>
 
-<h1 id="api-audit-information-ontime-ethiopia">API Audit Information –
-OnTime Ethiopia</h1>
-<p><strong>Organization:</strong> AI TECHNOLOGIES PLC<br />
-<strong>Platform:</strong> OnTime Ethiopia (Web Application + Backend
-APIs)<br />
-<strong>Prepared for:</strong> Information Network Security
-Administration (INSA)<br />
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ @page {
+  /* 1.25in top/bottom, 1in left/right for consistent header/footer spacing */
+  margin: 1.25in 1in;
+ }
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+ }
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Try to keep lists and tables together on a single page where possible */
+ul, ol, table {
+	page-break-inside: avoid;
+}
+
+/* Try to avoid headings being left as the last line on a page */
+h1, h2, h3 {
+	page-break-after: avoid;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="api-audit-information-%E2%80%93-ontime-ethiopia">API Audit Information – OnTime Ethiopia</h1>
+<p><strong>Organization:</strong> AI TECHNOLOGIES PLC<br>
+<strong>Platform:</strong> OnTime Ethiopia (Web Application + Backend APIs)<br>
+<strong>Prepared for:</strong> Information Network Security Administration (INSA)<br>
 <strong>Date:</strong> November 2025</p>
-<hr />
-<h2 id="name-of-the-assets-to-be-audit-apis">1. Name of the Assets to be
-Audit (APIs)</h2>
-<p>This section lists the primary API assets that are in scope for the
-security assessment. All endpoints are served under the same base
-domain, with different paths.</p>
-<h3 id="base-urls">1.1 Base URLs</h3>
+<p>This document focuses on the backend APIs used by the OnTime Ethiopia web and mobile clients. It should be read together with the Web Application Testing and Mobile Application Testing documents, which describe the respective frontends and overall platform context.</p>
+<hr>
+<h2 id="1-name-of-the-assets-to-be-audit-apis">1. Name of the Assets to be Audit (APIs)</h2>
+<p>This section lists the primary API assets that are in scope for the security assessment. All endpoints are served under the same base domain, with different paths.</p>
+<h3 id="11-base-urls">1.1 Base URLs</h3>
 <ul>
-<li><strong>Production (example):</strong>
-<code>https://ontime.aitechnologiesplc.com/</code><br />
-</li>
+<li><strong>Production (example):</strong> <code>https://ontime.aitechnologiesplc.com/</code></li>
 <li><strong>API Base Path:</strong> <code>/api/</code></li>
 </ul>
-<h3 id="assets-api-groups-in-scope">1.2 Assets / API Groups in
-Scope</h3>
+<h3 id="12-assets--api-groups-in-scope">1.2 Assets / API Groups in Scope</h3>
 <table>
-<colgroup>
-<col style="width: 23%" />
-<col style="width: 34%" />
-<col style="width: 42%" />
-</colgroup>
 <thead>
 <tr>
 <th>Asset Name</th>
@@ -84,8 +406,7 @@ Scope</h3>
 <tbody>
 <tr>
 <td>Authentication &amp; Session APIs</td>
-<td><code>/api/token/</code>, <code>/api/token/refresh/</code>,
-<code>/api/logout/</code></td>
+<td><code>/api/token/</code>, <code>/api/token/refresh/</code>, <code>/api/logout/</code></td>
 <td>Login, refresh, logout, user session management</td>
 </tr>
 <tr>
@@ -100,14 +421,13 @@ Scope</h3>
 </tr>
 <tr>
 <td>Version &amp; Feature Management APIs</td>
-<td><code>/api/channels/version/*</code>,
-<code>/api/channels/features/</code></td>
+<td><code>/api/channels/version/*</code>, <code>/api/channels/features/</code></td>
 <td>App version checks and feature flags</td>
 </tr>
 <tr>
 <td>Channel Management APIs</td>
 <td><code>/api/channels/*</code></td>
-<td>Channels list, detail, logos</td>
+<td>Channels list, detail,  logos</td>
 </tr>
 <tr>
 <td>Shorts APIs</td>
@@ -126,472 +446,315 @@ Scope</h3>
 </tr>
 </tbody>
 </table>
-<hr />
-<h2 id="api-types-mandatory">2. API Types (Mandatory)</h2>
+<hr>
+<h2 id="2-api-types-mandatory">2. API Types (Mandatory)</h2>
 <ul>
 <li><strong>Type:</strong> RESTful JSON APIs over HTTPS.</li>
-<li><strong>Style:</strong> Resource-based endpoints with standard HTTP
-verbs (GET, POST, PUT, PATCH, DELETE).</li>
+<li><strong>Style:</strong> Resource-based endpoints with standard HTTP verbs (GET, POST, PUT, PATCH, DELETE).</li>
 <li><strong>Access Pattern:</strong>
 <ul>
-<li><strong>Public / semi-public:</strong> Selected endpoints may be
-callable by anonymous users (e.g. health/static info if enabled).</li>
-<li><strong>Authenticated:</strong> Majority of endpoints require
-JWT-based authentication.</li>
-<li><strong>Admin-only:</strong> Sensitive operations are restricted to
-admin/editor roles.</li>
-</ul></li>
+<li><strong>Public / semi-public:</strong> Selected endpoints may be callable by anonymous users (e.g. health/static info if enabled).</li>
+<li><strong>Authenticated:</strong> Majority of endpoints require JWT-based authentication.</li>
+<li><strong>Admin-only:</strong> Sensitive operations are restricted to admin/editor roles.</li>
+</ul>
+</li>
 <li><strong>Synchronous / Asynchronous:</strong>
 <ul>
 <li>HTTP requests are processed synchronously.</li>
-<li>Longer-running operations (e.g. shorts ingestion) are managed via
-Celery workers triggered by API calls.</li>
-</ul></li>
+<li>Longer-running operations (e.g. shorts ingestion) are managed via Celery workers triggered by API calls.</li>
 </ul>
-<hr />
-<h2 id="updated-api-documentation-overview">3. Updated API Documentation
-(Overview)</h2>
-<p>All API calls must include tenant and, where required, authorization
-headers:</p>
+</li>
+</ul>
+<hr>
+<h2 id="3-updated-api-documentation-overview">3. Updated API Documentation (Overview)</h2>
+<p>All API calls must include tenant and, where required, authorization headers:</p>
 <ul>
 <li><code>X-Tenant-Id: ontime</code> (or other configured tenant)</li>
-<li><code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code> (for
-protected endpoints)</li>
+<li><code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code> (for protected endpoints)</li>
 <li><code>Content-Type: application/json</code> for JSON payloads</li>
 </ul>
-<h3 id="authentication-user-apis">3.1 Authentication &amp; User
-APIs</h3>
+<h3 id="31-authentication--user-apis">3.1 Authentication &amp; User APIs</h3>
 <ul>
-<li><strong>POST</strong> <code>/api/token/</code> – Obtain JWT access
-and refresh tokens using <strong>username + password</strong>.</li>
-<li><strong>POST</strong> <code>/api/token/refresh/</code> – Refresh
-access token using refresh cookie.</li>
-<li><strong>POST</strong> <code>/api/logout/</code> – Logout and
-invalidate tokens.</li>
-<li><strong>POST</strong> <code>/api/register/</code> – Register a new
-account (rate-limited).</li>
-<li><strong>GET / PUT / PATCH</strong> <code>/api/me/</code> – Get or
-update current user profile.</li>
+<li><strong>POST</strong> <code>/api/token/</code> – Obtain JWT access and refresh tokens using <strong>username + password</strong>.</li>
+<li><strong>POST</strong> <code>/api/token/refresh/</code> – Refresh access token using refresh cookie.</li>
+<li><strong>POST</strong> <code>/api/logout/</code> – Logout and invalidate tokens.</li>
+<li><strong>POST</strong> <code>/api/register/</code> – Register a new account (rate-limited).</li>
+<li><strong>GET / PUT / PATCH</strong> <code>/api/me/</code> – Get or update current user profile.</li>
 </ul>
-<h3 id="otp-authentication-apis">3.2 OTP Authentication APIs</h3>
+<h3 id="32-otp-authentication-apis">3.2 OTP Authentication APIs</h3>
 <ul>
-<li><strong>POST</strong> <code>/api/auth/otp/request/</code> – Request
-OTP for email/phone.</li>
-<li><strong>POST</strong> <code>/api/auth/otp/verify/</code> – Verify
-OTP and issue tokens.</li>
-<li><strong>POST</strong> <code>/api/auth/otp/resend/</code> – Resend
-OTP.</li>
+<li><strong>POST</strong> <code>/api/auth/otp/request/</code> – Request OTP for email/phone.</li>
+<li><strong>POST</strong> <code>/api/auth/otp/verify/</code> – Verify OTP and issue tokens.</li>
+<li><strong>POST</strong> <code>/api/auth/otp/resend/</code> – Resend OTP.</li>
 </ul>
-<h3 id="social-authentication-apis">3.3 Social Authentication APIs</h3>
+<h3 id="33-social-authentication-apis">3.3 Social Authentication APIs</h3>
 <ul>
-<li><strong>POST</strong> <code>/api/auth/social/login/</code> – Social
-login using provider token.</li>
-<li><strong>POST</strong> <code>/api/auth/social/link/</code> – Link
-social account to existing user.</li>
-<li><strong>POST</strong> <code>/api/auth/social/unlink/</code> – Unlink
-social account.</li>
+<li><strong>POST</strong> <code>/api/auth/social/login/</code> – Social login using provider token.</li>
+<li><strong>POST</strong> <code>/api/auth/social/link/</code> – Link social account to existing user.</li>
+<li><strong>POST</strong> <code>/api/auth/social/unlink/</code> – Unlink social account.</li>
 </ul>
-<h3 id="dynamic-forms-apis">3.4 Dynamic Forms APIs</h3>
+<h3 id="34-dynamic-forms-apis">3.4 Dynamic Forms APIs</h3>
 <ul>
-<li><strong>GET</strong> <code>/api/forms/schema/</code> – Retrieve form
-schema using <code>action</code> query param
-(e.g. <code>action=login|register|verify_otp|reset_password</code>).</li>
-<li><strong>POST</strong> <code>/api/forms/validate/</code> – Validate a
-single field (<code>field</code>, <code>value</code>, etc.).</li>
-<li><strong>POST</strong> <code>/api/forms/submit/</code> – Submit a
-form with <code>action</code> (login/register/…) and <code>data</code>
-payload.</li>
-<li><strong>GET</strong> <code>/api/forms/config/</code> – Retrieve form
-configuration/feature flags.</li>
+<li><strong>GET</strong> <code>/api/forms/schema/</code> – Retrieve form schema using <code>action</code> query param (e.g. <code>action=login|register|verify_otp|reset_password</code>).</li>
+<li><strong>POST</strong> <code>/api/forms/validate/</code> – Validate a single field (<code>field</code>, <code>value</code>, etc.).</li>
+<li><strong>POST</strong> <code>/api/forms/submit/</code> – Submit a form with <code>action</code> (login/register/...) and <code>data</code> payload.</li>
+<li><strong>GET</strong> <code>/api/forms/config/</code> – Retrieve form configuration/feature flags.</li>
 </ul>
-<h3 id="version-feature-management-apis">3.5 Version &amp; Feature
-Management APIs</h3>
+<h3 id="35-version--feature-management-apis">3.5 Version &amp; Feature Management APIs</h3>
 <ul>
-<li><strong>POST</strong> <code>/api/channels/version/check/</code> –
-Check if app version is supported and whether an update is
-required.</li>
-<li><strong>GET</strong> <code>/api/channels/version/latest/</code> –
-Get latest supported version for a platform.</li>
-<li><strong>GET</strong> <code>/api/channels/version/supported/</code> –
-List all supported versions.</li>
-<li><strong>GET</strong> <code>/api/channels/features/</code> – Retrieve
-feature flags for a given platform and version.</li>
+<li><strong>POST</strong> <code>/api/channels/version/check/</code> – Check if app version is supported and whether an update is required.</li>
+<li><strong>GET</strong> <code>/api/channels/version/latest/</code> – Get latest supported version for a platform.</li>
+<li><strong>GET</strong> <code>/api/channels/version/supported/</code> – List all supported versions.</li>
+<li><strong>GET</strong> <code>/api/channels/features/</code> – Retrieve feature flags for a given platform and version.</li>
 </ul>
-<h3 id="channel-management-apis">3.6 Channel Management APIs</h3>
+<h3 id="36-channel-management-apis">3.6 Channel Management APIs</h3>
 <ul>
-<li><strong>GET</strong> <code>/api/channels/</code> – List channels
-(paginated).</li>
-<li><strong>GET</strong> <code>/api/channels/{id}/</code> – Get specific
-channel.</li>
-<li><strong>POST</strong> <code>/api/channels/</code> – Create channel
-(admin only).</li>
-<li><strong>PUT/PATCH</strong> <code>/api/channels/{id}/</code> – Update
-channel (admin only).</li>
-<li><strong>DELETE</strong> <code>/api/channels/{id}/</code> – Delete
-channel (admin only).</li>
-<li><strong>GET</strong> <code>/api/channels/{slug}/logo/</code> –
-Retrieve channel logo asset for use in the web frontend.</li>
+<li><strong>GET</strong> <code>/api/channels/</code> – List channels (paginated).</li>
+<li><strong>GET</strong> <code>/api/channels/{id}/</code> – Get specific channel.</li>
+<li><strong>POST</strong> <code>/api/channels/</code> – Create channel (admin only).</li>
+<li><strong>PUT/PATCH</strong> <code>/api/channels/{id}/</code> – Update channel (admin only).</li>
+<li><strong>DELETE</strong> <code>/api/channels/{id}/</code> – Delete channel (admin only).</li>
+<li><strong>GET</strong> <code>/api/channels/{slug}/logo/</code> – Retrieve channel logo asset for use in the web frontend.</li>
 </ul>
-<h3 id="shorts-apis">3.7 Shorts APIs</h3>
+<h3 id="37-shorts-apis">3.7 Shorts APIs</h3>
 <ul>
-<li><strong>GET</strong> <code>/api/channels/shorts/playlists/</code> –
-Recent shorts playlists per channel, tenant-aware.</li>
-<li><strong>GET</strong> <code>/api/channels/shorts/feed/</code> –
-Deterministically shuffled shorts feed for end users.</li>
+<li><strong>GET</strong> <code>/api/channels/shorts/playlists/</code> – Recent shorts playlists per channel, tenant-aware.</li>
+<li><strong>GET</strong> <code>/api/channels/shorts/feed/</code> – Deterministically shuffled shorts feed for end users.</li>
 </ul>
-<h3 id="admin-session-management-apis">3.8 Admin &amp; Session
-Management APIs</h3>
+<h3 id="38-admin--session-management-apis">3.8 Admin &amp; Session Management APIs</h3>
 <ul>
-<li><strong>GET</strong> <code>/api/admin-only/</code> – Admin-only
-endpoint for tests / admin checks.</li>
-<li><strong>GET</strong> <code>/api/users/</code> – User listing for
-admins (permission-based).</li>
-<li><strong>GET</strong> <code>/api/sessions/</code> – List active
-sessions for current user.</li>
-<li><strong>DELETE</strong> <code>/api/sessions/{session_id}/</code> –
-Revoke a specific session.</li>
-<li><strong>POST</strong> <code>/api/sessions/revoke-all/</code> –
-Revoke all sessions for current user.</li>
+<li><strong>GET</strong> <code>/api/admin-only/</code> – Admin-only endpoint for tests / admin checks.</li>
+<li><strong>GET</strong> <code>/api/users/</code> – User listing for admins (permission-based).</li>
+<li><strong>GET</strong> <code>/api/sessions/</code> – List active sessions for current user.</li>
+<li><strong>DELETE</strong> <code>/api/sessions/{session_id}/</code> – Revoke a specific session.</li>
+<li><strong>POST</strong> <code>/api/sessions/revoke-all/</code> – Revoke all sessions for current user.</li>
 </ul>
-<p>For full request/response examples, see <code>API_ENDPOINTS.md</code>
-and/or Swagger.</p>
-<hr />
-<h2 id="api-endpoints-and-functionality-mandatory">4. API Endpoints and
-Functionality (Mandatory)</h2>
-<p>This section summarizes each main endpoint category with its
-functionality. Detailed fields and payloads are available in
-<code>API_ENDPOINTS.md</code>.</p>
-<h3 id="authentication-session">4.1 Authentication &amp; Session</h3>
+<p>For full request/response examples, see <code>API_ENDPOINTS.md</code> and/or Swagger.</p>
+<hr>
+<div class="page"></div>
+<h2 id="4-api-endpoints-and-functionality-mandatory">4. API Endpoints and Functionality (Mandatory)</h2>
+<p>This section summarizes each main endpoint category with its functionality. Detailed fields and payloads are available in <code>API_ENDPOINTS.md</code>.</p>
+<h3 id="41-authentication--session">4.1 Authentication &amp; Session</h3>
 <ul>
-<li><strong><code>POST /api/token/</code></strong> – Username/password
-login. Issues JWT access token and refresh token (also set as httpOnly
-cookie). Rate-limited (5 attempts/minute).</li>
-<li><strong><code>POST /api/token/refresh/</code></strong> – Use
-existing refresh cookie to obtain new access (and possibly refresh)
-tokens.</li>
-<li><strong><code>POST /api/logout/</code></strong> – Invalidates the
-current refresh token (blacklisting/cleanup) and clears auth
-cookies.</li>
-<li><strong><code>POST /api/register/</code></strong> – Create new user
-account; enforces password and email policies.</li>
-<li><strong><code>GET/PUT/PATCH /api/me/</code></strong> – Read or
-update the authenticated user profile.</li>
+<li><strong><code>POST /api/token/</code></strong> – Username/password login. Issues JWT access token and refresh token (also set as httpOnly cookie). Rate-limited (5 attempts/minute).</li>
+<li><strong><code>POST /api/token/refresh/</code></strong> – Use existing refresh cookie to obtain new access (and possibly refresh) tokens.</li>
+<li><strong><code>POST /api/logout/</code></strong> – Invalidates the current refresh token (blacklisting/cleanup) and clears auth cookies.</li>
+<li><strong><code>POST /api/register/</code></strong> – Create new user account; enforces password and email policies.</li>
+<li><strong><code>GET/PUT/PATCH /api/me/</code></strong> – Read or update the authenticated user profile.</li>
 </ul>
-<h3 id="otp-social-auth">4.2 OTP &amp; Social Auth</h3>
+<h3 id="42-otp--social-auth">4.2 OTP &amp; Social Auth</h3>
 <ul>
-<li><strong><code>POST /api/auth/otp/request/</code></strong> – Generate
-OTP code and send via configured channel (email/SMS).</li>
-<li><strong><code>POST /api/auth/otp/verify/</code></strong> – Verify
-OTP; on success, issues tokens similar to password login.</li>
-<li><strong><code>POST /api/auth/otp/resend/</code></strong> – Reissue
-OTP, obeying rate limits.</li>
-<li><strong><code>POST /api/auth/social/login/</code></strong> –
-Exchange an OAuth/OpenID Connect token (e.g. Google ID token) for OnTime
-JWT tokens.</li>
-<li><strong><code>POST /api/auth/social/link/</code></strong> – Attach
-external provider to an existing user account.</li>
-<li><strong><code>POST /api/auth/social/unlink/</code></strong> – Remove
-link to external provider when allowed.</li>
+<li><strong><code>POST /api/auth/otp/request/</code></strong> – Generate OTP code and send via configured channel (email/SMS).</li>
+<li><strong><code>POST /api/auth/otp/verify/</code></strong> – Verify OTP; on success, issues tokens similar to password login.</li>
+<li><strong><code>POST /api/auth/otp/resend/</code></strong> – Reissue OTP, obeying rate limits.</li>
+<li><strong><code>POST /api/auth/social/login/</code></strong> – Exchange an OAuth/OpenID Connect token (e.g. Google ID token) for OnTime JWT tokens.</li>
+<li><strong><code>POST /api/auth/social/link/</code></strong> – Attach external provider to an existing user account.</li>
+<li><strong><code>POST /api/auth/social/unlink/</code></strong> – Remove link to external provider when allowed.</li>
 </ul>
-<h3 id="dynamic-forms">4.3 Dynamic Forms</h3>
+<h3 id="43-dynamic-forms">4.3 Dynamic Forms</h3>
 <ul>
-<li><strong><code>GET /api/forms/schema/{form_type}/</code></strong> –
-Returns JSON schema used by the web frontend to render forms dynamically
-(e.g. login, register).</li>
-<li><strong><code>POST /api/forms/validate/</code></strong> – Validates
-form data against server-side rules, returning structured errors where
-relevant.</li>
-<li><strong><code>POST /api/forms/submit/</code></strong> – Executes the
-underlying operation (e.g. login, register) based on
-<code>form_type</code> and payload.</li>
+<li><strong><code>GET /api/forms/schema/{form_type}/</code></strong> – Returns JSON schema used by the web frontend to render forms dynamically (e.g. login, register).</li>
+<li><strong><code>POST /api/forms/validate/</code></strong> – Validates form data against server-side rules, returning structured errors where relevant.</li>
+<li><strong><code>POST /api/forms/submit/</code></strong> – Executes the underlying operation (e.g. login, register) based on <code>form_type</code> and payload.</li>
 </ul>
-<h3 id="version-feature-management">4.4 Version &amp; Feature
-Management</h3>
+<h3 id="44-version--feature-management">4.4 Version &amp; Feature Management</h3>
 <ul>
-<li><strong><code>POST /api/channels/version/check/</code></strong> –
-Client submits platform and version; server replies whether an update is
-required/available, and provides metadata and flags.</li>
-<li><strong><code>GET /api/channels/version/latest/</code></strong> –
-Reads latest version info for a platform; used by clients or admin
-tools.</li>
-<li><strong><code>GET /api/channels/version/supported/</code></strong> –
-Returns all supported app versions; useful for audit and
-troubleshooting.</li>
-<li><strong><code>GET /api/channels/features/</code></strong> – Returns
-feature flags for the calling client, enabling server-driven feature
-toggling.</li>
+<li><strong><code>POST /api/channels/version/check/</code></strong> – Client submits platform and version; server replies whether an update is required/available, and provides metadata and flags.</li>
+<li><strong><code>GET /api/channels/version/latest/</code></strong> – Reads latest version info for a platform; used by clients or admin tools.</li>
+<li><strong><code>GET /api/channels/version/supported/</code></strong> – Returns all supported app versions; useful for audit and troubleshooting.</li>
+<li><strong><code>GET /api/channels/features/</code></strong> – Returns feature flags for the calling client, enabling server-driven feature toggling.</li>
 </ul>
-<h3 id="channel-media-apis">4.5 Channel &amp; Media APIs</h3>
+<h3 id="45-channel--media-apis">4.5 Channel &amp; Media APIs</h3>
 <ul>
-<li><strong><code>GET /api/channels/</code></strong> – List channels
-visible for the current tenant and permissions.</li>
-<li><strong><code>GET /api/channels/{id}/</code></strong> – Detailed
-channel information.</li>
-<li><strong><code>POST /api/channels/</code></strong> – Admin/editor
-creates a new channel entry.</li>
-<li><strong><code>PUT/PATCH /api/channels/{id}/</code></strong> –
-Admin/editor updates channel properties.</li>
-<li><strong><code>DELETE /api/channels/{id}/</code></strong> –
-Admin/editor removes a channel.</li>
-<li><strong><code>GET /api/channels/{slug}/logo/</code></strong> –
-Serves channel logo file; used directly in web frontend image tags.</li>
+<li><strong><code>GET /api/channels/</code></strong> – List channels visible for the current tenant and permissions.</li>
+<li><strong><code>GET /api/channels/{id}/</code></strong> – Detailed channel information.</li>
+<li><strong><code>POST /api/channels/</code></strong> – Admin/editor creates a new channel entry.</li>
+<li><strong><code>PUT/PATCH /api/channels/{id}/</code></strong> – Admin/editor updates channel properties.</li>
+<li><strong><code>DELETE /api/channels/{id}/</code></strong> – Admin/editor removes a channel.</li>
+<li><strong><code>GET /api/channels/{slug}/logo/</code></strong> – Serves channel logo file; used directly in web frontend image tags.</li>
 </ul>
-<h3 id="shorts-apis-1">4.6 Shorts APIs</h3>
+<h3 id="46-shorts-apis">4.6 Shorts APIs</h3>
 <ul>
-<li><strong><code>GET /api/channels/shorts/playlists/</code></strong> –
-Returns recent shorts playlists; supports filters like
-<code>days</code>, <code>limit</code>, <code>per_channel_limit</code>,
-<code>channel</code>.</li>
-<li><strong><code>GET /api/channels/shorts/feed/</code></strong> –
-Returns a randomized but deterministic shorts feed, supporting
-<code>seed</code>, <code>X-Device-Id</code>, and recency bias
-parameters.</li>
+<li><strong><code>GET /api/channels/shorts/playlists/</code></strong> – Returns recent shorts playlists; supports filters like <code>days</code>, <code>limit</code>, <code>per_channel_limit</code>, <code>channel</code>.</li>
+<li><strong><code>GET /api/channels/shorts/feed/</code></strong> – Returns a randomized but deterministic shorts feed, supporting <code>seed</code>, <code>X-Device-Id</code>, and recency bias parameters.</li>
 </ul>
-<h3 id="admin-session-apis">4.7 Admin &amp; Session APIs</h3>
+<h3 id="47-admin--session-apis">4.7 Admin &amp; Session APIs</h3>
 <ul>
-<li><strong><code>GET /api/admin-only/</code></strong> – Admin-only test
-endpoint for verifying privileged access.</li>
-<li><strong><code>GET /api/users/</code></strong> – Admin/authorized
-listing of users, typically paginated.</li>
-<li><strong><code>GET /api/sessions/</code></strong> – Returns active
-sessions/devices for current user.</li>
-<li><strong><code>DELETE /api/sessions/{session_id}/</code></strong> –
-Revokes a single session/device.</li>
-<li><strong><code>POST /api/sessions/revoke-all/</code></strong> –
-Revokes all sessions for the user, forcing logout elsewhere.</li>
+<li><strong><code>GET /api/admin-only/</code></strong> – Admin-only test endpoint for verifying privileged access.</li>
+<li><strong><code>GET /api/users/</code></strong> – Admin/authorized listing of users, typically paginated.</li>
+<li><strong><code>GET /api/sessions/</code></strong> – Returns active sessions/devices for current user.</li>
+<li><strong><code>DELETE /api/sessions/{session_id}/</code></strong> – Revokes a single session/device.</li>
+<li><strong><code>POST /api/sessions/revoke-all/</code></strong> – Revokes all sessions for the user, forcing logout elsewhere.</li>
 </ul>
-<hr />
-<h2 id="authentication-mechanism-mandatory">5. Authentication Mechanism
-(Mandatory)</h2>
-<h3 id="mechanisms-used">5.1 Mechanisms Used</h3>
+<hr>
+<h2 id="5-authentication-mechanism-mandatory">5. Authentication Mechanism (Mandatory)</h2>
+<h3 id="51-mechanisms-used">5.1 Mechanisms Used</h3>
 <ul>
 <li><strong>JWT-based Authentication:</strong>
 <ul>
-<li>Access tokens are provided to clients in responses and are sent via
-<code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code>.</li>
-<li>Refresh tokens are stored in <strong>httpOnly cookies</strong> to
-reduce XSS risk.</li>
-</ul></li>
+<li>Access tokens are provided to clients in responses and are sent via <code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code>.</li>
+<li>Refresh tokens are stored in <strong>httpOnly cookies</strong> to reduce XSS risk.</li>
+</ul>
+</li>
 <li><strong>Username/Password Login (Web Admin Frontend):</strong>
 <ul>
-<li><code>/api/token/</code> accepts <strong>username and
-password</strong> (no email login flow is used for the web admin
-frontend) and, if valid, issues tokens.</li>
-</ul></li>
+<li><code>/api/token/</code> accepts <strong>username and password</strong> (no email login flow is used for the web admin frontend) and, if valid, issues tokens.</li>
+</ul>
+</li>
 <li><strong>OTP-based Login (API capability):</strong>
 <ul>
-<li>OTP request/verify endpoints allow passwordless login using one-time
-codes, primarily for mobile or future client flows.</li>
-</ul></li>
+<li>OTP request/verify endpoints allow passwordless login using one-time codes, primarily for mobile or future client flows.</li>
+</ul>
+</li>
 <li><strong>Social Login (API capability):</strong>
 <ul>
-<li>External identity providers (e.g. Google, Apple) can be used to
-authenticate and receive OnTime tokens where configured. In the current
-web admin frontend, the active login flow is username/password.</li>
-</ul></li>
+<li>External identity providers (e.g. Google, Apple) can be used to authenticate and receive OnTime tokens where configured. In the current web admin frontend, the active login flow is username/password.</li>
 </ul>
-<h3 id="flow-overview">5.2 Flow Overview</h3>
-<ol type="1">
-<li><strong>Login</strong>: Client calls <code>POST /api/token/</code>
-or <code>/api/auth/social/login/</code>.</li>
-<li><strong>Token Use</strong>: Client includes
-<code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code> in subsequent
-API calls.</li>
-<li><strong>Refresh</strong>: When access token is close to expiry,
-client calls <code>POST /api/token/refresh/</code> with refresh
-cookie.</li>
-<li><strong>Logout</strong>: Client calls
-<code>POST /api/logout/</code>; server invalidates/blacklists tokens and
-clears cookies.</li>
+</li>
+</ul>
+<h3 id="52-flow-overview">5.2 Flow Overview</h3>
+<ol>
+<li><strong>Login</strong>: Client calls <code>POST /api/token/</code> or <code>/api/auth/social/login/</code>.</li>
+<li><strong>Token Use</strong>: Client includes <code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code> in subsequent API calls.</li>
+<li><strong>Refresh</strong>: When access token is close to expiry, client calls <code>POST /api/token/refresh/</code> with refresh cookie.</li>
+<li><strong>Logout</strong>: Client calls <code>POST /api/logout/</code>; server invalidates/blacklists tokens and clears cookies.</li>
 </ol>
-<p>All authentication-required endpoints validate the JWT token and
-tenant header before processing.</p>
-<hr />
-<h2 id="third-party-integrations-mandatory">6. Third-Party Integrations
-(Mandatory)</h2>
-<h3 id="external-video-playlist-sources">6.1 External Video &amp;
-Playlist Sources</h3>
+<p>All authentication-required endpoints validate the JWT token and tenant header before processing.</p>
+<hr>
+<h2 id="6-third-party-integrations-mandatory">6. Third-Party Integrations (Mandatory)</h2>
+<h3 id="61-external-video--playlist-sources">6.1 External Video &amp; Playlist Sources</h3>
 <ul>
-<li><strong>YouTube / external playlists</strong> used in the shorts
-ingestion pipeline.<br />
-Backend workers and admin actions may fetch and process playlist
-metadata and videos using the configured <code>YOUTUBE_API_KEY</code>
-and related tooling.</li>
+<li><strong>YouTube / external playlists</strong> used in the shorts ingestion pipeline.<br>
+Backend workers and admin actions may fetch and process playlist metadata and videos using the configured <code>YOUTUBE_API_KEY</code> and related tooling.</li>
 </ul>
-<h3 id="cdn-object-storage">6.2 CDN / Object Storage</h3>
+<h3 id="62-cdn--object-storage">6.2 CDN / Object Storage</h3>
 <ul>
-<li>Video streams (HLS), thumbnails, and logos are hosted on external
-storage/CDN infrastructure (e.g., object storage + CDN).<br />
-</li>
-<li>APIs typically return URLs or metadata that reference these assets
-rather than serving large media directly.</li>
+<li>Video streams (HLS), thumbnails, and logos are hosted on external storage/CDN infrastructure (e.g., object storage + CDN).</li>
+<li>APIs typically return URLs or metadata that reference these assets rather than serving large media directly.</li>
 </ul>
-<h3 id="push-notifications-firebase-cloud-messaging">6.3 Push
-Notifications (Firebase Cloud Messaging)</h3>
+<h3 id="63-push-notifications-firebase-cloud-messaging">6.3 Push Notifications (Firebase Cloud Messaging)</h3>
 <ul>
-<li>Firebase Admin SDK is used for push notifications to registered
-devices via <strong>Firebase Cloud Messaging (FCM)</strong>.<br />
-</li>
-<li>Device tokens are stored via the <code>user_sessions</code> app and
-notifications are dispatched using FCM.</li>
+<li>Firebase Admin SDK is used for push notifications to registered devices via <strong>Firebase Cloud Messaging (FCM)</strong>.</li>
+<li>Device tokens are stored via the <code>user_sessions</code> app and notifications are dispatched using FCM.</li>
 </ul>
-<h3 id="identity-providers-optional-environment-specific">6.4 Identity
-Providers (Optional / Environment-specific)</h3>
+<h3 id="64-identity-providers-optional--environment-specific">6.4 Identity Providers (Optional / Environment-specific)</h3>
 <ul>
-<li><strong>Google</strong> and <strong>Apple</strong> OAuth2/OpenID
-Connect providers are supported by the backend social auth
-service.<br />
-</li>
-<li>Only tokens from explicitly configured client IDs (via environment
-variables) are accepted for social login endpoints.<br />
-</li>
-<li>Whether social login is exposed to end users depends on the specific
-client (mobile/web) configuration.</li>
+<li><strong>Google</strong> and <strong>Apple</strong> OAuth2/OpenID Connect providers are supported by the backend social auth service.</li>
+<li>Only tokens from explicitly configured client IDs (via environment variables) are accepted for social login endpoints.</li>
+<li>Whether social login is exposed to end users depends on the specific client (mobile/web) configuration.</li>
 </ul>
 <blockquote>
-<p>Exact providers, SMTP servers, SMS gateways, and CDN/storage backends
-are configured via environment variables and may differ between
-development and production.</p>
+<p>Exact providers, SMTP servers, SMS gateways, and CDN/storage backends are configured via environment variables and may differ between development and production.</p>
 </blockquote>
-<hr />
-<h2 id="compliance-and-regulatory-requirements-mandatory">7. Compliance
-and Regulatory Requirements (Mandatory)</h2>
-<p>The APIs and platform are designed with the following considerations
-based on the current implementation and settings:</p>
+<hr>
+<div class="page"></div>
+<h2 id="7-compliance-and-regulatory-requirements-mandatory">7. Compliance and Regulatory Requirements (Mandatory)</h2>
+<p>The APIs and platform are designed with the following considerations based on the current implementation and settings:</p>
 <ul>
 <li><strong>Data Protection &amp; Privacy:</strong>
 <ul>
-<li>Alignment with applicable Ethiopian data protection and privacy
-regulations.<br />
+<li>Alignment with applicable Ethiopian data protection and privacy regulations.</li>
+<li>Personal data minimization: the system primarily stores authentication data and content metadata needed for platform operation.</li>
+<li>Passwords are stored using Django’s secure hashing mechanisms; there is no plaintext password storage.</li>
+</ul>
 </li>
-<li>Personal data minimization: the system primarily stores
-authentication data and content metadata needed for platform
-operation.<br />
-</li>
-<li>Passwords are stored using Django’s secure hashing mechanisms; there
-is no plaintext password storage.</li>
-</ul></li>
 <li><strong>Secure Transmission:</strong>
 <ul>
-<li>All external API traffic in production is expected to use HTTPS
-(TLS), enforced via <code>SECURE_SSL_REDIRECT</code>, HSTS
-(<code>SECURE_HSTS_SECONDS</code>, preload, subdomains), and proxy SSL
-settings.</li>
-</ul></li>
+<li>All external API traffic in production is expected to use HTTPS (TLS), enforced via <code>SECURE_SSL_REDIRECT</code>, HSTS (<code>SECURE_HSTS_SECONDS</code>, preload, subdomains), and proxy SSL settings.</li>
+</ul>
+</li>
 <li><strong>Logging &amp; Audit:</strong>
 <ul>
-<li>Logging is configured to stream to standard output
-(<code>LOGGING</code> config) and includes security-relevant events such
-as authentication failures (via django-axes), tenant resolution
-debugging, and selected admin operations.<br />
+<li>Logging is configured to stream to standard output (<code>LOGGING</code> config) and includes security-relevant events such as authentication failures (via django-axes), tenant resolution debugging, and selected admin operations.</li>
+<li>Log retention and rotation are handled at the infrastructure/hosting level (e.g., container logs, server logs); there is no hard-coded application-level log deletion policy in the codebase.</li>
+</ul>
 </li>
-<li>Log retention and rotation are handled at the infrastructure/hosting
-level (e.g., container logs, server logs); there is no hard-coded
-application-level log deletion policy in the codebase.</li>
-</ul></li>
 <li><strong>Rate Limiting &amp; Brute Force Protection:</strong>
 <ul>
-<li>DRF throttling is configured for anonymous and authenticated users
-(e.g., <code>20/hour</code> for anonymous, <code>1000/hour</code> for
-authenticated, login and registration rate limits).<br />
+<li>DRF throttling is configured for anonymous and authenticated users (e.g., <code>20/hour</code> for anonymous, <code>1000/hour</code> for authenticated, login and registration rate limits).</li>
+<li><code>django-axes</code> provides additional brute-force protection, including lockout after repeated failed login attempts.</li>
+</ul>
 </li>
-<li><code>django-axes</code> provides additional brute-force protection,
-including lockout after repeated failed login attempts.</li>
-</ul></li>
 <li><strong>Security Best Practices:</strong>
 <ul>
-<li>OWASP Top 10 and OWASP API Security Top 10 risks are considered in
-the design (e.g., use of Django ORM, CSRF protection where applicable,
-secure cookie flags, and strict security headers).</li>
-</ul></li>
+<li>OWASP Top 10 and OWASP API Security Top 10 risks are considered in the design (e.g., use of Django ORM, CSRF protection where applicable, secure cookie flags, and strict security headers).</li>
 </ul>
-<hr />
-<h2 id="authorization-and-access-control-mandatory">8. Authorization and
-Access Control (Mandatory)</h2>
-<h3 id="roles-and-permissions">8.1 Roles and Permissions</h3>
+</li>
+</ul>
+<hr>
+<h2 id="8-authorization-and-access-control-mandatory">8. Authorization and Access Control (Mandatory)</h2>
+<h3 id="81-roles-and-permissions">8.1 Roles and Permissions</h3>
 <ul>
 <li><strong>Anonymous Users:</strong>
 <ul>
-<li>Very limited or no access to protected APIs (depending on
-configuration).</li>
-</ul></li>
+<li>Very limited or no access to protected APIs (depending on configuration).</li>
+</ul>
+</li>
 <li><strong>Authenticated Users:</strong>
 <ul>
-<li>Access to standard end-user APIs such as <code>/api/me/</code>,
-shorts feed, and channel listing.</li>
-</ul></li>
+<li>Access to standard end-user APIs such as <code>/api/me/</code>, shorts feed, and channel listing.</li>
+</ul>
+</li>
 <li><strong>Admin / Editor Users:</strong>
 <ul>
-<li>Additional permissions for managing channels, users, and
-configuration.</li>
-<li>Access to admin-specific endpoints like
-<code>/api/admin-only/</code> and <code>/api/users/</code>.</li>
-</ul></li>
+<li>Additional permissions for managing channels, users, and configuration.</li>
+<li>Access to admin-specific endpoints like <code>/api/admin-only/</code> and <code>/api/users/</code>.</li>
+</ul>
+</li>
 <li><strong>System / Service Accounts:</strong>
 <ul>
 <li>Used internally for integrations or workers if required.</li>
-</ul></li>
 </ul>
-<h3 id="enforcement">8.2 Enforcement</h3>
+</li>
+</ul>
+<h3 id="82-enforcement">8.2 Enforcement</h3>
 <ul>
-<li>Implemented at the <strong>Django REST Framework</strong> layer
-using:
+<li>Implemented at the <strong>Django REST Framework</strong> layer using:
 <ul>
 <li>Authentication classes (JWT and session where applicable).</li>
 <li>Permission classes that check user roles and tenant.</li>
-</ul></li>
+</ul>
+</li>
 <li>Access control checks ensure that:
 <ul>
 <li>Non-admins cannot access admin endpoints.</li>
 <li>Tenants cannot access data belonging to other tenants.</li>
-</ul></li>
 </ul>
-<h3 id="tenant-awareness">8.3 Tenant Awareness</h3>
-<ul>
-<li>All tenant-aware APIs require <code>X-Tenant-Id</code> header to be
-present.<br />
 </li>
-<li>Backend enforces data isolation between tenants based on this header
-and server-side configuration.</li>
 </ul>
-<hr />
-<h2 id="test-accounts-for-api-testing-mandatory">9. Test Accounts for
-API Testing (Mandatory)</h2>
-<p>The following accounts and headers are provided for security testing
-purposes. <strong>Credentials here are examples</strong>; actual test
-credentials should be confirmed and kept in a secure channel.</p>
-<h3 id="end-user-test-account">9.1 End-User Test Account</h3>
+<h3 id="83-tenant-awareness">8.3 Tenant Awareness</h3>
 <ul>
-<li><strong>Username:</strong> <code>adminweb</code><br />
-</li>
-<li><strong>Password:</strong> <code>Root@1324</code><br />
-</li>
-<li><strong>Role:</strong> Standard authenticated user<br />
-</li>
+<li>All tenant-aware APIs require <code>X-Tenant-Id</code> header to be present.</li>
+<li>Backend enforces data isolation between tenants based on this header and server-side configuration.</li>
+</ul>
+<hr>
+<div class="page"></div>
+<h2 id="9-test-accounts-for-api-testing-mandatory">9. Test Accounts for API Testing (Mandatory)</h2>
+<p>The following accounts and headers are provided for security testing purposes. <strong>Credentials here are examples</strong>; actual test credentials should be confirmed and kept in a secure channel.</p>
+<h3 id="91-end-user-test-account">9.1 End-User Test Account</h3>
+<ul>
+<li><strong>Username:</strong> <code>adminweb</code></li>
+<li><strong>Password:</strong> <code>Root@1324</code></li>
+<li><strong>Role:</strong> Standard authenticated user</li>
 <li><strong>Usage:</strong>
 <ul>
-<li>Test authentication, profile, channels list, and shorts feed
-APIs.</li>
-</ul></li>
+<li>Test authentication, profile, channels list, and shorts feed APIs.</li>
 </ul>
-<h3 id="required-headers-for-all-authenticated-api-calls">9.3 Required
-Headers for All Authenticated API Calls</h3>
+</li>
+</ul>
+<h3 id="93-required-headers-for-all-authenticated-api-calls">9.3 Required Headers for All Authenticated API Calls</h3>
 <ul>
-<li><code>X-Tenant-Id: ontime</code> (or appropriate tenant)<br />
-</li>
-<li><code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code><br />
-</li>
+<li><code>X-Tenant-Id: ontime</code> (or appropriate tenant)</li>
+<li><code>Authorization: Bearer &lt;ACCESS_TOKEN&gt;</code></li>
 <li><code>Content-Type: application/json</code> for JSON bodies</li>
 </ul>
-<p>If additional service or system accounts exist (for automation or
-monitoring), they can be documented here with their intended scope and
-limitations.</p>
-<hr />
-<h2 id="references">10. References</h2>
+<p>If additional service or system accounts exist (for automation or monitoring), they can be documented here with their intended scope and limitations.</p>
+<hr>
+<h2 id="10-references">10. References</h2>
 <ul>
-<li><code>API_ENDPOINTS.md</code> – Detailed per-endpoint documentation
-with request/response examples, rate limits, error formats, and
-pagination structure.</li>
-<li><code>WEB_APPLICATION_TESTING_WEB.md</code> – Overall architecture
-and security/testing information for the web application.</li>
+<li><code>API_ENDPOINTS.md</code> – Detailed per-endpoint documentation with request/response examples, rate limits, error formats, and pagination structure.</li>
+<li><code>WEB_APPLICATION_TESTING_WEB.md</code> – Overall architecture and security/testing information for the web application.</li>
 </ul>
+
+</body>
+</html>

@@ -114,13 +114,14 @@ The mobile app never accesses the database directly; all access is via authentic
 
 ### 1.13 Test Accounts (Mandatory)
 
-The following types of test accounts will be provided to the testers:
+The following types of test accounts will be provided to the testers. Concrete credentials will be shared through a secure channel (e.g. encrypted email or the INSA portal) before testing begins.
 
 - **End-user account (mobile):**  \
   - A standard user account with access to typical content and features in the mobile app.  \
-  - Testers may use any valid Gmail-based account (email/password) for login, as configured in the app.  \
+  - Example (for illustration only): username `mobiletestuser` with password `Test@1234`.  \
+  - The actual test username and password will be confirmed and delivered securely.
 
-If additional roles (e.g. beta testers or restricted accounts) exist, they can also be provided for testing.
+If additional roles (e.g. beta testers or restricted accounts) exist, they can also be provided for testing and documented in the final submission.
 
 ---
 
@@ -196,6 +197,25 @@ If additional roles (e.g. beta testers or restricted accounts) exist, they can a
 ---
 
 ## 3. Scope Definition (Mandatory)
+ 
+### 2.11 Non-Functional Requirements (Mobile Application)
+
+The following non-functional requirements describe expected behavior and constraints for the OnTime Ethiopia mobile application:
+
+- **Performance and responsiveness**  
+  - The application should launch within a reasonable time on supported Android devices and load core content (home/channel list) within a few seconds under normal network conditions.  
+  - API calls from the mobile client are expected to complete promptly for typical read operations (e.g. listing channels or fetching the shorts feed).
+
+- **Availability and dependency on backend services**  
+  - The mobile app depends on the availability of the backend APIs and streaming infrastructure.  
+  - When backend services are unavailable, the app should fail gracefully (e.g. user-friendly error messages, retry mechanisms) without exposing sensitive debug information.
+
+- **Scalability and device support**  
+  - The app is designed to run on a range of Android devices that meet the minimum OS and hardware requirements.  
+  - As the number of users grows, horizontal scaling of backend services and streaming infrastructure is expected to handle increased traffic.
+
+- **Security as a cross-cutting requirement**  
+  - Secure communication, proper authentication and authorization, careful handling of tokens, and avoidance of insecure local storage are treated as mandatory non-functional requirements and are described in more detail in the security-related sections of this document.
 
 | Name of the Assets to be Audit            | APK/Official Link                                      | Test Account as required by the tester                       |
 |-------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------|

@@ -73,14 +73,17 @@
 .field { display: grid; gap: 6px; }
 .field label { font-weight: 600; color: var(--text); }
 .input-wrap {
-  position: relative; display: grid; grid-template-columns: 36px 1fr; align-items: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
   background: var(--card); border-radius: 12px; border: 1px solid var(--card-border);
   transition: box-shadow .2s ease, border-color .2s ease;
 }
 .input-wrap:focus-within { box-shadow: 0 0 0 5px var(--ring); border-color: var(--primary); }
 .leading-icon { display: grid; place-items: center; height: 36px; color: var(--muted); }
 .leading-icon svg { width: 16px; height: 16px; }
-.input-wrap input { border: 0; outline: 0; height: 36px; padding: 0 12px 0 0; width: 100%; background: transparent; color: var(--text); font-size: 14px; }
+.input-wrap input { border: 0; outline: 0; height: 36px; padding: 0 8px 0 0; width: 100%; background: transparent; color: var(--text); font-size: 14px; }
 .row { display: flex; align-items: center; gap: 10px; }
 .row.between { justify-content: space-between; }
 .checkbox { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted); }
@@ -94,3 +97,25 @@
 /* Utilities */
 .w-full { width: 100%; }
 @media (max-width: 420px) { .card { border-radius: 14px; } }
+
+/* Password toggle inside input */
+.password-toggle {
+  border: 0;
+  background: transparent;
+  padding: 0 10px 0 4px;
+  cursor: pointer;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.password-toggle svg { display: block; }
+
+/* Neutralize browser autofill yellow background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px var(--card) inset;
+  -webkit-text-fill-color: var(--text);
+  transition: background-color 5000s ease-in-out 0s;
+}

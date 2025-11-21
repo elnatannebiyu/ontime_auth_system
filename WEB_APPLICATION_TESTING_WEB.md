@@ -64,6 +64,35 @@ The objective is to obtain an independent security assessment and certificate fo
 
 ![OnTime Ethiopia Web DB ER Diagram](web_db_er.png)
 
+### 1.8 Threat Model Mapping (Web Application)
+
+The following high-level threat model summarizes the main assets, likely threats, and key mitigations implemented for the OnTime Ethiopia web application.
+
+- **Assets**  
+  - User accounts and authentication credentials.  
+  - Session tokens / cookies and active user sessions.  
+  - Channel, playlist, and live TV metadata stored in the database.  
+  - Administrative functions and internal configuration pages.  
+  - Tenant-specific data and content belonging to different organizations.
+
+- **Threats (examples)**  
+  - **Injection (SQL/ORM misuse):** Attempting to inject malicious input into API parameters or queries.  
+  - **Cross-Site Scripting (XSS):** Injecting malicious scripts into user-facing pages through untrusted input.  
+  - **Cross-Site Request Forgery (CSRF):** Forcing authenticated users to perform unintended actions via crafted links or forms.  
+  - **Broken Authentication / Session Management:** Stealing, replaying, or abusing session tokens or cookies.  
+  - **Broken Access Control / Privilege Escalation:** Accessing admin functions or other users’ data without proper permissions.  
+  - **Insecure Direct Object References (IDOR):** Accessing resources by guessing or tampering with identifiers in URLs or API requests.  
+  - **Sensitive Data Exposure:** Intercepting credentials or personal data if HTTPS or configuration is incorrect.
+
+- **Mitigations (high level)**  
+  - Use of Django ORM and parameterized queries instead of raw SQL to reduce injection risk.  
+  - Server-side input validation and output encoding for user-controlled data.  
+  - CSRF protection enabled for state-changing requests when cookie-based sessions are used.  
+  - Authentication and session management handled by Django, with secure password hashing and session timeout.  
+  - Role-based access control (RBAC) for admin vs. normal users, implemented via Django permissions and view-level checks.  
+  - Tenant-aware filtering and checks to ensure users cannot access data from other tenants.  
+  - Enforcement of HTTPS/TLS in production and use of secure cookie flags (`Secure`, `HttpOnly`) where applicable.  
+
 ---
 
 ## 2. Features of the Web Application
@@ -129,6 +158,29 @@ The objective is to obtain an independent security assessment and certificate fo
 - **Web Application Firewall (WAF) (if applicable):** May inspect and block certain payloads or exploit attempts.  
 
 Penetration testers should be aware of these controls, as they may affect test results.
+
+### 2.9 Non-Functional Requirements (Web Application)
+
+The following non-functional requirements describe how the OnTime Ethiopia web application is expected to behave under normal operation:
+
+- **Performance and responsiveness**  
+  - The public landing pages and main content listing pages are expected to respond within a few seconds under normal network conditions.  
+  - API responses for typical read operations (e.g. channel listing) are designed to remain performant for the expected number of channels and users.
+
+- **Availability and reliability**  
+  - The service is intended to be available during normal business and viewing hours, subject to hosting provider SLAs.  
+  - Regular backups of the database and configuration are performed at the infrastructure level to support recovery from incidents.
+
+- **Scalability**  
+  - The backend can be scaled horizontally by adding additional application instances behind the reverse proxy/load balancer.  
+  - Database and caching strategies can be tuned as usage grows.
+
+- **Maintainability**  
+  - The codebase is organized into Django apps and reusable React components to ease ongoing maintenance and feature development.  
+  - Dependency management is handled via standard tooling (pip, npm/yarn) and updated regularly.
+
+- **Security as a cross-cutting requirement**  
+  - Security considerations (authentication, authorization, input validation, logging, and secure communication) are treated as core non-functional requirements and are described in more detail in the security and secure coding sections of this document.
 
 ---
 

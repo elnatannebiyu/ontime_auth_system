@@ -17,6 +17,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [failedCount, setFailedCount] = useState(0);
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [showPassword, setShowPassword] = useState(false);
 
   const LOCK_KEY = 'auth:loginLockUntil';
   const FAIL_KEY = 'auth:loginFailCount';
@@ -157,12 +158,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         <form className="form" onSubmit={handleSubmit} noValidate>
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="username">Username</label>
             <div className="input-wrap">
               <span className="leading-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="none" stroke="currentColor"/><path d="M22 6l-10 7L2 6" fill="none" stroke="currentColor"/></svg>
               </span>
-              <input id="email" type="email" value={username} onChange={(e) => setUsername(e.target.value)} inputMode="email" autoComplete="email" placeholder="you@company.com" required disabled={loading || isLocked} />
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                placeholder="adminweb"
+                required
+                disabled={loading || isLocked}
+              />
             </div>
           </div>
 
@@ -172,7 +182,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <span className="leading-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2" fill="none" stroke="currentColor"/><path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor"/></svg>
               </span>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" required disabled={loading || isLocked} />
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                required
+                disabled={loading || isLocked}
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M4.5 4.5C3 5.7 2 7.2 1.5 8c1.7 3 5 6 10.5 6 1.6 0 3-.3 4.3-.8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
 
