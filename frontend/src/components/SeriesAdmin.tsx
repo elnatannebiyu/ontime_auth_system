@@ -153,8 +153,29 @@ function ShowsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: str
         {items.map(it => (
           <Stack key={it.slug} direction="row" spacing={2} alignItems="center" sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
             <Box sx={{ flex: 1, minWidth:0 }}>
-              <Typography variant="subtitle1" noWrap title={it.title}>{it.title}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap title={it.slug} sx={{ fontFamily:'monospace' }}>{it.slug}</Typography>
+              <Typography
+                variant="subtitle1"
+                title={it.title}
+                sx={{
+                  wordBreak: 'break-word',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {it.title}
+              </Typography>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                title={it.slug}
+                sx={{ fontFamily:'monospace' }}
+              >
+                {it.slug}
+              </Typography>
             </Box>
             <Chip size="small" color={it.is_active ? 'success':'default'} label={it.is_active ? 'Active':'Inactive'} />
             {isStaff && (
@@ -494,21 +515,65 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap:'wrap', rowGap:1 }}>
-        <TextField size="small" label="Search by season or show title" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }} />
-        <Box sx={{ flexGrow: 1 }} />
-        {isStaff && <Button startIcon={<AddIcon />} variant="contained" onClick={()=>{ setEditing(null); setOpen(true); }}>Add Season</Button>}
-        <Tooltip title="Reload"><span><IconButton onClick={load} disabled={loading}><RefreshIcon/></IconButton></span></Tooltip>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        spacing={1}
+        sx={{ flexWrap:'wrap', rowGap:1 }}
+      >
+        <TextField
+          size="small"
+          fullWidth
+          label="Search by season or show title"
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          onKeyDown={(e)=>{ if (e.key==='Enter') { setPage(1); load(); } }}
+        />
+        <Box sx={{ flexGrow: 1, display: { xs: 'none', sm: 'block' } }} />
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ justifyContent: { xs: 'flex-start', sm: 'flex-end' }, flexWrap: 'wrap', rowGap: 1 }}
+        >
+          {isStaff && (
+            <Button
+              startIcon={<AddIcon />}
+              variant="contained"
+              onClick={()=>{ setEditing(null); setOpen(true); }}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >
+              Add Season
+            </Button>
+          )}
+          <Tooltip title="Reload">
+            <span>
+              <IconButton onClick={load} disabled={loading}>
+                <RefreshIcon/>
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
       </Stack>
       <Stack spacing={1}>
         {items.map(it => (
           <Box key={it.id} sx={{ p:1, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+            >
               <Box sx={{ flex: 1, minWidth:0 }}>
                 <Typography
                   variant="subtitle1"
-                  noWrap
                   title={`${it.show_title || it.show} • S${it.number}${it.title ? ' • ' + it.title : ''}`}
+                  sx={{
+                    wordBreak: 'break-word',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}
                 >
                   {(it.show_title || it.show)} • S{it.number}{it.title ? ` • ${it.title}` : ''}
                 </Typography>
@@ -524,25 +589,36 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
                   </Typography>
                 )}
               </Box>
-              <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
-              {isStaff && (
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Sync episodes for this Season's channel">
-                    <span>
-                      <IconButton onClick={()=>handleSync(it)} disabled={loading}>
-                        <RefreshIcon />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
-                  <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
-                  <Button size="small" onClick={()=>toggleSeasonExpanded(it)} disabled={!!seasonLoading[it.id]}>
-                    {seasonLoading[it.id]
-                      ? 'Loading episodes…'
-                      : (expandedSeasonIds[it.id] ? 'Hide episodes' : 'Show episodes')}
-                  </Button>
-                </Stack>
-              )}
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mt: { xs: 1, sm: 0 }, flexWrap: 'wrap', rowGap: 1, justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}
+              >
+                <Chip size="small" color={it.is_enabled ? 'success':'default'} label={it.is_enabled ? 'Enabled':'Disabled'} />
+                {isStaff && (
+                  <>
+                    <Tooltip title="Sync episodes for this Season's channel">
+                      <span>
+                        <IconButton onClick={()=>handleSync(it)} disabled={loading}>
+                          <RefreshIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <IconButton onClick={()=>{ setEditing(it); setOpen(true); }}><EditIcon/></IconButton>
+                    <IconButton onClick={()=>handleDelete(it.id)} color="error"><DeleteIcon/></IconButton>
+                    <Button
+                      size="small"
+                      onClick={()=>toggleSeasonExpanded(it)}
+                      disabled={!!seasonLoading[it.id]}
+                      sx={{ width: { xs: '100%', sm: 'auto' } }}
+                    >
+                      {seasonLoading[it.id]
+                        ? 'Loading episodes…'
+                        : (expandedSeasonIds[it.id] ? 'Hide episodes' : 'Show episodes')}
+                    </Button>
+                  </>
+                )}
+              </Stack>
             </Stack>
             <Collapse in={!!expandedSeasonIds[it.id]} timeout="auto" unmountOnExit>
               <Stack spacing={0.5} sx={{ mt:1, ml:2 }}>
@@ -553,16 +629,57 @@ function SeasonsSection({ isStaff, onError }: { isStaff: boolean; onError: (m: s
                   </Stack>
                 )}
                 {!seasonLoading[it.id] && (seasonEpisodes[it.id] || []).map(ep => (
-                  <Stack key={ep.id} direction="row" spacing={2} alignItems="center" sx={{ p:0.5, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}>
+                  <Stack
+                    key={ep.id}
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    alignItems={{ xs: 'flex-start', sm: 'center' }}
+                    sx={{ p:0.5, border:'1px solid', borderColor:'divider', borderRadius:1, minWidth:0 }}
+                  >
                     <Box sx={{ flex: 1, minWidth:0 }}>
-                      <Typography variant="body2" noWrap title={ep.title}>{ep.title}</Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap title={ep.source_video_id} sx={{ fontFamily:'monospace' }}>{ep.source_video_id}</Typography>
+                      <Typography
+                        variant="body2"
+                        title={ep.title}
+                        sx={{
+                          wordBreak: 'break-word',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {ep.title}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        title={ep.source_video_id}
+                        sx={{
+                          fontFamily:'monospace',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'block',
+                          maxWidth: '100%',
+                        }}
+                      >
+                        {ep.source_video_id}
+                      </Typography>
                     </Box>
-                    <Chip size="small" color={ep.visible ? 'success':'default'} label={ep.visible ? 'Visible':'Hidden'} />
-                    <Chip size="small" label={ep.status} />
-                    <Stack direction="row" spacing={1}>
-                      <IconButton onClick={()=>openEpisodeDialog(ep)}><EditIcon/></IconButton>
-                      <IconButton onClick={()=>handleEpisodeDelete(ep)} color="error"><DeleteIcon/></IconButton>
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={1}
+                      sx={{ mt: { xs: 0.5, sm: 0 }, flexWrap: 'wrap', rowGap: 0.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
+                    >
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
+                        <Chip size="small" color={ep.visible ? 'success':'default'} label={ep.visible ? 'Visible':'Hidden'} />
+                        <Chip size="small" label={ep.status} />
+                      </Stack>
+                      <Stack direction="row" spacing={1} sx={{ mt: { xs: 0.5, sm: 0 } }}>
+                        <IconButton onClick={()=>openEpisodeDialog(ep)}><EditIcon/></IconButton>
+                        <IconButton onClick={()=>handleEpisodeDelete(ep)} color="error"><DeleteIcon/></IconButton>
+                      </Stack>
                     </Stack>
                   </Stack>
                 ))}
