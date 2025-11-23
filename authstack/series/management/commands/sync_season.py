@@ -58,6 +58,9 @@ class Command(BaseCommand):
 
         created = 0
         updated = 0
+        # Track all video IDs currently present in the playlist so we can hide
+        # any episodes whose source_video_id has been removed or turned private.
+        playlist_ids: Set[str] = set()
         seen_new: List[str] = []
 
         # 2) Tail-only fetch: iterate from start but stop when we hit known tail
@@ -75,6 +78,7 @@ class Command(BaseCommand):
                     title = (it.get("title") or "").strip()
                     if not vid:
                         continue
+                    playlist_ids.add(vid)
                     if vid in known:
                         # Already ingested; skip but continue scanning to pick up any newer items.
                         continue
@@ -131,10 +135,24 @@ class Command(BaseCommand):
         except YouTubeAPIError as e:
             raise CommandError(f"Playlist items fetch failed: {e}")
 
-        # 3) Update season last_synced_at
+        # 3) Update season last_synced_at and hide episodes whose
+        # source_video_id is no longer present in the playlist.
         if not dry_run:
             season.last_synced_at = timezone.now()
             season.save(update_fields=["last_synced_at", "updated_at"])
+
+            # Hide episodes for this season whose YouTube video is no longer
+            # present in the playlist snapshot we just fetched. We do not
+            # delete rows; we simply mark them invisible so the app stops
+            # showing unplayable episodes.
+            if playlist_ids:
+                to_hide = Episode.objects.filter(season=season).exclude(source_video_id__in=playlist_ids)
+                hidden_count = to_hide.update(visible=False)
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Hidden {hidden_count} episode(s) no longer present in playlist for season {season.id}."
+                    )
+                )
 
             # 4) Notify users who have active reminders for this show when new episodes are created
             if created > 0:
