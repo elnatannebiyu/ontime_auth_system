@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ShowViewSet, SeasonViewSet, EpisodeViewSet, CategoryViewSet
+from .views import ShowViewSet, SeasonViewSet, EpisodeViewSet, CategoryViewSet, ShowReminderViewSet
 from .views_tracking import ViewStartAPI, ViewHeartbeatAPI, ViewCompleteAPI
 
 router = DefaultRouter()
@@ -8,6 +8,7 @@ router.register(r'shows', ShowViewSet, basename='series-shows')
 router.register(r'seasons', SeasonViewSet, basename='series-seasons')
 router.register(r'episodes', EpisodeViewSet, basename='series-episodes')
 router.register(r'categories', CategoryViewSet, basename='series-categories')
+router.register(r'reminders', ShowReminderViewSet, basename='series-reminders')
 
 urlpatterns = [
     path('', include(router.urls)),

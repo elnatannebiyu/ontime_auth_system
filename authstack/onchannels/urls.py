@@ -13,6 +13,8 @@ from .notifications_views import (
     list_notifications_view,
     mark_read_view,
     mark_all_read_view,
+    delete_notification_view,
+    unread_count_view,
 )
 
 router = DefaultRouter()
@@ -48,6 +50,8 @@ urlpatterns = [
     path('notifications/', list_notifications_view, name='list_notifications'),
     path('notifications/mark-read/', mark_read_view, name='mark_read_notifications'),
     path('notifications/mark-all-read/', mark_all_read_view, name='mark_all_read_notifications'),
+    path('notifications/<int:pk>/', delete_notification_view, name='delete_notification'),
+    path('notifications/unread-count/', unread_count_view, name='unread_notifications_count'),
     # Announcements
     path('announcements/first-login/', version_views.first_login_announcement_view, name='first_login_announcement'),
 ]

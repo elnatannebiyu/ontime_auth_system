@@ -6,8 +6,8 @@ from django.db.models import Max, F, Count, Q
 from django.db.models.functions import Lower
 from django.utils import timezone
 from django.core.management import call_command
-from .models import Show, Season, Episode, Category
-from .serializers import ShowSerializer, SeasonSerializer, EpisodeSerializer, CategoryListSerializer
+from .models import Show, Season, Episode, Category, ShowReminder
+from .serializers import ShowSerializer, SeasonSerializer, EpisodeSerializer, CategoryListSerializer, ShowReminderSerializer
 import uuid
 
 
@@ -109,49 +109,51 @@ class ShowViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
-    @action(detail=True, methods=["post"], url_path="sync-now")
-    def sync_now(self, request, pk=None):
-        """Run sync_season management command for this Season (fetch episodes).
+    @action(detail=True, methods=["get"], url_path="reminder-status", permission_classes=[permissions.IsAuthenticated])
+    def reminder_status(self, request, slug=None, pk=None):
+        """Return whether the current user has an active reminder for this show.
 
-        Mirrors the Django admin "Run sync now (fetch episodes)" action and
-        returns a summary like "Sync complete. Succeeded: 1, Failed: 0".
+        Response shape:
+        {"has_reminder": bool, "is_active": bool | null, "id": int | null}
         """
-        season = self.get_object()
+        show = self.get_object()
         tenant = self.tenant_slug()
-        ref = f"{season.show.slug}:{season.number}"
-        succeeded = 0
-        failed = 0
-        try:
-            call_command("sync_season", ref, f"--tenant={tenant}")
-            succeeded = 1
-        except Exception as exc:  # noqa: BLE001
-            failed = 1
-            return Response(
-                {
-                    "detail": f"Sync failed for {ref}: {exc}",
-                    "succeeded": succeeded,
-                    "failed": failed,
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        msg = f"Sync complete. Succeeded: {succeeded}, Failed: {failed}"
-        return Response({"detail": msg, "succeeded": succeeded, "failed": failed})
+        user = request.user
+        rem = (
+            ShowReminder.objects.filter(tenant=tenant, user=user, show=show)
+            .order_by("-id")
+            .first()
+        )
+        return Response(
+            {
+                "has_reminder": bool(rem),
+                "is_active": rem.is_active if rem is not None else None,
+                "id": rem.id if rem is not None else None,
+            }
+        )
+
+
+class ShowReminderViewSet(viewsets.ModelViewSet):
+    queryset = ShowReminder.objects.select_related("show", "user").all()
+    serializer_class = ShowReminderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant = self.tenant_slug()
+        qs = qs.filter(tenant=tenant, user=self.request.user)
+        return qs
 
     def tenant_slug(self):
         return self.request.headers.get("X-Tenant-Id") or self.request.query_params.get("tenant") or "ontime"
 
     def perform_create(self, serializer):
         tenant = self.tenant_slug()
-        serializer.save(tenant=tenant)
+        serializer.save(tenant=tenant, user=self.request.user)
 
     def perform_update(self, serializer):
         tenant = self.tenant_slug()
-        serializer.save(tenant=tenant)
-
-    def get_permissions(self):
-        if self.action in {"create", "update", "partial_update", "destroy"}:
-            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
-        return super().get_permissions()
+        serializer.save(tenant=tenant, user=self.request.user)
 
 
 class SeasonViewSet(viewsets.ModelViewSet):

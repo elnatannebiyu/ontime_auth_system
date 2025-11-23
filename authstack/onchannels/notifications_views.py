@@ -80,3 +80,25 @@ def mark_all_read_view(request):
     now = timezone.now()
     updated = UserNotification.objects.filter(user=user, read_at__isnull=True).update(read_at=now)
     return Response({'updated': updated})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_notification_view(request, pk: int):
+    """Delete a single notification for the current user."""
+    user = request.user
+    try:
+        n = UserNotification.objects.get(id=pk, user=user)
+    except UserNotification.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+    n.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def unread_count_view(request):
+    """Return the unread notifications count for the current user."""
+    user = request.user
+    count = UserNotification.objects.filter(user=user, read_at__isnull=True).count()
+    return Response({'count': count})

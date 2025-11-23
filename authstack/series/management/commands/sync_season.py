@@ -2,8 +2,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from typing import List, Set
 
-from series.models import Season, Episode
+from series.models import Season, Episode, ShowReminder
 from onchannels.youtube_api import YouTubeAPIError, get_playlist, list_playlist_items, get_video_privacy_status
+from onchannels.models import UserNotification, ScheduledNotification
 
 
 EXCLUDE_DEFAULT = [
@@ -134,6 +135,53 @@ class Command(BaseCommand):
         if not dry_run:
             season.last_synced_at = timezone.now()
             season.save(update_fields=["last_synced_at", "updated_at"])
+
+            # 4) Notify users who have active reminders for this show when new episodes are created
+            if created > 0:
+                show = season.show
+                tenant_slug = season.tenant
+                reminders = ShowReminder.objects.select_related("user", "show").filter(
+                    tenant=tenant_slug,
+                    show=show,
+                    is_active=True,
+                )
+                if reminders:
+                    title = f"New episodes in {show.title}"
+                    body = f"Season {season.number} has {created} new episode(s)."
+                    now = timezone.now()
+                    for rem in reminders:
+                        user = rem.user
+                        if not user:
+                            continue
+                        # In-app notification record
+                        UserNotification.objects.create(
+                            user=user,
+                            tenant=tenant_slug,
+                            title=title,
+                            body=body,
+                            data={
+                                "show_id": show.id,
+                                "show_slug": show.slug,
+                                "season_id": season.id,
+                                "season_number": season.number,
+                                "created_episodes": created,
+                            },
+                        )
+                        # Scheduled push notification (user-targeted)
+                        ScheduledNotification.objects.create(
+                            title=title,
+                            body=body,
+                            data={
+                                "show_id": show.id,
+                                "show_slug": show.slug,
+                                "season_id": season.id,
+                                "season_number": season.number,
+                                "created_episodes": created,
+                            },
+                            target_type=ScheduledNotification.TARGET_USER,
+                            target_user=user,
+                            send_at=now,
+                        )
 
         self.stdout.write(self.style.SUCCESS(
             f"Sync complete: created={created}, updated={updated}, new_ids={len(seen_new)}"

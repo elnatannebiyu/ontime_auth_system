@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.utils.text import slugify
 import time
-from .models import Show, Season, Episode, Category
+from .models import Show, Season, Episode, Category, ShowReminder
 from onchannels.models import Channel  # type: ignore
 
 
@@ -262,6 +262,23 @@ class SeasonSerializer(serializers.ModelSerializer):
             except Exception:
                 return val
         return val
+
+
+class ShowReminderSerializer(serializers.ModelSerializer):
+    show = serializers.SlugRelatedField(slug_field="slug", queryset=Show.objects.all())
+
+    class Meta:
+        model = ShowReminder
+        fields = [
+            "id",
+            "tenant",
+            "user",
+            "show",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ("tenant", "user", "created_at", "updated_at")
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

@@ -105,6 +105,26 @@ class Season(models.Model):
         return f"{self.show.title} S{self.number}"
 
 
+class ShowReminder(models.Model):
+    tenant = models.CharField(max_length=64, db_index=True, default="ontime")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="show_reminders")
+    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name="reminders")
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (("tenant", "user", "show"),)
+        indexes = [
+            models.Index(fields=["tenant", "user"]),
+            models.Index(fields=["tenant", "show"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Reminder user={self.user_id} show={self.show_id}"
+
+
 class Episode(models.Model):
     STATUS_PUBLISHED = "published"
     STATUS_DRAFT = "draft"
