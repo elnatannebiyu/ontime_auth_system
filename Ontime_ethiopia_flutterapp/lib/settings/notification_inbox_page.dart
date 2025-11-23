@@ -46,16 +46,22 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Mark all as read?'),
-                  content: const Text('This will mark all your notifications as read.'),
+                  content: const Text(
+                      'This will mark all your notifications as read.'),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Mark read')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Mark read')),
                   ],
                 ),
               );
               if (ok == true) {
                 try {
-                  await ApiClient().post('/channels/notifications/mark-all-read/');
+                  await ApiClient()
+                      .post('/channels/notifications/mark-all-read/');
                 } catch (_) {}
                 if (mounted) _refresh();
               }
@@ -89,17 +95,68 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
                   final title = (it['title'] as String?) ?? '';
                   final body = (it['body'] as String?) ?? '';
                   final createdAt = (it['created_at'] as String?) ?? '';
+                  final id = it['id'] as int?;
+                  final readAt = it['read_at'] as String?;
                   return ListTile(
                     leading: const Icon(Icons.notifications_outlined),
-                    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Text(title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(body, maxLines: 3, overflow: TextOverflow.ellipsis),
+                        Text(body,
+                            maxLines: 3, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
-                        Text(createdAt, style: Theme.of(context).textTheme.bodySmall),
+                        Text(createdAt,
+                            style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
+                    trailing: IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: id == null
+                          ? null
+                          : () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Delete notification?'),
+                                  content: const Text('This cannot be undone.'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) {
+                                try {
+                                  await ApiClient()
+                                      .delete('/channels/notifications/$id/');
+                                } catch (_) {}
+                                if (mounted) _refresh();
+                              }
+                            },
+                    ),
+                    onTap: (id == null || readAt != null)
+                        ? null
+                        : () async {
+                            try {
+                              await ApiClient().post(
+                                '/channels/notifications/mark-read/',
+                                data: {
+                                  'ids': [id],
+                                },
+                              );
+                            } catch (_) {}
+                            if (mounted) _refresh();
+                          },
                   );
                 },
               );

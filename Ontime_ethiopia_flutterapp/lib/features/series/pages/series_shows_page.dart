@@ -241,6 +241,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
                         : _categoryShows,
                     onTap: (s) => _openShow(s['slug']?.toString() ?? '',
                         s['title']?.toString() ?? ''),
+                    service: _service,
                   ),
                 ),
               ],
@@ -252,16 +253,112 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
   bool get wantKeepAlive => true;
 }
 
-class _ShowCard extends StatelessWidget {
+class _ShowCard extends StatefulWidget {
   final String title;
   final String imageUrl;
+  final String slug;
+  final SeriesService service;
   final VoidCallback? onTap;
-  const _ShowCard({required this.title, required this.imageUrl, this.onTap});
+  const _ShowCard({
+    required this.title,
+    required this.imageUrl,
+    required this.slug,
+    required this.service,
+    this.onTap,
+  });
+
+  @override
+  State<_ShowCard> createState() => _ShowCardState();
+}
+
+class _ShowCardState extends State<_ShowCard> {
+  bool _loadingStatus = false;
+  bool _hasReminder = false;
+  bool _isActive = false;
+  int? _reminderId;
+
+  bool get _isOn => _hasReminder && _isActive;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    setState(() {
+      _loadingStatus = true;
+    });
+    try {
+      final res = await widget.service.getReminderStatus(widget.slug);
+      final has = res['has_reminder'] == true;
+      final active = res['is_active'] == true;
+      final id = res['id'];
+      if (!mounted) return;
+      setState(() {
+        _hasReminder = has;
+        _isActive = active;
+        _reminderId = (id is int) ? id : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasReminder = false;
+        _isActive = false;
+        _reminderId = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingStatus = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleReminder() async {
+    if (_loadingStatus) return;
+    setState(() {
+      _loadingStatus = true;
+    });
+    try {
+      if (!_isOn) {
+        final res = await widget.service.createReminder(widget.slug);
+        final id = res['id'];
+        final active = res['is_active'] == true;
+        if (!mounted) return;
+        setState(() {
+          _hasReminder = true;
+          _isActive = active;
+          _reminderId = (id is int) ? id : null;
+        });
+      } else {
+        final id = _reminderId;
+        if (id != null) {
+          await widget.service.deleteReminder(id);
+        }
+        if (!mounted) return;
+        setState(() {
+          _hasReminder = false;
+          _isActive = false;
+          _reminderId = null;
+        });
+      }
+    } catch (_) {
+      // ignore errors for now; UI will stay in previous state
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingStatus = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Card(
         clipBehavior: Clip.antiAlias,
         elevation: 2,
@@ -270,19 +367,43 @@ class _ShowCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, fit: BoxFit.cover)
+              child: widget.imageUrl.isNotEmpty
+                  ? Image.network(widget.imageUrl, fit: BoxFit.cover)
                   : Container(
                       color: Colors.black12,
-                      child: const Icon(Icons.tv, size: 40)),
+                      child: const Icon(Icons.tv, size: 40),
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: Icon(
+                      _isOn
+                          ? Icons.notifications_active
+                          : Icons.notifications_none_outlined,
+                      color: _isOn
+                          ? Theme.of(context).colorScheme.secondary
+                          : Theme.of(context).iconTheme.color?.withOpacity(0.7),
+                    ),
+                    onPressed: _toggleReminder,
+                  ),
+                ],
               ),
             ),
           ],
@@ -315,7 +436,10 @@ class _Section extends StatelessWidget {
 class _ShowsGrid extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final void Function(Map<String, dynamic>) onTap;
-  const _ShowsGrid({required this.items, required this.onTap});
+  final SeriesService service;
+
+  const _ShowsGrid(
+      {required this.items, required this.onTap, required this.service});
 
   @override
   Widget build(BuildContext context) {
@@ -337,6 +461,8 @@ class _ShowsGrid extends StatelessWidget {
         return _ShowCard(
           title: title,
           imageUrl: cover,
+          slug: slug,
+          service: service,
           onTap: () => onTap({'slug': slug, 'title': title}),
         );
       },

@@ -86,4 +86,35 @@ class SeriesService {
       rethrow;
     }
   }
+
+  // --- Reminders ---
+  Future<Map<String, dynamic>> getReminderStatus(String showSlug) async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesReminderStatus(showSlug);
+    } catch (e) {
+      debugPrint('[SeriesService] getReminderStatus error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> createReminder(String showSlug) async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesCreateReminder(showSlug);
+    } catch (e) {
+      debugPrint('[SeriesService] createReminder error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteReminder(int id) async {
+    api.setTenant(tenantId);
+    try {
+      await api.seriesDeleteReminder(id);
+    } catch (e) {
+      debugPrint('[SeriesService] deleteReminder error: $e');
+      rethrow;
+    }
+  }
 }

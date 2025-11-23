@@ -93,18 +93,39 @@ def _dispatch_single(n: ScheduledNotification) -> bool:
         elif n.target_type == ScheduledNotification.TARGET_USER:
             if not n.target_user_id:
                 raise ValueError("Missing target_user for user notification")
-            devices: List[Device] = list(Device.objects.filter(user_id=n.target_user_id, push_enabled=True).exclude(push_token="").all())
+            devices: List[Device] = list(
+                Device.objects.filter(user_id=n.target_user_id, push_enabled=True)
+                .exclude(push_token="")
+                .all()
+            )
             if not devices:
                 raise ValueError("No devices with push_token for target user")
+
+            any_success = False
+            last_error: str | None = None
             for d in devices:
                 if not d.push_token:
                     continue
                 try:
-                    send_to_token(n.title, n.body, d.push_token, (n.data or {}), ttl_seconds=ttl, collapse_key=collapse)
+                    send_to_token(
+                        n.title,
+                        n.body,
+                        d.push_token,
+                        (n.data or {}),
+                        ttl_seconds=ttl,
+                        collapse_key=collapse,
+                    )
+                    any_success = True
                 except Exception as exc:
-                    # Log but continue with other devices
-                    _set_error(n, f"Device {d.id}: {exc}")
-            _mark_sent(n)
+                    # Record the last error but attempt other devices
+                    err_msg = f"Device {d.id}: {exc}"
+                    logger.warning("[FCM] user-target send failed: %s", err_msg)
+                    last_error = err_msg
+
+            if any_success:
+                _mark_sent(n)
+            else:
+                _record_failure(n, last_error or "All device sends failed")
             return True
         else:
             raise ValueError(f"Unknown target_type: {n.target_type}")

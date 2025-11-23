@@ -229,6 +229,24 @@ class AuthApi {
     await _client.post('/series/episodes/$episodeId/unlike/');
   }
 
+  // ---- Series reminder APIs ----
+  Future<Map<String, dynamic>> seriesReminderStatus(String showSlug) async {
+    final res = await _client.get('/series/shows/$showSlug/reminder-status/');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<Map<String, dynamic>> seriesCreateReminder(String showSlug) async {
+    final res = await _client.post('/series/reminders/', data: {
+      'show': showSlug,
+      'is_active': true,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<void> seriesDeleteReminder(int id) async {
+    await _client.delete('/series/reminders/$id/');
+  }
+
   // ---- Dev utilities (development only) ----
   Future<void> devReset({String? baseUrl}) async {
     if (baseUrl != null && baseUrl.isNotEmpty) {

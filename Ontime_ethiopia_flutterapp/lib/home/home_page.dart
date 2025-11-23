@@ -63,6 +63,7 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _newShorts = const [];
   bool _tabListenerAttached = false;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
+  int _unreadCount = 0;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -83,6 +84,7 @@ class _HomePageState extends State<HomePage> {
     });
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _loadTrendingNew();
+    _loadUnreadCount();
     _connSub = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
@@ -98,6 +100,24 @@ class _HomePageState extends State<HomePage> {
         }
       });
     });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final res =
+          await ApiClient().get('/channels/notifications/unread-count/');
+      final data = res.data;
+      int count = 0;
+      if (data is Map && data['count'] is int) {
+        count = data['count'] as int;
+      }
+      if (!mounted) return;
+      setState(() {
+        _unreadCount = count;
+      });
+    } catch (_) {
+      // Silently ignore; bell will just show no badge on failure.
+    }
   }
 
   Future<void> _load() async {
@@ -447,6 +467,50 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                           actions: [
+                            IconButton(
+                              tooltip: 'Notifications',
+                              onPressed: () async {
+                                await Navigator.of(context).pushNamed('/inbox');
+                                // Refresh count after returning from inbox
+                                if (mounted) {
+                                  _loadUnreadCount();
+                                }
+                              },
+                              icon: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  const Icon(Icons.notifications_outlined),
+                                  if (_unreadCount > 0)
+                                    Positioned(
+                                      right: -2,
+                                      top: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.redAccent,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Text(
+                                          _unreadCount > 9
+                                              ? '9+'
+                                              : _unreadCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 8.0),
