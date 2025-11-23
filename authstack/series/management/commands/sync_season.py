@@ -59,8 +59,10 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         # Track all video IDs currently present in the playlist so we can hide
-        # any episodes whose source_video_id has been removed or turned private.
+        # any episodes whose source_video_id has been removed or turned private,
+        # and also recompute episode_number ordering to match the playlist.
         playlist_ids: Set[str] = set()
+        playlist_order: List[str] = []
         seen_new: List[str] = []
 
         # 2) Tail-only fetch: iterate from start but stop when we hit known tail
@@ -79,6 +81,9 @@ class Command(BaseCommand):
                     if not vid:
                         continue
                     playlist_ids.add(vid)
+                    # Preserve playlist order (first occurrence wins)
+                    if vid not in playlist_order:
+                        playlist_order.append(vid)
                     if vid in known:
                         # Already ingested; skip but continue scanning to pick up any newer items.
                         continue
@@ -153,6 +158,30 @@ class Command(BaseCommand):
                         f"Hidden {hidden_count} episode(s) no longer present in playlist for season {season.id}."
                     )
                 )
+
+            # Recompute episode_number for this season based on the current
+            # playlist order (1, 2, 3, ...) so that removing items from the
+            # YouTube playlist results in a compact, ordered sequence.
+            if playlist_order:
+                order_map = {vid: idx + 1 for idx, vid in enumerate(playlist_order)}
+                eps = list(
+                    Episode.objects.filter(season=season, source_video_id__in=playlist_ids)
+                )
+                to_update: List[Episode] = []
+                for ep in eps:
+                    desired = order_map.get(ep.source_video_id)
+                    if desired is None:
+                        continue
+                    if ep.episode_number != desired:
+                        ep.episode_number = desired
+                        to_update.append(ep)
+                if to_update:
+                    Episode.objects.bulk_update(to_update, ["episode_number"])
+                    self.stdout.write(
+                        self.style.NOTICE(
+                            f"Renumbered {len(to_update)} episode(s) to match current playlist order for season {season.id}."
+                        )
+                    )
 
             # 4) Notify users who have active reminders for this show when new episodes are created
             if created > 0:
