@@ -75,9 +75,8 @@ class Command(BaseCommand):
                     if not vid:
                         continue
                     if vid in known:
-                        # We reached already-ingested region; stop early
-                        page_token = None
-                        break
+                        # Already ingested; skip but continue scanning to pick up any newer items.
+                        continue
                     # Apply exclusion keywords (case-insensitive)
                     t_low = title.lower()
                     if any(x in t_low for x in exclude_rules):

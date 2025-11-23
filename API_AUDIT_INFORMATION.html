@@ -314,7 +314,8 @@ pre code {
 
  body {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
-	padding: 0 12px;
+	/* Top padding leaves space for fixed header image when printing */
+	padding: 110px 12px 12px 12px;
  }
 
 pre {
@@ -367,11 +368,31 @@ h1, h2, h3 {
 	page-break-after: always;
 }
 
+/* Fixed header image for browser + PDF export */
+.pdf-header {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	text-align: center;
+	padding: 8px 0;
+	border-bottom: 1px solid #dddddd;
+	background-color: #ffffff;
+}
+
+.pdf-header img {
+	max-height: 80px;
+	width: auto;
+}
+
 </style>
 
 <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
+	<div class="pdf-header">
+		<img src="header.jpeg" alt="OnTime Ethiopia Header">
+	</div>
   <script>
     mermaid.initialize({
       startOnLoad: true,
