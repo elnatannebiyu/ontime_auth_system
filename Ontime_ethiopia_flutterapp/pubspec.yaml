@@ -59,7 +59,7 @@ dependencies:
   just_audio: ^0.9.39
   audio_session: ^0.1.21
   cached_network_image: ^3.3.1
-  connectivity_plus: ^6.1.0
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
