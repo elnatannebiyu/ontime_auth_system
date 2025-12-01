@@ -62,6 +62,10 @@ class BaseTenantReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
 class ShowViewSet(viewsets.ModelViewSet):
     queryset = Show.objects.select_related("channel").all()
     serializer_class = ShowSerializer
+    # Disable pagination so admin/frontends can see the full list of shows
+    # (SeriesAdmin Shows tab and Season dialog). Filtering and ordering still
+    # apply server-side.
+    pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["slug", "title"]
     ordering_fields = ["title", "updated_at"]

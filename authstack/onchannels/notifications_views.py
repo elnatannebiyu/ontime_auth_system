@@ -13,9 +13,12 @@ def list_notifications_view(request):
     """Return paginated notifications for the current user.
 
     Query params:
-      - page (default 1)
-      - page_size (default 20, max 100)
       - read: '0' for unread only, '1' for read only, omit for all
+      
+    NOTE: This endpoint previously paginated with a default page_size=20. It
+    now returns all matching notifications in a single response, ordered by
+    newest first. The response shape still includes count/page/pages/results
+    for backward compatibility, but page/pages are always 1.
     """
     user = request.user
     qs = UserNotification.objects.filter(user=user)
@@ -25,18 +28,7 @@ def list_notifications_view(request):
     elif read == '1':
         qs = qs.filter(read_at__isnull=False)
 
-    try:
-        page_num = int(request.GET.get('page', 1))
-    except Exception:
-        page_num = 1
-    try:
-        page_size = int(request.GET.get('page_size', 20))
-    except Exception:
-        page_size = 20
-    page_size = max(1, min(page_size, 100))
-
-    paginator = Paginator(qs.order_by('-created_at'), page_size)
-    page = paginator.get_page(page_num)
+    qs = qs.order_by('-created_at')
     items = [
         {
             'id': n.id,
@@ -46,12 +38,12 @@ def list_notifications_view(request):
             'created_at': n.created_at.isoformat(),
             'read_at': n.read_at.isoformat() if n.read_at else None,
         }
-        for n in page.object_list
+        for n in qs
     ]
     return Response({
-        'count': paginator.count,
-        'page': page.number,
-        'pages': paginator.num_pages,
+        'count': len(items),
+        'page': 1,
+        'pages': 1,
         'results': items,
     })
 
