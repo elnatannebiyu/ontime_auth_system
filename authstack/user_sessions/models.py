@@ -45,13 +45,23 @@ class Session(models.Model):
         refresh_token = secrets.token_urlsafe(32)
         refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         family = secrets.token_urlsafe(16)
-        
+
+        # Prefer the original client IP from X-Forwarded-For when running
+        # behind a proxy/load balancer, falling back to REMOTE_ADDR.
+        meta = getattr(request, "META", {}) or {}
+        xff = meta.get("HTTP_X_FORWARDED_FOR", "")
+        if xff:
+            # Format is typically "client, proxy1, proxy2"; take the first.
+            ip = xff.split(",")[0].strip() or meta.get("REMOTE_ADDR")
+        else:
+            ip = meta.get("REMOTE_ADDR")
+
         session = cls.objects.create(
             user=user,
             device=device,
             refresh_token_hash=refresh_token_hash,
             refresh_token_family=family,
-            ip_address=request.META.get('REMOTE_ADDR'),
+            ip_address=ip,
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
             expires_at=timezone.now() + timedelta(days=30)
         )
