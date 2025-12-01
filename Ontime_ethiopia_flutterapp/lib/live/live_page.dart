@@ -128,11 +128,11 @@ class _LivePageState extends State<LivePage>
                 subtitle: _t('some_actions_offline'),
                 onRetry: _fetchRadios,
               ),
-            const TabBar(
-              labelPadding: EdgeInsets.symmetric(horizontal: 16),
+            TabBar(
+              labelPadding: const EdgeInsets.symmetric(horizontal: 16),
               tabs: [
-                Tab(text: 'TV'),
-                Tab(text: 'Radio'),
+                Tab(text: _t('tv')),
+                Tab(text: _t('radio')),
               ],
             ),
             Expanded(
@@ -235,8 +235,10 @@ class _RadioTabState extends State<_RadioTab> {
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             leading: _RadioLogo(url: (m['logo'] ?? '').toString(), name: name),
-            title: Text(name.isEmpty ? 'Radio' : name,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(
+                name.isEmpty ? (inherited?._t('radio') ?? 'Radio') : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -656,7 +658,14 @@ class _TvTabState extends State<_TvTab>
                             decoration: BoxDecoration(
                                 color: Colors.black.withOpacity(0.55),
                                 borderRadius: BorderRadius.circular(8)),
-                            child: Text(title.isEmpty ? 'Live TV' : title,
+                            child: Text(
+                                title.isEmpty
+                                    ? (context
+                                            .findAncestorStateOfType<
+                                                _LivePageState>()
+                                            ?._t('live_tv') ??
+                                        'Live TV')
+                                    : title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(

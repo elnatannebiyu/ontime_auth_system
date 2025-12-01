@@ -136,7 +136,8 @@ flutter:
   # see https://flutter.dev/custom-fonts/#from-packages
 
 event_id:
-  -
+  - app_open
+  - shows_tab_opened
+  - episode_play_started
 
-event_data:
-  { }
+event_data: {}

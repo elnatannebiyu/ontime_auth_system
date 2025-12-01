@@ -21,6 +21,12 @@ class FcmManager {
   static const _kTokenKey = 'fcm_token';
   String? _token;
 
+  // Broadcasts an event whenever a foreground FCM notification is received.
+  static final StreamController<void> _notificationEvents =
+      StreamController<void>.broadcast();
+
+  Stream<void> get notificationStream => _notificationEvents.stream;
+
   // Local notifications
   final FlutterLocalNotificationsPlugin _localNotifs =
       FlutterLocalNotificationsPlugin();
@@ -200,6 +206,9 @@ class FcmManager {
           link: message.data['link'] as String?,
         );
         NotificationInbox.add(item);
+
+        // Notify listeners (e.g., HomePage) that a new notification has arrived.
+        _notificationEvents.add(null);
       });
 
       // Background/terminated: define a top-level handler in main.dart if needed

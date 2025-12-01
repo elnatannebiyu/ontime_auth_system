@@ -5,6 +5,7 @@ from .views import (
     LogoutView,
     MeView,
     ChangePasswordView,
+    DeleteMeView,
     AdminOnlyView,
     UserWriteView,
     RegisterView,
@@ -36,6 +37,7 @@ urlpatterns = [
 
     path("me/", MeView.as_view(), name="me"),
     path("me/change-password/", ChangePasswordView.as_view(), name="me_change_password"),
+    path("me/delete-account/", DeleteMeView.as_view(), name="me_delete_account"),
     path("admin-only/", AdminOnlyView.as_view(), name="admin_only"),
     path("users/", UserWriteView.as_view(), name="users"),
     # Tenant-scoped admin users management

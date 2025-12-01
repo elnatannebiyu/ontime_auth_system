@@ -26,6 +26,7 @@ import '../core/cache/channel_cache.dart';
 import '../core/cache/home_trending_cache.dart';
 import '../live/live_page.dart';
 import '../core/notifications/notification_permission_manager.dart';
+import '../core/notifications/fcm_manager.dart';
 import '../shorts/shorts_page.dart';
 import '../shorts/shorts_player_page.dart';
 
@@ -64,6 +65,7 @@ class _HomePageState extends State<HomePage> {
   bool _tabListenerAttached = false;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   int _unreadCount = 0;
+  StreamSubscription<void>? _notifSub;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -85,6 +87,11 @@ class _HomePageState extends State<HomePage> {
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _loadTrendingNew();
     _loadUnreadCount();
+    _notifSub = FcmManager().notificationStream.listen((_) {
+      if (mounted) {
+        _loadUnreadCount();
+      }
+    });
     _connSub = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
@@ -100,6 +107,13 @@ class _HomePageState extends State<HomePage> {
         }
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel();
+    _notifSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUnreadCount() async {
@@ -348,55 +362,86 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showProfileSheet() {
+    // Dismiss any active text input so the keyboard doesn't overlap the sheet
+    FocusScope.of(context).unfocus();
     showModalBottomSheet<_HomeMenuAction>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (ctx) {
-        final lang = widget.localizationController.language;
-        final switchTo = lang == AppLanguage.en ? 'AM' : 'EN';
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.account_circle_outlined),
-                  title: Text(_t('profile_settings')),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).pushNamed('/profile');
-                  },
+        return AnimatedBuilder(
+          animation: widget.localizationController,
+          builder: (_, __) {
+            final lang = widget.localizationController.language;
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.account_circle_outlined),
+                      title: Text(_t('profile_settings')),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pushNamed('/profile');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined),
+                      title: Text(_t('settings')),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pushNamed('/settings');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: Text(_t('about')),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pushNamed('/about');
+                      },
+                    ),
+                    const Divider(),
+                    ExpansionTile(
+                      leading: const Icon(Icons.translate),
+                      title: Text(_t('switch_language')),
+                      children: [
+                        RadioListTile<AppLanguage>(
+                          value: AppLanguage.en,
+                          groupValue: lang,
+                          title: Text(_t('english')),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            widget.localizationController.setLanguage(v);
+                          },
+                        ),
+                        RadioListTile<AppLanguage>(
+                          value: AppLanguage.am,
+                          groupValue: lang,
+                          title: Text(_t('amharic')),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            widget.localizationController.setLanguage(v);
+                          },
+                        ),
+                        RadioListTile<AppLanguage>(
+                          value: AppLanguage.om,
+                          groupValue: lang,
+                          title: Text(_t('oromo')),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            widget.localizationController.setLanguage(v);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: const Icon(Icons.settings_outlined),
-                  title: Text(_t('settings')),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).pushNamed('/settings');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(_t('about')),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).pushNamed('/about');
-                  },
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.translate),
-                  title: Text('${_t('switch_language')} ($switchTo)'),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    widget.localizationController.toggleLanguage();
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );

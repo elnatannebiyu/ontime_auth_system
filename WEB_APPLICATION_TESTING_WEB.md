@@ -95,6 +95,34 @@ The following high-level threat model summarizes the main assets, likely threats
   - Tenant-aware filtering and checks to ensure users cannot access data from other tenants.  
   - Enforcement of HTTPS/TLS in production and use of secure cookie flags (`Secure`, `HttpOnly`) where applicable.  
 
+In addition to the above narrative, the following tables provide a structured risk assessment and an explicit mapping between identified threats and the security controls implemented in the system.
+
+#### Risk Assessment Matrix (Web Application)
+
+| Threat                                   | Impact | Likelihood | Residual Risk | Mitigation Priority |
+|------------------------------------------|--------|-----------:|--------------:|---------------------|
+| SQL/ORM Injection                        | High   | Low        | Medium        | Medium              |
+| Cross-Site Scripting (XSS)               | High   | Low        | Medium        | Medium              |
+| Cross-Site Request Forgery (CSRF)        | Medium | Low        | Low           | Low–Medium          |
+| Broken Authentication / Session Mgmt     | High   | Low        | Medium        | Medium              |
+| Broken Access Control / Privilege Escal. | High   | Low        | Medium        | Medium              |
+| Insecure Direct Object References (IDOR) | High   | Low        | Medium        | Medium              |
+| Sensitive Data Exposure                  | High   | Low        | Medium        | Medium              |
+| Denial of Service / Resource Exhaustion  | Medium | Low        | Low–Medium    | Medium              |
+
+#### Security Controls Mapped to Threats
+
+| Threat                            | Security Controls in OnTime Ethiopia Web Application                                      |
+|-----------------------------------|-------------------------------------------------------------------------------------------|
+| SQL/ORM Injection                 | Use of Django ORM and parameterized queries instead of raw SQL; server-side validation on critical inputs via Django forms/serializers. |
+| Cross-Site Scripting (XSS)        | Server-side validation and output encoding of user-controlled data; avoidance of unsafe JavaScript patterns (e.g. no `eval`); careful rendering of user input in the React frontend. |
+| Cross-Site Request Forgery (CSRF) | Django’s built-in CSRF protection enabled for state-changing requests when using cookie-based sessions; use of CSRF tokens in forms/API calls where applicable. |
+| Broken Authentication / Session Mgmt  | Django authentication framework; secure password hashing; session timeouts; logout functionality; secure cookie attributes (`Secure`, `HttpOnly`) where applicable; optional token-based mechanisms. |
+| Broken Access Control / Privilege Escalation | Role-based access control (RBAC) in the backend, enforced via Django/DRF permission classes and tenant-aware filtering so users can only access data for their tenant and role. |
+| Insecure Direct Object References (IDOR) | Access checks on each object based on ownership/tenant rather than only on identifiers; no direct exposure of raw IDs without server-side authorization checks. |
+| Sensitive Data Exposure           | HTTPS/TLS for all frontend–backend communication; no plaintext password storage; minimal inclusion of sensitive data in logs; secure cookie flags; separation of configuration/secrets from code. |
+| Denial of Service / Resource Exhaustion | Reverse proxy/load balancer and network firewall in front of the application; ability to apply rate limiting; monitoring of resource usage and error rates. |
+
 ---
 
 ## 2. Features of the Web Application
@@ -196,6 +224,39 @@ The following non-functional requirements describe how the OnTime Ethiopia web a
 | Internal local applications    | N/A or not in scope (unless otherwise specified) | To be provided if any additional internal-only apps are included |
 
 Notes: The same base URL may expose both public and authenticated functionality depending on login status and user role.
+
+---
+
+## Functional Requirements
+
+- **Core application workflows:**  
+  - User login and logout to the OnTime Ethiopia web platform.  
+  - Browsing and searching available live TV channels and shorts.  
+  - Starting and stopping playback of live TV channels and short-form videos.  
+  - Admin/editor workflows for managing channels, playlists, live metadata, shorts ingestion jobs, and feature flags via the internal web portal.
+
+- **Input/output validation rules:**  
+  - All critical inputs are validated on the server using Django forms/serializers and model validation.  
+  - Client-side validation in the React frontend is used to improve user experience but is not trusted for security.  
+  - Responses are returned as structured JSON/HTML with appropriate encoding to reduce injection and XSS risks.
+
+- **API endpoints and request/response structures:**  
+  - The web frontend communicates with the backend using JSON REST APIs such as `/api/channels/`, `/api/live/`, `/api/channels/shorts/ready/feed/`, and authentication endpoints.  
+  - Each endpoint has defined HTTP methods, parameters, and JSON response formats documented in the backend/API documentation.  
+  - Endpoints are categorized as public, authenticated, or admin-only depending on the required role and permissions.
+
+- **Role-based access control definitions:**  
+  - Anonymous, authenticated end users, and admin/editor users are defined in the Django backend.  
+  - Role-based access control (RBAC) is enforced in Django/DRF viewsets and permission classes, including tenant-aware filtering to ensure users only access data for their tenant or organization.
+
+- **Logging and auditing functionalities:**  
+  - Authentication attempts (successful and failed), admin/editor actions, and significant errors/exceptions are logged on the server side.  
+  - Logs are used for audit, troubleshooting, and security investigations as part of the overall monitoring strategy.
+
+- **Error handling and exception management:**  
+  - In production, user-facing error responses are generic and avoid exposing internal implementation details or stack traces.  
+  - Exceptions raised in the application or background workers are captured in server logs with relevant context.  
+  - Validation and permission errors are returned as structured HTTP status codes and JSON messages that the frontend can handle gracefully.
 
 ---
 

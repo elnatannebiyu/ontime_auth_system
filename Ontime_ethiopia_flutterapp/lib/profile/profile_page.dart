@@ -177,11 +177,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (!confirmed || !mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_t('delete_account_not_implemented')),
-      ),
-    );
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await _api.deleteAccount();
+      await SimpleSessionManager().logout();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('delete_account_success'))),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('delete_account_error'))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
   }
 
   String _initial() {

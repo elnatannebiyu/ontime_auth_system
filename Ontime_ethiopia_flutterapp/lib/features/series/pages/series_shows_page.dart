@@ -36,12 +36,38 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
   String? _selectedCategorySlug;
   List<Map<String, dynamic>> _allShows = const [];
   List<Map<String, dynamic>> _categoryShows = const [];
+  String _searchQuery = '';
   bool _navigating = false; // guard against multiple rapid taps
   bool _offline = false;
 
   LocalizationController get _lc =>
       widget.localizationController ?? LocalizationController();
   String _t(String key) => _lc.t(key);
+
+  List<Map<String, dynamic>> get _effectiveShows =>
+      _selectedCategorySlug == null ? _allShows : _categoryShows;
+
+  bool _matchesSearch(Map<String, dynamic> show) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    const keys = [
+      'title',
+      'name',
+      'display_title',
+      'title_en',
+      'title_am',
+      'title_om',
+      'name_en',
+      'name_am',
+    ];
+    for (final k in keys) {
+      final v = show[k];
+      if (v is String && v.isNotEmpty) {
+        if (v.toLowerCase().contains(q)) return true;
+      }
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -176,72 +202,95 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
                     ),
                   ),
                 _Section(
-                  title: _t('categories'),
-                  child: SizedBox(
-                    height: 44,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: _categories.length + 1,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, i) {
-                        if (i == 0) {
-                          final selected = _selectedCategorySlug == null;
-                          return ChoiceChip(
-                            label: const Text('All'),
-                            selected: selected,
-                            onSelected: (val) async {
-                              setState(() {
-                                _selectedCategorySlug = null;
-                              });
-                              // No extra load; grid uses _allShows
-                            },
-                          );
-                        }
-                        final c = _categories[i - 1];
-                        final name = (c['name'] ?? '').toString();
-                        final slug = (c['slug'] ?? '').toString();
-                        final color = _parseHexColor(c['color']?.toString());
-                        final selected = slug == _selectedCategorySlug;
-                        return ChoiceChip(
-                          label: Text(name),
-                          selected: selected,
-                          selectedColor:
-                              (color ?? Theme.of(context).colorScheme.primary)
-                                  .withOpacity(0.2),
-                          side: BorderSide(
-                              color: color ?? Theme.of(context).dividerColor),
-                          onSelected: (val) async {
-                            if (!val) {
-                              setState(() {
-                                _selectedCategorySlug = null;
-                              });
-                              return;
-                            }
+                  title: _t('Categories'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: Text(_t('all')),
+                          selected: _selectedCategorySlug == null,
+                          onSelected: (val) {
+                            if (!val) return;
                             setState(() {
-                              _selectedCategorySlug = slug;
-                            });
-                            final list =
-                                await _service.getShowsByCategory(slug);
-                            if (!mounted) return;
-                            setState(() {
-                              _categoryShows = list;
+                              _selectedCategorySlug = null;
                             });
                           },
-                        );
-                      },
+                        ),
+                        for (final c in _categories)
+                          Builder(
+                            builder: (context) {
+                              final name = (c['name'] ?? '').toString();
+                              final slug = (c['slug'] ?? '').toString();
+                              final color =
+                                  _parseHexColor(c['color']?.toString());
+                              final selected = slug == _selectedCategorySlug;
+                              return ChoiceChip(
+                                label: Text(name),
+                                selected: selected,
+                                selectedColor: (color ??
+                                        Theme.of(context).colorScheme.primary)
+                                    .withOpacity(0.2),
+                                side: BorderSide(
+                                  color:
+                                      color ?? Theme.of(context).dividerColor,
+                                ),
+                                onSelected: (val) async {
+                                  if (!val) {
+                                    setState(() {
+                                      _selectedCategorySlug = null;
+                                    });
+                                    return;
+                                  }
+                                  setState(() {
+                                    _selectedCategorySlug = slug;
+                                  });
+                                  final list =
+                                      await _service.getShowsByCategory(slug);
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _categoryShows = list;
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                      ],
                     ),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  child: _ShowsGrid(
-                    items: _selectedCategorySlug == null
-                        ? _allShows
-                        : _categoryShows,
-                    onTap: (s) => _openShow(s['slug']?.toString() ?? '',
-                        s['title']?.toString() ?? ''),
-                    service: _service,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search),
+                          hintText: _t('search'),
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _ShowsGrid(
+                        items: _effectiveShows
+                            .where(_matchesSearch)
+                            .toList(growable: false),
+                        onTap: (s) => _openShow(
+                          s['slug']?.toString() ?? '',
+                          (s['title'] ?? s['display_title'] ?? '').toString(),
+                        ),
+                        service: _service,
+                      ),
+                    ],
                   ),
                 ),
               ],

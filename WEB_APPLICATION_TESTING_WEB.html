@@ -307,15 +307,10 @@ pre code {
  * Markdown PDF CSS
  */
 
- @page {
-  /* 1.25in top/bottom, 1in left/right for consistent header/footer spacing */
-  margin: 1.25in 1in;
- }
-
  body {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
 	padding: 0 12px;
- }
+}
 
 pre {
 	background-color: #f8f8f8;
@@ -351,24 +346,6 @@ code {
 	font-size: inherit;
 }
 
-/* Try to keep lists and tables together on a single page where possible */
-ul, ol, table {
-	page-break-inside: avoid;
-}
-
-/* Try to avoid headings being left as the last line on a page */
-h1, h2, h3 {
-	page-break-after: avoid;
-}
-
-/* Enlarge diagrams slightly so they appear taller on the page */
-img[alt*="Data Flow"],
-img[alt*="data flow"],
-img[alt*="DB ER"],
-img[alt*="diagram"] {
-	max-width: 80%;
-}
-
 /* Page Break : use <div class="page"/> to insert page break
 -------------------------------------------------------- */
 .page {
@@ -388,6 +365,7 @@ img[alt*="diagram"] {
           : 'default'
     });
   </script>
+<p><img src="header.jpeg" alt="OnTime Ethiopia Header"></p>
 <h1 id="web-application-testing-%E2%80%93-ontime-ethiopia">Web Application Testing – OnTime Ethiopia</h1>
 <p><strong>Organization:</strong> AI TECHNOLOGIES PLC / ኤ አይ ቴክኖሎጂስ ኋላ/የተ/የግ/ማ<br>
 <strong>Platform:</strong> OnTime Ethiopia (Web Application)<br>
@@ -400,7 +378,6 @@ img[alt*="diagram"] {
 <p>On behalf of the OnTime Ethiopia team, we would like to extend our sincere appreciation to the Information Network Security Administration for its continuous efforts in advancing Ethiopia’s digital transformation and ensuring the nation’s cybersecurity resilience. The Administration’s leadership in creating a secure and empowering digital environment plays a crucial role in strengthening innovation, public trust, and national development.</p>
 <h3 id="12-introduction">1.2 Introduction</h3>
 <p>This document provides technical and security-related information about the OnTime Ethiopia web application. It is intended to support the Information Network Security Administration (INSA) in planning and executing a penetration test / security assessment of the platform.</p>
-<p>It should be read together with the Mobile Application Testing and API Audit Information documents, which describe the corresponding mobile client and backend APIs in more detail.</p>
 <h3 id="13-objective-of-this-certificate-requested">1.3 Objective of this Certificate Requested</h3>
 <p>The objective is to obtain an independent security assessment and certificate for the OnTime Ethiopia web application, verifying that it has been tested against common web application security vulnerabilities and that identified issues can be remediated to strengthen the platform’s security posture.</p>
 <h3 id="14-business-architecture-summary">1.4 Business Architecture (Summary)</h3>
@@ -495,6 +472,120 @@ img[alt*="diagram"] {
 </ul>
 </li>
 </ul>
+<p>In addition to the above narrative, the following tables provide a structured risk assessment and an explicit mapping between identified threats and the security controls implemented in the system.</p>
+<h4 id="risk-assessment-matrix-web-application">Risk Assessment Matrix (Web Application)</h4>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Impact</th>
+<th style="text-align:right">Likelihood</th>
+<th style="text-align:right">Residual Risk</th>
+<th>Mitigation Priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQL/ORM Injection</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Cross-Site Scripting (XSS)</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Cross-Site Request Forgery (CSRF)</td>
+<td>Medium</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Low</td>
+<td>Low–Medium</td>
+</tr>
+<tr>
+<td>Broken Authentication / Session Mgmt</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Broken Access Control / Privilege Escal.</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Insecure Direct Object References (IDOR)</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Sensitive Data Exposure</td>
+<td>High</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Denial of Service / Resource Exhaustion</td>
+<td>Medium</td>
+<td style="text-align:right">Low</td>
+<td style="text-align:right">Low–Medium</td>
+<td>Medium</td>
+</tr>
+</tbody>
+</table>
+<h4 id="security-controls-mapped-to-threats">Security Controls Mapped to Threats</h4>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Security Controls in OnTime Ethiopia Web Application</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQL/ORM Injection</td>
+<td>Use of Django ORM and parameterized queries instead of raw SQL; server-side validation on critical inputs via Django forms/serializers.</td>
+</tr>
+<tr>
+<td>Cross-Site Scripting (XSS)</td>
+<td>Server-side validation and output encoding of user-controlled data; avoidance of unsafe JavaScript patterns (e.g. no <code>eval</code>); careful rendering of user input in the React frontend.</td>
+</tr>
+<tr>
+<td>Cross-Site Request Forgery (CSRF)</td>
+<td>Django’s built-in CSRF protection enabled for state-changing requests when using cookie-based sessions; use of CSRF tokens in forms/API calls where applicable.</td>
+</tr>
+<tr>
+<td>Broken Authentication / Session Mgmt</td>
+<td>Django authentication framework; secure password hashing; session timeouts; logout functionality; secure cookie attributes (<code>Secure</code>, <code>HttpOnly</code>) where applicable; optional token-based mechanisms.</td>
+</tr>
+<tr>
+<td>Broken Access Control / Privilege Escalation</td>
+<td>Role-based access control (RBAC) in the backend, enforced via Django/DRF permission classes and tenant-aware filtering so users can only access data for their tenant and role.</td>
+</tr>
+<tr>
+<td>Insecure Direct Object References (IDOR)</td>
+<td>Access checks on each object based on ownership/tenant rather than only on identifiers; no direct exposure of raw IDs without server-side authorization checks.</td>
+</tr>
+<tr>
+<td>Sensitive Data Exposure</td>
+<td>HTTPS/TLS for all frontend–backend communication; no plaintext password storage; minimal inclusion of sensitive data in logs; secure cookie flags; separation of configuration/secrets from code.</td>
+</tr>
+<tr>
+<td>Denial of Service / Resource Exhaustion</td>
+<td>Reverse proxy/load balancer and network firewall in front of the application; ability to apply rate limiting; monitoring of resource usage and error rates.</td>
+</tr>
+</tbody>
+</table>
 <hr>
 <h2 id="2-features-of-the-web-application">2. Features of the Web Application</h2>
 <h3 id="21-development-frameworks">2.1 Development Frameworks</h3>
@@ -607,7 +698,6 @@ img[alt*="diagram"] {
 </li>
 </ul>
 <hr>
-<div class="page"></div>
 <h2 id="3-scope-of-testing-web-application">3. Scope of Testing (Web Application)</h2>
 <table>
 <thead>
@@ -641,6 +731,57 @@ img[alt*="diagram"] {
 </tbody>
 </table>
 <p>Notes: The same base URL may expose both public and authenticated functionality depending on login status and user role.</p>
+<hr>
+<h2 id="functional-requirements">Functional Requirements</h2>
+<ul>
+<li>
+<p><strong>Core application workflows:</strong></p>
+<ul>
+<li>User login and logout to the OnTime Ethiopia web platform.</li>
+<li>Browsing and searching available live TV channels and shorts.</li>
+<li>Starting and stopping playback of live TV channels and short-form videos.</li>
+<li>Admin/editor workflows for managing channels, playlists, live metadata, shorts ingestion jobs, and feature flags via the internal web portal.</li>
+</ul>
+</li>
+<li>
+<p><strong>Input/output validation rules:</strong></p>
+<ul>
+<li>All critical inputs are validated on the server using Django forms/serializers and model validation.</li>
+<li>Client-side validation in the React frontend is used to improve user experience but is not trusted for security.</li>
+<li>Responses are returned as structured JSON/HTML with appropriate encoding to reduce injection and XSS risks.</li>
+</ul>
+</li>
+<li>
+<p><strong>API endpoints and request/response structures:</strong></p>
+<ul>
+<li>The web frontend communicates with the backend using JSON REST APIs such as <code>/api/channels/</code>, <code>/api/live/</code>, <code>/api/channels/shorts/ready/feed/</code>, and authentication endpoints.</li>
+<li>Each endpoint has defined HTTP methods, parameters, and JSON response formats documented in the backend/API documentation.</li>
+<li>Endpoints are categorized as public, authenticated, or admin-only depending on the required role and permissions.</li>
+</ul>
+</li>
+<li>
+<p><strong>Role-based access control definitions:</strong></p>
+<ul>
+<li>Anonymous, authenticated end users, and admin/editor users are defined in the Django backend.</li>
+<li>Role-based access control (RBAC) is enforced in Django/DRF viewsets and permission classes, including tenant-aware filtering to ensure users only access data for their tenant or organization.</li>
+</ul>
+</li>
+<li>
+<p><strong>Logging and auditing functionalities:</strong></p>
+<ul>
+<li>Authentication attempts (successful and failed), admin/editor actions, and significant errors/exceptions are logged on the server side.</li>
+<li>Logs are used for audit, troubleshooting, and security investigations as part of the overall monitoring strategy.</li>
+</ul>
+</li>
+<li>
+<p><strong>Error handling and exception management:</strong></p>
+<ul>
+<li>In production, user-facing error responses are generic and avoid exposing internal implementation details or stack traces.</li>
+<li>Exceptions raised in the application or background workers are captured in server logs with relevant context.</li>
+<li>Validation and permission errors are returned as structured HTTP status codes and JSON messages that the frontend can handle gracefully.</li>
+</ul>
+</li>
+</ul>
 <hr>
 <h2 id="4-security-functionality">4. Security Functionality</h2>
 <table>

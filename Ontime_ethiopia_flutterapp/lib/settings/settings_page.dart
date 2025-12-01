@@ -118,6 +118,14 @@ class SettingsPage extends StatelessWidget {
                           ? localizationController.setLanguage(v)
                           : null,
                     ),
+                    RadioListTile<AppLanguage>(
+                      value: AppLanguage.om,
+                      groupValue: lang,
+                      title: Text(localizationController.t('oromo')),
+                      onChanged: (v) => v != null
+                          ? localizationController.setLanguage(v)
+                          : null,
+                    ),
                   ],
                 );
               },

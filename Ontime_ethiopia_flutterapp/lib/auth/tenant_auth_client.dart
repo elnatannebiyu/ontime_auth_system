@@ -132,6 +132,11 @@ class AuthApi {
     _client.setAccessToken(null);
   }
 
+  Future<void> deleteAccount() async {
+    await _client.post('/me/delete-account/');
+    _client.setAccessToken(null);
+  }
+
   // ---- Series APIs ----
   Future<List<Map<String, dynamic>>> seriesShows(
       {Map<String, dynamic>? queryParameters}) async {

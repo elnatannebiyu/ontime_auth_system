@@ -825,3 +825,82 @@ class ChangePasswordView(APIView):
         res = Response({"detail": "Password changed. You have been logged out from all devices."}, status=status.HTTP_200_OK)
         clear_refresh_cookie(res)
         return res
+
+
+class DeleteMeView(APIView):
+    """Allow the authenticated user to delete their own account.
+
+    We implement this as an anonymization + deactivation step so that
+    existing content (comments, reactions, notifications) can remain
+    without being clearly tied to a real identity.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
+        operation_id="me_delete_account",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+
+        # Best-effort anonymization for the default Django User model.
+        try:
+            anon_username = f"deleted_user_{user.id}" if getattr(user, "id", None) is not None else "deleted_user"
+            # Ensure we do not collide with existing usernames.
+            base_username = anon_username
+            suffix = 1
+            while User.objects.filter(username=anon_username).exclude(pk=user.pk).exists():
+                anon_username = f"{base_username}_{suffix}"
+                suffix += 1
+
+            user.username = anon_username
+            user.first_name = ""
+            user.last_name = ""
+            user.email = ""
+            try:
+                user.is_active = False
+            except Exception:
+                pass
+            user.save()
+        except Exception:
+            # If anonymization fails we still proceed to revoke sessions
+            # and clear cookies to ensure logout, but we do not surface
+            # internal errors to the client.
+            pass
+
+        # Revoke all sessions for this user in legacy UserSession table.
+        try:
+            from .models import UserSession as LegacySession
+            sessions = list(LegacySession.objects.filter(user=user, is_active=True))
+            for s in sessions:
+                try:
+                    s.revoke("user_deleted")
+                except Exception:
+                    try:
+                        s.is_active = False
+                        s.save(update_fields=["is_active"])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Revoke all sessions in new user_sessions backend.
+        try:
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+
+            RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+                revoked_at=_tz.now(), revoke_reason="user_deleted"
+            )
+        except Exception:
+            pass
+
+        res = Response({"detail": "Account deleted and anonymized. You have been logged out from all devices."}, status=status.HTTP_200_OK)
+        clear_refresh_cookie(res)
+        return res

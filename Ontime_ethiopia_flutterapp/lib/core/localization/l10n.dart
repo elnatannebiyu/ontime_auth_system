@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AppLanguage { en, am }
+enum AppLanguage { en, am, om }
 
 class LocalizationController extends ChangeNotifier {
   static const _keyLang = 'app_language';
@@ -14,6 +14,8 @@ class LocalizationController extends ChangeNotifier {
     final code = prefs.getString(_keyLang);
     if (code == 'am') {
       _lang = AppLanguage.am;
+    } else if (code == 'om') {
+      _lang = AppLanguage.om;
     } else if (code == 'en') {
       _lang = AppLanguage.en;
     }
@@ -25,11 +27,23 @@ class LocalizationController extends ChangeNotifier {
     _lang = lang;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyLang, lang == AppLanguage.en ? 'en' : 'am');
+    await prefs.setString(
+      _keyLang,
+      lang == AppLanguage.en
+          ? 'en'
+          : lang == AppLanguage.am
+              ? 'am'
+              : 'om',
+    );
   }
 
-  Future<void> toggleLanguage() =>
-      setLanguage(_lang == AppLanguage.en ? AppLanguage.am : AppLanguage.en);
+  Future<void> toggleLanguage() => setLanguage(
+        _lang == AppLanguage.en
+            ? AppLanguage.am
+            : _lang == AppLanguage.am
+                ? AppLanguage.om
+                : AppLanguage.en,
+      );
 
   String t(String key) {
     const en = {
@@ -39,6 +53,7 @@ class LocalizationController extends ChangeNotifier {
       'welcome': 'Welcome',
       'for_you': 'For You',
       'Shows': 'Shows',
+      'Categories': 'Categories',
       'trending': 'Trending',
       'sports': 'Sports',
       'kids': 'Kids',
@@ -52,6 +67,37 @@ class LocalizationController extends ChangeNotifier {
       'play': 'Play',
       'live': 'Live',
       'now_playing': 'Now Playing',
+      // Login page
+      'welcome_back': 'Welcome back',
+      'login_subtitle': 'Sign in with your Google or Apple account',
+      'toggle_dark_mode': 'Toggle dark mode',
+      'create_account': 'Create an account',
+      'enter_valid_email': 'Enter a valid email address.',
+      'login_failed': 'Login failed',
+      'incorrect_email_password': 'Incorrect email or password.',
+      'too_many_attempts':
+          'Too many attempts. Please wait a minute and try again.',
+      'account_locked':
+          'Account temporarily locked due to failed attempts. Try again later.',
+      'generic_error': 'Something went wrong. Please try again.',
+      'email_or_username': 'Email or username',
+      'email_or_username_required': 'Enter your email/username',
+      'password_label': 'Password',
+      'password_required': 'Enter password',
+      'sign_in': 'Sign in',
+      'use_phone_coming_soon': 'Use phone (coming soon)',
+      'choose_language': 'Choose language',
+      'create_new_account_title': 'Create new account?',
+      'create_new_account_body':
+          'No account exists for this Google account. Create one now?',
+      'dialog_cancel': 'Cancel',
+      'dialog_create': 'Create',
+      'apple_signin_coming_soon': 'Apple sign-in coming soon.',
+      'google_signin_failed': 'Google sign-in failed. Please try again.',
+      'apple_signin_failed': 'Apple sign-in failed. Please try again.',
+      'tv': 'TV',
+      'radio': 'Radio',
+      'live_tv': 'Live TV',
       'settings': 'Settings',
       'appearance': 'Appearance',
       'system': 'System',
@@ -64,6 +110,7 @@ class LocalizationController extends ChangeNotifier {
       'switch_language': 'Switch language',
       'english': 'English',
       'amharic': 'Amharic',
+      'oromo': 'Oromo',
       // Settings page
       'security': 'Security',
       'active_sessions': 'Active sessions',
@@ -129,6 +176,7 @@ class LocalizationController extends ChangeNotifier {
       'session_expired': 'Session expired. Please sign in again.',
       // Common UI
       'search': 'Search',
+      'all': 'All',
       'menu': 'Menu',
       'you_are_offline': 'You are offline',
       'some_actions_offline': 'Some actions may not work until you reconnect.',
@@ -145,9 +193,13 @@ class LocalizationController extends ChangeNotifier {
       'delete_account': 'Delete account',
       'delete_account_title': 'Delete account',
       'delete_account_body':
-          'This will permanently delete your account and related data. This action cannot be undone.',
+          'This will deactivate your account, remove your personal profile details, and log you out from all devices. Some activity may remain in anonymized form.',
       'delete_account_not_implemented':
           'Account deletion is not implemented yet. Please contact support.',
+      'delete_account_success':
+          'Your account has been deleted and you have been logged out.',
+      'delete_account_error':
+          'Failed to delete your account. Please try again.',
       'profile_load_error': 'Problem loading profile',
       'profile_update_success': 'Profile updated',
       'profile_update_error': 'Failed to update profile',
@@ -155,35 +207,65 @@ class LocalizationController extends ChangeNotifier {
     const am = {
       'home': 'መነሻ',
       'channels': 'ቻናሎች',
-      'logout': 'መውጣት',
-      'welcome': 'እንኳን በደህና መጣህ/ሽ',
+      'logout': 'ውጣ',
+      'welcome': 'እንኳን በደህና መጡ',
       'for_you': 'ለእርስዎ',
-      'Shows': 'ተከታታይ',
+      'Shows': 'ተከታታይ ትርኢቶች',
+      'Categories': 'ምድቦች',
       'trending': 'ታዋቂ',
       'sports': 'ስፖርት',
-      'kids': 'ለህፃናት',
+      'kids': 'ህፃናት',
       'Shorts': 'አጭር ቪዲዮዎች',
-      'browse_channels': 'ቻናሎችን ይመልከቱ',
-      'continue_watching': 'ቀጥሎ የሚታይ',
+      'browse_channels': 'ቻናሎችን ይዘርዝሩ',
+      'continue_watching': 'ቀጥሎ ይመልከቱ',
       'see_all': 'ሁሉንም ይመልከቱ',
       'trending_now': 'አሁን ታዋቂ',
       'new_releases': 'አዳዲስ መውጫዎች',
-      'go_live': 'በቀጥታ መስጠት',
+      'go_live': 'ቀጥታ ጀምር',
       'play': 'አጫውት',
       'live': 'ቀጥታ',
-      'now_playing': 'አሁን የሚጫወት',
-      'settings': 'ማሰናጃ',
+      'now_playing': 'አሁን የሚጫወተው',
+      // Login page
+      'welcome_back': 'እንኳን በደህና መለሱ',
+      'login_subtitle': 'በGoogle ወይም Apple መለያዎ ይግቡ',
+      'toggle_dark_mode': 'የጨለማ ገጽታ ቀይር',
+      'create_account': 'መለያ ይፍጠሩ',
+      'enter_valid_email': 'ትክክለኛ ኢሜል ያስገቡ።',
+      'login_failed': 'መግባት አልተሳካም',
+      'incorrect_email_password': 'የተሳሳተ ኢሜል ወይም ፓስዎርድ።',
+      'too_many_attempts': 'ብዙ ሙከራዎች ተደርገዋል። እባክዎ ጥቂት ጊዜ ቆይተው እንደገና ይሞክሩ።',
+      'account_locked': 'በተደጋጋሚ ስህተት ምክንያት መለያዎ ጊዜያዊ ተቆልፏል። በኋላ ይሞክሩ።',
+      'generic_error': 'ጉዳይ ተፈጥሯል። እባክዎ እንደገና ይሞክሩ።',
+      'email_or_username': 'ኢሜል ወይም የተጠቃሚ ስም',
+      'email_or_username_required': 'ኢሜል ወይም የተጠቃሚ ስም ያስገቡ',
+      'password_label': 'ፓስዎርድ',
+      'password_required': 'ፓስዎርድ ያስገቡ',
+      'sign_in': 'ይግቡ',
+      'use_phone_coming_soon': 'ስልክ መጠቀም (በቅርብ ጊዜ)',
+      'choose_language': 'ቋንቋ ይምረጡ',
+      'create_new_account_title': 'አዲስ መለያ ይፍጠሩ?',
+      'create_new_account_body': 'ለዚህ የGoogle መለያ መዝገብ አልተገኘም። አዲስ መለያ ይፍጠሩ?',
+      'dialog_cancel': 'ሰርዝ',
+      'dialog_create': 'ፍጠር',
+      'apple_signin_coming_soon': 'የApple መግቢያ በቅርብ ጊዜ ይመጣል።',
+      'google_signin_failed': 'የGoogle መግቢያ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
+      'apple_signin_failed': 'የApple መግቢያ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
+      'tv': 'ቲቪ',
+      'radio': 'ሬዲዮ',
+      'live_tv': 'ቀጥታ ቲቪ',
+      'settings': 'ቅንብሮች',
       'appearance': 'አቀራረብ',
       'system': 'ሲስተም',
       'light': 'ብርሃን',
       'dark': 'ጨለማ',
       'language': 'ቋንቋ',
       'profile': 'መገለጫ',
-      'profile_settings': 'የመገለጫ',
+      'profile_settings': 'የመገለጫ ቅንብሮች',
       'about': 'ስለ መተግበሪያው',
       'switch_language': 'ቋንቋ መቀየር',
       'english': 'እንግሊዝኛ',
       'amharic': 'አማርኛ',
+      'oromo': 'ኦሮምኛ',
       // Settings page
       'security': 'ደህንነት',
       'active_sessions': 'ንቁ ክፍለጊዜዎች',
@@ -191,11 +273,11 @@ class LocalizationController extends ChangeNotifier {
       'session_security': 'የክፍለጊዜ ደህንነት',
       'session_security_subtitle': 'የደህንነት ቅንብሮችን ያቀናብሩ',
       'notifications_section': 'ማሳወቂያዎች',
-      'notification_inbox': 'የማሳወቂያ መልዕክት ሳጥን',
-      'notification_inbox_subtitle': 'ማሳወቂያዎችንና ማስታወቂያዎችን ይመልከቱ',
+      'notification_inbox': 'የማሳወቂያ ሳጥን',
+      'notification_inbox_subtitle': 'ማሳወቂያዎችን ይመልከቱ',
       // Channels page
-      'offline_mode': 'ከመስመር ውጭ ሁነታ',
-      'showing_cached': 'እስከሚገናኙ ድረስ የተቀመጡ ቻናሎች እየታዩ ናቸው።',
+      'offline_mode': 'ከመስመር ውጭ',
+      'showing_cached': 'እስካትገናኙ ድረስ ቻናሎች ተቀምጠው ይታያሉ።',
       'retry': 'እንደገና ሞክር',
       'details': 'ዝርዝሮች',
       'connection_details': 'የግንኙነት ዝርዝር',
@@ -247,9 +329,10 @@ class LocalizationController extends ChangeNotifier {
       'session_expired': 'ክፍለ ጊዜዎ አልፏል። እባክዎ እንደገና ይግቡ።',
       // Common UI
       'search': 'ፈልግ',
+      'all': 'ሁሉም',
       'menu': 'ምናሌ',
       'you_are_offline': 'ከመስመር ውጭ ነዎት',
-      'some_actions_offline': 'እስክትገናኙ ድረስ አንዳንድ እርምጃዎች ላይ ሊሰሩ አይችሉም።',
+      'some_actions_offline': 'እስካትገናኙ ድረስ አንዳንድ ተግባር አይሰራም።',
       'coming_soon': 'ለቅርብ ጊዜ',
       // Profile page
       'profile_details': 'የመገለጫ ዝርዝር',
@@ -263,14 +346,159 @@ class LocalizationController extends ChangeNotifier {
       'delete_account': 'መለያ ሰርዝ',
       'delete_account_title': 'መለያ ማጥፋት',
       'delete_account_body':
-          'መለያዎን መሰረዝ የመገለጫዎን መረጃ በፍጹም ያስወግዳል። ይህን ድርጊት መመለስ አይቻልም።',
+          'ይህ መለያዎን ያሰናክላል፣ የግል መረጃዎን ያስወግዳል እና ከሁሉም መሣሪያዎች ያወጣዎታል። አንዳንድ እንቅስቃሴ በስም አልተገናኘ መልክ ሊቀር ይችላል።',
       'delete_account_not_implemented':
           'የመለያ ማጥፋት ገና አልተተገበረም። እባክዎ ከድጋፍ ጋር ይገናኙ።',
-      'profile_load_error': 'የመገለጫ መጫን ችግኝ ተፈጥሯል',
-      'profile_update_success': 'መገለጫዎ ተዘምኗል',
-      'profile_update_error': 'መገለጫዎን ማዘመን አልተሳካም',
+      'delete_account_success': 'መለያዎ ተሰርዟል እና ከሁሉም መሣሪያዎች ወጥተዋል።',
+      'delete_account_error': 'መለያዎን መሰረዝ አልተሳካም። እባክዎ ደግመው ይሞክሩ።',
+      'profile_load_error': 'መገለጫ መጫን አልተሳካም',
+      'profile_update_success': 'መገለጫ ተዘምኗል',
+      'profile_update_error': 'መገለጫ ማዘመን አልተቻለም',
     };
-    final dict = _lang == AppLanguage.en ? en : am;
+    const om = {
+      'home': 'Mana',
+      'channels': 'Kanaalota',
+      'logout': 'Baʼii',
+      'welcome': 'Baga nagaan dhuftan',
+      'for_you': 'Siif',
+      'Shows': 'Sirkii',
+      'Categories': 'Ramaddiiwwan',
+      'trending': 'Sirna keessa jiran',
+      'sports': 'Ispoortii',
+      'kids': 'Daa’imman',
+      'Shorts': 'Vidiyoo gabaabaa',
+      'browse_channels': 'Kanaalota ilaali',
+      'continue_watching': 'Itti fufi',
+      'see_all': 'Hundaa ilaali',
+      'trending_now': 'Amma keessa jiru',
+      'new_releases': 'Gad dhiifama haaraa',
+      'go_live': 'Gara kallattii seen',
+      'play': 'Taphadhu',
+      'live': 'Kallattiin',
+      'now_playing': 'Amma taphachaa jiru',
+      // Login page
+      'welcome_back': 'Baga deebiʼan',
+      'login_subtitle': 'Akaawuntii Google ykn Apple kee fayyadamuun seeni',
+      'toggle_dark_mode': 'Haala dukkanaaʼaa baddaluu',
+      'create_account': 'Akaawuntii uumi',
+      'enter_valid_email': 'Imeelii sirrii galchi.',
+      'login_failed': 'Seenuun hin milkoofne',
+      'incorrect_email_password': 'Imeelii ykn jecha iccitii dogoggoraa.',
+      'too_many_attempts':
+          'Yeroo baayʼee yaaliin taasifameera. Daqiiqaa muraasa eegee deebiʼi.',
+      'account_locked':
+          'Sababa yaalii baayʼee irraa kaʼee akkaawuntiin yeroo muraasaaf cufame.',
+      'generic_error': 'Rakkoon uumame. Mee as booddeetti irra deebiʼi yaali.',
+      'email_or_username': 'Imeelii ykn maqaa fayyadamaa',
+      'email_or_username_required':
+          'Imeelii ykn maqaa fayyadamaa galchuu barbaachisa',
+      'password_label': 'Jecha iccitii',
+      'password_required': 'Jecha iccitii galchi',
+      'sign_in': 'Seeni',
+      'use_phone_coming_soon': 'Bilbila fayyadamuun (dhiyootti ni dhufa)',
+      'choose_language': 'Afaan filadhu',
+      'create_new_account_title': 'Akaawuntii haaraa uumi?',
+      'create_new_account_body':
+          'Akaawuntiin Google kanaaf hin jiru. Amma uftu?',
+      'dialog_cancel': 'Haqi',
+      'dialog_create': 'Uumi',
+      'apple_signin_coming_soon': 'Seensa Apple dhiyootti ni dhufa.',
+      'google_signin_failed': 'Seensi Google hin milkoofne. Mee deebiʼi yaali.',
+      'apple_signin_failed': 'Seensi Apple hin milkoofne. Mee deebiʼi yaali.',
+      'tv': 'TV',
+      'radio': 'Raadiyoo',
+      'live_tv': 'TV kallattiin',
+      'settings': 'Kaaroorfama',
+      'appearance': 'Ilaalcha',
+      'system': 'Sirna',
+      'light': 'Ifaa',
+      'dark': 'Dukkana',
+      'language': 'Afaan',
+      'profile': 'Profaayilii',
+      'profile_settings': 'Qindaa’ina Profaayilii',
+      'about': 'Waan akeekuu',
+      'switch_language': 'Afaan jijjiiri',
+      'english': 'Afaan Ingiliffaa',
+      'amharic': 'Afaan Amaaraa',
+      'oromo': 'Afaan Oromoo',
+      // Settings page
+      'security': 'Nageenya',
+      'active_sessions': 'Kallattiin jirus',
+      'active_sessions_subtitle': 'Tartiiba tajaajilaa ilaali',
+      'session_security': 'Nageenya tajaajilaa',
+      'session_security_subtitle': 'Qindaa’ina nageenya',
+      'notifications_section': 'Beeksisa',
+      'notification_inbox': 'Sanduuqa beeksisaa',
+      'notification_inbox_subtitle': 'Beeksisa ilaali',
+      // Channels page
+      'offline_mode': 'Al-internaatii',
+      'showing_cached': 'Kanaalota kuufaman ni mul’atu.',
+      'retry': 'Irra deebi’i',
+      'loading': 'Fe’amaa jira…',
+      'you_are_offline': 'Al internaatii jirtu',
+      'some_actions_offline': 'Hojii muraasni interneetiin hin hojjatu.',
+      'no_playlists': 'Tarree taphataa hin jiru',
+      'no_videos': 'Vidiyoo hin jiru',
+      'refresh_playlists': 'Taphattoota haaromsu',
+      // Channel details modal
+      'channel_details': 'Odeeffannoo kanaalaa',
+      'info': 'Odeeffannoo',
+      'close': 'Cufi',
+      'tenant_label': 'Tajaajilaa',
+      'id_slug': 'Id slug',
+      'default_locale': 'Lakkoofsa durtii',
+      'name_am': 'Maqaa Amaaraa',
+      'name_en': 'Maqaa Ingiliffaa',
+      'aliases': 'Maqaa bifa biraa',
+      'youtube_handle': 'Handeela YouTube',
+      'channel_handle': 'Handeela kanaalaa',
+      'youtube_channel_id': 'Id YouTube',
+      'resolved_channel_id': 'ID murtaa’e',
+      'images': 'Suuraawwan',
+      'sources': 'Maddawwan',
+      'genres': 'Gosa',
+      'language_label': 'Afaan',
+      'country': 'Biyyaa',
+      'tags': 'Mallattoo',
+      'is_active': 'Jiru',
+      'platforms': 'Pilaattifooma',
+      'drm_required': 'DRM barbaachisa',
+      'sort_order': 'Sirna lakkaa’insaa',
+      'featured': 'Mul’ata addaa',
+      'rights': 'Mirga',
+      'audit': 'Odiitii',
+      // Profile page
+      'profile_details': 'Odeeffannoo profaayilii',
+      'first_name': 'Maqaa jalqabaa',
+      'last_name': 'Maqaa abbaa',
+      'edit': 'Gulaali',
+      'cancel': 'Haqi',
+      'save_changes': 'Jijjiirama ol kaa’i',
+      'sign_out': 'Bahuu',
+      'danger_zone': 'Kutaa Halaakaa',
+      'delete_account': 'Akkaawuntii haquu',
+      'delete_account_title': 'Akkaawuntii haquu',
+      'delete_account_body':
+          'Kun akkaawuntii kee ni dhaamsa, odeeffannoo dhuunfaa irraa haqa, fi meeshaalee hunda irraa si baasaa. Sochii muraasni maqaa hin qabne taʼee ni hafu dandaʼa.',
+      'delete_account_not_implemented': 'hojii irra hin oolle',
+      'delete_account_success':
+          'Akkaawuntiin kee haqame, meeshaalee hunda irraa baattee jirta.',
+      'delete_account_error':
+          'Akkaawuntii haquu hin dandeenye. Mee irra deebiʼi yaali.',
+      'profile_load_error': 'Rakkoo fe’ii profaayilii',
+      'profile_update_success': 'Profaayiliin haaromfame',
+      'profile_update_error': 'Haaromsuu hin milkoofne',
+      // Common UI extras
+      'search': 'Barbaadi',
+      'menu': 'Cuqaasaa',
+      'coming_soon': 'Dhiyootti ni dhufa',
+      'all': 'Hunduu',
+    };
+    final dict = _lang == AppLanguage.en
+        ? en
+        : _lang == AppLanguage.am
+            ? am
+            : om;
     return dict[key] ?? key;
   }
 }

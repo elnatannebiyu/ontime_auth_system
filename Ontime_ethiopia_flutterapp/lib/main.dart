@@ -238,7 +238,35 @@ class _MyAppState extends State<MyApp> {
       if (ctx != null && !_updateDialogShown) {
         VersionGate.checkAndPrompt(ctx);
       }
+
+      // Handle the case where the app was opened from a notification
+      // while terminated.
+      FirebaseMessaging.instance.getInitialMessage().then((message) {
+        if (message != null && message.data.isNotEmpty) {
+          _handleNotificationNavigation(message.data);
+        }
+      });
+      // Handle taps on notifications when the app is in background.
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        if (message.data.isNotEmpty) {
+          _handleNotificationNavigation(message.data);
+        }
+      });
     });
+  }
+
+  void _handleNotificationNavigation(Map<String, dynamic> data) {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+
+    // For now, always open the notification inbox as a safe, predictable
+    // destination. We can expand this later to route based on data['type']
+    // and data['link'] when app sections are fully wired.
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => const NotificationInboxPage(),
+      ),
+    );
   }
 
   void _showUpdateDialog(BuildContext ctx, String message, String? storeUrl) {

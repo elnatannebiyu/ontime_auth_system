@@ -521,10 +521,13 @@ class ChannelAdmin(admin.ModelAdmin):
                 for pl in playlists:
                     page = None
                     latest_item_dt = None
+                    current_video_ids = set()
                     while True:
                         data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
                         for it in data.get("items", []):
                             vid = it.get("videoId")
+                            if vid:
+                                current_video_ids.add(vid)
                             published_at = it.get("publishedAt")
                             dt = None
                             if published_at:
@@ -559,6 +562,15 @@ class ChannelAdmin(admin.ModelAdmin):
                             pl.save(update_fields=["yt_last_item_published_at"])
                         except Exception:
                             pass
+
+                    # Hide videos that are no longer present in the YouTube playlist
+                    try:
+                        stale_qs = Video.objects.filter(playlist=pl)
+                        if current_video_ids:
+                            stale_qs = stale_qs.exclude(video_id__in=current_video_ids)
+                        hidden = stale_qs.update(is_active=False)
+                    except Exception:
+                        hidden = 0
             except Exception as exc:  # noqa: BLE001
                 self.message_user(request, f"{ch.id_slug}: sync failed: {exc}", level="warning")
         if missing_dates:
