@@ -939,12 +939,24 @@ class DeleteMeView(APIView):
                 suffix += 1
 
             user.username = anon_username
-            # Clear personal profile fields so that this record no longer
-            # exposes PII and so that future social login with the same
-            # email can create a brand-new user account.
-            user.first_name = ""
-            user.last_name = ""
-            user.email = ""
+
+            # Decide whether to clear PII based on whether this user has
+            # linked social accounts. For social users we clear email and
+            # names so they can later sign up again with the same provider
+            # and email. For password-only users we keep their email and
+            # names but still deactivate the account.
+            try:
+                from .models import SocialAccount as _SocialAccountForCheck
+
+                has_social = _SocialAccountForCheck.objects.filter(user=user).exists()
+            except Exception:
+                has_social = False
+
+            if has_social:
+                user.first_name = ""
+                user.last_name = ""
+                user.email = ""
+
             try:
                 user.is_active = False
             except Exception:
