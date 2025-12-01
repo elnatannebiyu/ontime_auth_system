@@ -236,7 +236,14 @@ def social_login_view(request):
         dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
         os_name = request.META.get('HTTP_X_OS_NAME', '')
         os_version = request.META.get('HTTP_X_OS_VERSION', '')
-        ip_addr = request.META.get('REMOTE_ADDR') or '127.0.0.1'
+        # Prefer original client IP from X-Forwarded-For, falling back to REMOTE_ADDR
+        meta = getattr(request, 'META', {}) or {}
+        xff = meta.get('HTTP_X_FORWARDED_FOR', '')
+        if xff:
+            # Take the first IP in the list (client IP)
+            ip_addr = xff.split(',')[0].strip() or meta.get('REMOTE_ADDR') or '127.0.0.1'
+        else:
+            ip_addr = meta.get('REMOTE_ADDR') or '127.0.0.1'
         ua = request.META.get('HTTP_USER_AGENT', '')
         LegacySession.objects.update_or_create(
             id=session.id,
