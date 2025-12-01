@@ -175,6 +175,16 @@ class ApiClient {
       onResponse:
           (Response response, ResponseInterceptorHandler handler) async {
         final data = response.data;
+        // If the backend explicitly signals that the session has been revoked,
+        // force logout immediately. Note: validateStatus treats 401 as a
+        // handled status, so this must be checked in onResponse, not only
+        // in onError.
+        if (response.statusCode == 401 &&
+            data is Map &&
+            data['code'] == 'SESSION_REVOKED') {
+          _forceLogout();
+          return handler.next(response);
+        }
         // Case 1: HTTP 426 Upgrade Required (version enforcement middleware)
         if (response.statusCode == 426) {
           try {
