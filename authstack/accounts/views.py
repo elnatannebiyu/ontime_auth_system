@@ -344,6 +344,85 @@ class MeView(APIView):
         # 5) Success
         return Response(MeSerializer(request.user, context={"request": request}).data)
 
+    @swagger_auto_schema(
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
+        operation_id="me_update",
+        tags=["Auth"],
+    )
+    def put(self, request):
+        """Update basic profile fields (currently first_name, last_name) for the
+        authenticated user. Reuses the same tenant and membership checks as
+        the GET handler to ensure the user is operating within the resolved
+        tenant.
+        """
+
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response(
+                {
+                    "detail": "Unknown tenant.",
+                    "hint": "Send header X-Tenant-Id: ontime when calling /api/* endpoints on localhost.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Ensure token tenant matches resolved tenant, mirroring GET logic
+        token_claims = {}
+        try:
+            if hasattr(request, "auth") and request.auth is not None:
+                if hasattr(request.auth, "payload"):
+                    token_claims = dict(getattr(request.auth, "payload") or {})
+                elif isinstance(request.auth, dict):
+                    token_claims = request.auth
+        except Exception:
+            token_claims = {}
+
+        token_tenant = token_claims.get("tenant_id")
+        if not token_tenant:
+            return Response(
+                {
+                    "detail": "Token missing tenant context (tenant_id).",
+                    "hint": "Obtain the token by calling POST /api/token/ WITH header X-Tenant-Id: ontime, then retry.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if str(token_tenant) != str(getattr(tenant, "slug", tenant)):
+            return Response(
+                {
+                    "detail": "Tenant mismatch between request and token.",
+                    "expected": str(getattr(tenant, "slug", tenant)),
+                    "got": str(token_tenant),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Ensure user is a member of this tenant
+        from .models import Membership
+
+        is_member = Membership.objects.filter(user=request.user, tenant=tenant).exists()
+        if not is_member:
+            return Response(
+                {
+                    "detail": "Not a member of this tenant.",
+                    "tenant": str(getattr(tenant, "slug", tenant)),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Apply basic profile updates; ignore other fields for now.
+        first_name = (request.data.get("first_name") or "").strip()
+        last_name = (request.data.get("last_name") or "").strip()
+
+        user = request.user
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        user.save(update_fields=["first_name", "last_name"])
+
+        return Response(MeSerializer(user, context={"request": request}).data)
+
 
 # ---- Example protected views ----
 
