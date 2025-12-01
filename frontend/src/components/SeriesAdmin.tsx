@@ -728,7 +728,7 @@ function SeasonDialog({ open, onClose, initial, onSave }: { open: boolean; onClo
     if (!open) return;
     (async () => {
       try {
-        const { data } = await api.get('/series/shows/', { params: { page_size: 500, ordering: 'title' } });
+        const { data } = await api.get('/series/shows/', { params: { page_size: 500, ordering: '-created_at' } });
         const list = Array.isArray(data) ? data : (data?.results || []);
         const mapped: ShowChoice[] = list
           .filter((s: any) => s && s.slug)

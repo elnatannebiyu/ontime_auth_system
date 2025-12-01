@@ -68,7 +68,7 @@ class ShowViewSet(viewsets.ModelViewSet):
     pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["slug", "title"]
-    ordering_fields = ["title", "updated_at"]
+    ordering_fields = ["title", "updated_at", "created_at"]
     lookup_field = "slug"
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
