@@ -97,10 +97,39 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
                   final createdAt = (it['created_at'] as String?) ?? '';
                   final id = it['id'] as int?;
                   final readAt = it['read_at'] as String?;
+                  final isUnread = readAt == null;
+                  final titleStyle = isUnread
+                      ? Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)
+                      : Theme.of(context).textTheme.titleMedium;
                   return ListTile(
-                    leading: const Icon(Icons.notifications_outlined),
-                    title: Text(title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    leading: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(Icons.notifications_outlined),
+                        if (isUnread)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    title: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: titleStyle,
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

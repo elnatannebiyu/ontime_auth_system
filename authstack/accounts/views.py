@@ -874,6 +874,19 @@ class DeleteMeView(APIView):
             # internal errors to the client.
             pass
 
+        # Best-effort: detach any linked social accounts so that a future
+        # social login (with the same provider_id/email) can create a fresh
+        # user instead of reusing this disabled/anonymized one.
+        try:
+            from .models import SocialAccount as _SocialAccount
+
+            _SocialAccount.objects.filter(user=user).delete()
+        except Exception:
+            # If this fails, the social login flow may continue to see the
+            # disabled account and return "Account is disabled" until the
+            # social link is removed manually.
+            pass
+
         # Revoke all sessions for this user in legacy UserSession table.
         try:
             from .models import UserSession as LegacySession
