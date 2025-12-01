@@ -83,11 +83,17 @@ def social_login_view(request):
             while User.objects.filter(username=username).exists():
                 username = f"{base_name}{counter}"
                 counter += 1
+
+            # Ensure we never pass None for last_name (and first_name) because
+            # the default Django auth_user.last_name column is NOT NULL.
+            first_name = user_data.get('first_name') or info.get('given_name') or ''
+            last_name = user_data.get('last_name') or info.get('family_name') or ''
+
             user = User.objects.create(
                 username=username,
                 email=email or '',
-                first_name=user_data.get('first_name', info.get('given_name', '')),
-                last_name=user_data.get('last_name', info.get('family_name', '')),
+                first_name=first_name,
+                last_name=last_name,
             )
             user.set_unusable_password()
             user.save()
