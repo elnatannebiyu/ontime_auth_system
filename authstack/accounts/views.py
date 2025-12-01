@@ -939,6 +939,9 @@ class DeleteMeView(APIView):
                 suffix += 1
 
             user.username = anon_username
+            # Clear personal profile fields so that this record no longer
+            # exposes PII and so that future social login with the same
+            # email can create a brand-new user account.
             user.first_name = ""
             user.last_name = ""
             user.email = ""
