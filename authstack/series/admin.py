@@ -139,14 +139,12 @@ class SeasonAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # When selecting a show for a new Season, default to offering only
-        # shows that do not yet have any seasons. This makes it easier to
-        # see all "unseasoned" shows instead of mixing in ones that already
-        # have seasons configured.
+        # For the Season admin, list all shows for the selected tenant,
+        # ordered by newest first so recently created shows appear at the top.
+        # This avoids confusing partial filters and still makes it easy to
+        # find the latest content.
         if "show" in self.fields:
             qs = Show.objects.all()
-            # Optional: if tenant is provided on the instance or in POST data,
-            # keep the queryset scoped to that tenant.
             tenant_val = None
             if hasattr(self, "data") and self.data:
                 tenant_val = self.data.get("tenant")
@@ -154,7 +152,7 @@ class SeasonAdminForm(forms.ModelForm):
                 tenant_val = self.instance.tenant
             if tenant_val:
                 qs = qs.filter(tenant=tenant_val)
-            qs = qs.annotate(season_count=Count("seasons")).filter(season_count=0)
+            qs = qs.order_by("-created_at")
             self.fields["show"].queryset = qs
         # Determine selected show to filter playlists by its channel
         show_obj = None
