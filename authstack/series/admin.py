@@ -29,6 +29,9 @@ class ShowAdminForm(forms.ModelForm):
             if tenant_val:
                 qs = qs.filter(tenant=tenant_val)
             self.fields["channel"].queryset = qs
+        # Make it clearer in the admin that cover_image is a URL field
+        if "cover_image" in self.fields:
+            self.fields["cover_image"].label = "Cover URL"
 
 
 @admin.register(Show)
@@ -80,17 +83,6 @@ class ShowAdmin(admin.ModelAdmin):
                 obj.title = ch.name_en or ch.name_am or ch.id_slug
             except Channel.DoesNotExist:
                 pass
-        # If an upload is provided and cover_image was left blank, mirror its
-        # URL into cover_image. Do NOT override a value the user explicitly
-        # entered in the cover_image field.
-        try:
-            if not (obj.cover_image or "").strip() and getattr(obj, "cover_upload", None):
-                f = obj.cover_upload
-                if f and hasattr(f, "url"):
-                    obj.cover_image = f.url
-        except Exception:
-            # Best-effort only; never break admin save on cover mirroring.
-            pass
         super().save_model(request, obj, form, change)
 
     # Provide a small JSON API for offering playlist titles for the selected channel
