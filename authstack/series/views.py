@@ -113,6 +113,26 @@ class ShowViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
+    @action(detail=False, methods=["get"], url_path="hero-random", permission_classes=[permissions.IsAuthenticated])
+    def hero_random(self, request, *args, **kwargs):
+        """Return up to N random shows for the hero carousel.
+
+        Respects the current tenant and visibility rules from get_queryset().
+        Accepts an optional ?limit= query parameter (default 5, max 10).
+        """
+        try:
+            limit = int(request.query_params.get("limit") or 5)
+        except Exception:
+            limit = 5
+        if limit <= 0:
+            limit = 1
+        if limit > 10:
+            limit = 10
+        qs = self.get_queryset().order_by("?")[:limit]
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(manual_parameters=[BaseTenantReadOnlyViewSet.PARAM_TENANT])
     @action(detail=True, methods=["get"], url_path="reminder-status", permission_classes=[permissions.IsAuthenticated])
     def reminder_status(self, request, slug=None, pk=None):
         """Return whether the current user has an active reminder for this show.

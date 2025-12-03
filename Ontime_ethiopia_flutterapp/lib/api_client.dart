@@ -175,15 +175,25 @@ class ApiClient {
       onResponse:
           (Response response, ResponseInterceptorHandler handler) async {
         final data = response.data;
-        // If the backend explicitly signals that the session has been revoked,
-        // force logout immediately. Note: validateStatus treats 401 as a
-        // handled status, so this must be checked in onResponse, not only
-        // in onError.
-        if (response.statusCode == 401 &&
-            data is Map &&
-            data['code'] == 'SESSION_REVOKED') {
-          _forceLogout();
-          return handler.next(response);
+        // If the backend explicitly signals that the session has been revoked
+        // or the user account is inactive, force logout immediately. Note:
+        // validateStatus treats 401/403 as handled statuses, so these must be
+        // checked in onResponse, not only in onError.
+        if (data is Map) {
+          final code = data['code'];
+          final status = response.statusCode;
+          if (status != null && (status == 401 || status == 403)) {
+            if (code == 'SESSION_REVOKED') {
+              _forceLogout();
+              return handler.next(response);
+            }
+            if (code == 'user_inactive') {
+              _forceLogout();
+              _notify(
+                  'Your account has been deactivated. Please contact support.');
+              return handler.next(response);
+            }
+          }
         }
         // Case 1: HTTP 426 Upgrade Required (version enforcement middleware)
         if (response.statusCode == 426) {
@@ -607,8 +617,14 @@ class _TokenRefreshInterceptor extends Interceptor {
       final code =
           (data is Map && data['code'] is String) ? data['code'] as String : '';
       final revoked = code == 'SESSION_REVOKED';
-      // Only force logout when server explicitly says the session is revoked.
-      if (revoked) {
+      final inactive = code == 'user_inactive';
+      // Only force logout when server explicitly says the session is revoked
+      // or the user account is inactive.
+      if (revoked || inactive) {
+        if (inactive) {
+          client._notify(
+              'Your account has been deactivated. Please contact support.');
+        }
         client._forceLogout();
         return handler.reject(err);
       }

@@ -38,7 +38,7 @@ class _AboutPageState extends State<AboutPage> {
           ),
           ListTile(
             title: const Text('Website'),
-            subtitle: const Text('https://ontime.et'),
+            subtitle: const Text('https://aitechnologiesplc.com/'),
             leading: const Icon(Icons.public),
           ),
           const Divider(),
@@ -54,7 +54,10 @@ class _AboutPageState extends State<AboutPage> {
             child: ListTile(
               title: const Text('Open source licenses'),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => showLicensePage(context: context, applicationName: 'Ontime Ethiopia', applicationVersion: _version),
+              onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'Ontime Ethiopia',
+                  applicationVersion: _version),
             ),
           ),
         ],

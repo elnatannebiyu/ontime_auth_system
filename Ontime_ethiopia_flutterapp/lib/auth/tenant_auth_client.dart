@@ -154,6 +154,20 @@ class AuthApi {
     return <Map<String, dynamic>>[];
   }
 
+  Future<List<Map<String, dynamic>>> seriesHeroRandom({int limit = 5}) async {
+    final res = await _client.get('/series/shows/hero-random/',
+        queryParameters: {'limit': limit.toString()});
+    final data = res.data;
+    if (data is List) {
+      return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    if (data is Map && data['results'] is List) {
+      final list = data['results'] as List;
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
   Future<List<Map<String, dynamic>>> seriesCategories() async {
     final res = await _client.get('/series/categories/');
     final data = res.data;

@@ -6,13 +6,15 @@ class HeroCarousel extends StatefulWidget {
   final VoidCallback onPlay;
   final String liveLabel;
   final String playLabel;
-  final int itemCount;
+  final List<Map<String, dynamic>> items;
+  final void Function(Map<String, dynamic> item)? onTapShow;
   const HeroCarousel({
     super.key,
     required this.onPlay,
     required this.liveLabel,
     required this.playLabel,
-    this.itemCount = 5,
+    this.items = const [],
+    this.onTapShow,
   });
 
   @override
@@ -37,6 +39,8 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final hasItems = widget.items.isNotEmpty;
+    final itemCount = hasItems ? widget.items.length : 5;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -44,9 +48,14 @@ class _HeroCarouselState extends State<HeroCarousel> {
           height: 210,
           child: PageView.builder(
             controller: _controller,
-            itemCount: widget.itemCount,
+            itemCount: itemCount,
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (context, i) {
+              final item = hasItems && i < widget.items.length
+                  ? widget.items[i]
+                  : const <String, dynamic>{};
+              final title = (item['title'] ?? 'Featured Story').toString();
+              final imageUrl = (item['cover_image'] ?? '').toString();
               final page =
                   _controller.page ?? _controller.initialPage.toDouble();
               final isActive = (page - i).abs() < .5;
@@ -59,6 +68,15 @@ class _HeroCarouselState extends State<HeroCarousel> {
                       borderRadius: BorderRadius.circular(20)),
                   child: Stack(
                     children: [
+                      if (imageUrl.isNotEmpty)
+                        Positioned.fill(
+                          child: Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, _, __) =>
+                                const SizedBox.shrink(),
+                          ),
+                        ),
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
@@ -91,12 +109,12 @@ class _HeroCarouselState extends State<HeroCarousel> {
                                       fontWeight: FontWeight.w900)),
                             ),
                             const SizedBox(width: 8),
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'Prime Story — Feature',
+                                title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
+                                style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800),
                               ),
@@ -117,7 +135,13 @@ class _HeroCarouselState extends State<HeroCarousel> {
                             label: 'Hero item',
                             button: true,
                             child: InkWell(
-                              onTap: widget.onPlay,
+                              onTap: () {
+                                if (widget.onTapShow != null && hasItems) {
+                                  widget.onTapShow!(item);
+                                } else {
+                                  widget.onPlay();
+                                }
+                              },
                             ),
                           ),
                         ),
@@ -133,7 +157,7 @@ class _HeroCarouselState extends State<HeroCarousel> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            widget.itemCount,
+            itemCount,
             (i) => AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               margin: const EdgeInsets.symmetric(horizontal: 4),

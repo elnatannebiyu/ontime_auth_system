@@ -17,6 +17,16 @@ class SeriesService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getHeroRandomShows({int limit = 5}) async {
+    api.setTenant(tenantId);
+    try {
+      return await api.seriesHeroRandom(limit: limit);
+    } catch (e) {
+      debugPrint('[SeriesService] getHeroRandomShows error: $e');
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getTrendingShows() async {
     api.setTenant(tenantId);
     try {

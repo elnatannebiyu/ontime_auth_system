@@ -62,6 +62,7 @@ class _HomePageState extends State<HomePage> {
   late final SeriesService _series;
   List<Map<String, dynamic>> _trendingShows = const [];
   List<Map<String, dynamic>> _newShorts = const [];
+  List<Map<String, dynamic>> _heroShows = const [];
   bool _tabListenerAttached = false;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   int _unreadCount = 0;
@@ -85,6 +86,7 @@ class _HomePageState extends State<HomePage> {
       NotificationPermissionManager().ensurePermissionFlow(context);
     });
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
+    _loadHeroRandom();
     _loadTrendingNew();
     _loadUnreadCount();
     _notifSub = FcmManager().notificationStream.listen((_) {
@@ -311,6 +313,20 @@ class _HomePageState extends State<HomePage> {
       } catch (_) {}
     } catch (_) {
       // Non-fatal for home; leave placeholders if fetch fails
+    }
+  }
+
+  // Load random hero shows for the hero carousel (no disk cache so it
+  // naturally refreshes on full app restarts).
+  Future<void> _loadHeroRandom() async {
+    try {
+      final items = await _series.getHeroRandomShows(limit: 5);
+      if (!mounted) return;
+      setState(() {
+        _heroShows = items;
+      });
+    } catch (_) {
+      // Non-fatal; HeroCarousel will fall back to placeholder items.
     }
   }
 
@@ -630,6 +646,7 @@ class _HomePageState extends State<HomePage> {
         }
         await _load();
         await _loadTrendingNew();
+        await _loadHeroRandom();
       },
       child: Center(
         child: ConstrainedBox(
@@ -650,6 +667,7 @@ class _HomePageState extends State<HomePage> {
                             onRetry: () async {
                               await _load();
                               await _loadTrendingNew();
+                              await _loadHeroRandom();
                             },
                           )
                         else if (_error != null)
@@ -662,6 +680,24 @@ class _HomePageState extends State<HomePage> {
                         HeroCarousel(
                           liveLabel: _t('live'),
                           playLabel: _t('play'),
+                          items: List<Map<String, dynamic>>.generate(
+                            _heroShows.length,
+                            (i) {
+                              final s = _heroShows[i];
+                              return {
+                                'title': (s['title'] ?? '').toString(),
+                                'cover_image': _thumbFromMap(s) ??
+                                    (s['cover_image'] ?? ''),
+                                'slug': (s['slug'] ?? '').toString(),
+                              };
+                            },
+                          ),
+                          onTapShow: (item) {
+                            final slug = (item['slug'] ?? '').toString();
+                            final title = (item['title'] ?? '').toString();
+                            if (slug.isEmpty) return;
+                            _openShow(slug, title);
+                          },
                           onPlay: () {
                             // Jump to Live tab in the main Home tab controller
                             final tc = DefaultTabController.of(context);
