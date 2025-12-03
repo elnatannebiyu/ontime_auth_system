@@ -10,12 +10,14 @@ class MeSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     tenant_roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    email_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "username",
             "email",
+            "email_verified",
             "first_name",
             "last_name",
             "roles",          # global groups
@@ -52,6 +54,21 @@ class MeSerializer(serializers.ModelSerializer):
         if not member:
             return []
         return list(member.roles.values_list("name", flat=True))
+
+    def get_email_verified(self, obj):
+        """Return whether this user's email has been verified.
+
+        Uses the related UserProfile if present; falls back to False if no
+        profile exists so the API is stable even for legacy users.
+        """
+        try:
+            profile = getattr(obj, "profile", None)
+            if profile is None:
+                return False
+            val = getattr(profile, "email_verified", False)
+            return bool(val)
+        except Exception:
+            return False
 
 class CookieTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Inject roles/perms into **access** token for UI hints."""

@@ -130,3 +130,28 @@ class SocialAccount(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.provider}"
+
+
+class UserProfile(models.Model):
+    """Per-user profile extension for additional security/account fields.
+
+    We keep this separate so we can continue using Django's default User model
+    while storing flags like email verification.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    email_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email_verified"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        return f"Profile<{self.user_id}>"

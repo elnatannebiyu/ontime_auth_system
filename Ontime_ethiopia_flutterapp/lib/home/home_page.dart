@@ -485,6 +485,10 @@ class _HomePageState extends State<HomePage> {
                       if (!_tabListenerAttached) {
                         _tabListenerAttached = true;
                         tc.addListener(() {
+                          // Hide keyboard when switching tabs so focused
+                          // TextFields (e.g., search) don't keep the
+                          // keyboard open on other tabs.
+                          FocusManager.instance.primaryFocus?.unfocus();
                           if (tc.index == 3) {
                             // Shorts tab selected: stop radio and clear TV mini session
                             AudioController.instance.stop();
