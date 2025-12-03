@@ -86,7 +86,8 @@ User = get_user_model()
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
-    extra = 0
+    extra = 1
+    max_num = 1
     fk_name = "user"
     fields = ("email_verified",)
 
