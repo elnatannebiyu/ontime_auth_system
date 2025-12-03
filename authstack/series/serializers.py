@@ -124,6 +124,18 @@ class ShowSerializer(serializers.ModelSerializer):
             val = (obj.cover_image or "").strip()
             if val:
                 return self._abs_url(val)
+        # Next, if an uploaded cover exists, use its URL (without mutating
+        # the stored cover_image field). This ensures that uploading a cover
+        # image is sufficient for clients even when no explicit Cover URL is
+        # set in admin.
+        try:
+            f = getattr(obj, "cover_upload", None)
+            if f is not None and hasattr(f, "url"):
+                url = (f.url or "").strip()
+                if url:
+                    return self._abs_url(url)
+        except Exception:
+            pass
         # Fallback to the latest enabled Season cover
         try:
             season = (
