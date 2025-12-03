@@ -38,6 +38,7 @@ class ShowSerializer(serializers.ModelSerializer):
     )
     cover_image = serializers.SerializerMethodField()
     channel_logo_url = serializers.SerializerMethodField()
+    channel_name = serializers.SerializerMethodField()
     categories = CategoryMiniSerializer(many=True, read_only=True)
     category_slugs = serializers.ListField(
         child=serializers.SlugField(), write_only=True, required=False
@@ -53,6 +54,7 @@ class ShowSerializer(serializers.ModelSerializer):
             "synopsis",
             "cover_image",
             "channel_logo_url",
+            "channel_name",
             "default_locale",
             "tags",
             "channel",
@@ -215,6 +217,20 @@ class ShowSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(path) if request is not None else path
         except Exception:
             return ""
+
+    def get_channel_name(self, obj: Show) -> str:
+        try:
+            ch = getattr(obj, "channel", None)
+            if ch is None:
+                return ""
+            # Prefer English name, then Amharic (if present on Channel), then id_slug.
+            for attr in ("name_en", "name_am", "id_slug"):
+                val = getattr(ch, attr, None)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+        except Exception:
+            pass
+        return ""
 
 
 class SeasonSerializer(serializers.ModelSerializer):

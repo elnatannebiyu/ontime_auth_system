@@ -56,6 +56,8 @@ class _HeroCarouselState extends State<HeroCarousel> {
                   : const <String, dynamic>{};
               final title = (item['title'] ?? 'Featured Story').toString();
               final imageUrl = (item['cover_image'] ?? '').toString();
+              final channelName =
+                  (item['channel_name'] ?? '').toString().trim();
               final page =
                   _controller.page ?? _controller.initialPage.toDouble();
               final isActive = (page - i).abs() < .5;
@@ -103,7 +105,10 @@ class _HeroCarouselState extends State<HeroCarousel> {
                               decoration: BoxDecoration(
                                   color: Colors.red,
                                   borderRadius: BorderRadius.circular(999)),
-                              child: Text(widget.liveLabel,
+                              child: Text(
+                                  channelName.isNotEmpty
+                                      ? channelName
+                                      : widget.liveLabel,
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w900)),

@@ -688,6 +688,9 @@ class _HomePageState extends State<HomePage> {
                                 'title': (s['title'] ?? '').toString(),
                                 'cover_image': _thumbFromMap(s) ??
                                     (s['cover_image'] ?? ''),
+                                'channel_name':
+                                    (s['channel_name'] ?? s['channel'] ?? '')
+                                        .toString(),
                                 'slug': (s['slug'] ?? '').toString(),
                               };
                             },
