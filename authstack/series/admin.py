@@ -78,13 +78,16 @@ class ShowAdmin(admin.ModelAdmin):
                 obj.title = ch.name_en or ch.name_am or ch.id_slug
             except Channel.DoesNotExist:
                 pass
-        # If an upload is provided, mirror its URL into cover_image
+        # If an upload is provided and cover_image was left blank, mirror its
+        # URL into cover_image. Do NOT override a value the user explicitly
+        # entered in the cover_image field.
         try:
-            if getattr(obj, "cover_upload", None):
+            if not (obj.cover_image or "").strip() and getattr(obj, "cover_upload", None):
                 f = obj.cover_upload
                 if f and hasattr(f, "url"):
                     obj.cover_image = f.url
         except Exception:
+            # Best-effort only; never break admin save on cover mirroring.
             pass
         super().save_model(request, obj, form, change)
 
