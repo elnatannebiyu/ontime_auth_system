@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import UserSession, LoginAttempt, Membership
+from .models import UserSession, LoginAttempt, Membership, UserProfile
 from common.fcm_sender import send_to_user
 
 @admin.register(UserSession)
@@ -83,6 +83,14 @@ class PermissionAdmin(admin.ModelAdmin):
 User = get_user_model()
 
 
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    extra = 0
+    fk_name = "user"
+    fields = ("email_verified",)
+
+
 try:
     admin.site.unregister(User)
 except Exception:
@@ -91,6 +99,7 @@ except Exception:
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     actions = ['send_test_push']
+    inlines = [UserProfileInline]
 
     def send_test_push(self, request, queryset):
         title = "Test push"
