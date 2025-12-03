@@ -58,6 +58,8 @@ class _HeroCarouselState extends State<HeroCarousel> {
               final imageUrl = (item['cover_image'] ?? '').toString();
               final channelName =
                   (item['channel_name'] ?? '').toString().trim();
+              debugPrint(
+                  '[HeroCarousel] item[$i] title="$title" imageUrl=$imageUrl channelName=$channelName');
               final page =
                   _controller.page ?? _controller.initialPage.toDouble();
               final isActive = (page - i).abs() < .5;

@@ -507,6 +507,10 @@ class _ShowsGrid extends StatelessWidget {
         final title = (s['title'] ?? '').toString();
         final cover = (s['cover_image'] ?? '').toString();
         final slug = (s['slug'] ?? '').toString();
+        if (slug == 'show-1763740244802') {
+          debugPrint(
+              '[ShowsPage] Sheqela slug=$slug title="$title" cover_image=$cover');
+        }
         return _ShowCard(
           title: title,
           imageUrl: cover,

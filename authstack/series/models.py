@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.conf import settings
 from onchannels.models import Channel
 from django.core.validators import RegexValidator
+import os
 
 
 class Show(models.Model):
@@ -36,6 +37,26 @@ class Show(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.slug})"
+
+    def save(self, *args, **kwargs):
+        # If updating an existing instance, track previous cover_upload so we
+        # can delete the old file when the field changes or is cleared.
+        old_path = None
+        if self.pk:
+            try:
+                old = Show.objects.get(pk=self.pk)
+                if old.cover_upload and old.cover_upload.name != (self.cover_upload.name if self.cover_upload else None):
+                    old_path = old.cover_upload.path
+            except Show.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+        if old_path:
+            try:
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            except Exception:
+                # Best-effort cleanup; ignore filesystem errors.
+                pass
 
 
 class Category(models.Model):
