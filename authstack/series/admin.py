@@ -9,6 +9,8 @@ from onchannels.models import Channel, Playlist
 
 
 class ShowAdminForm(forms.ModelForm):
+    cover_image = forms.CharField(required=False)
+
     class Meta:
         model = Show
         fields = "__all__"
