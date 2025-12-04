@@ -475,6 +475,43 @@ class RequestEmailVerificationView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        # Enforce a per-account cooldown between verification email sends,
+        # independent of the global rate limiter. This ensures that a single
+        # account cannot request a new verification email more frequently than
+        # EMAIL_VERIFICATION_COOLDOWN_SECONDS, even if the client is restarted
+        # or caches are cleared.
+        cooldown_seconds = int(
+            getattr(settings, "EMAIL_VERIFICATION_COOLDOWN_SECONDS", 3600)
+        )
+        if cooldown_seconds > 0:
+            from django.db.models import Max
+
+            latest_token = (
+                ActionToken.objects.filter(
+                    user=user,
+                    purpose=ActionToken.PURPOSE_VERIFY_EMAIL,
+                )
+                .aggregate(last_created=Max("created_at"))
+                .get("last_created")
+            )
+            if latest_token is not None:
+                now = timezone.now()
+                elapsed = (now - latest_token).total_seconds()
+                if elapsed < cooldown_seconds:
+                    retry_after_seconds = int(cooldown_seconds - elapsed)
+                    next_allowed_at = (
+                        now + timezone.timedelta(seconds=retry_after_seconds)
+                    ).isoformat()
+                    return Response(
+                        {
+                            "detail": "A verification email was recently sent. Please wait before requesting another.",
+                            "error": "cooldown_active",
+                            "retry_after_seconds": retry_after_seconds,
+                            "next_allowed_at": next_allowed_at,
+                        },
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
+
         # Create a one-time token valid for 1 hour
         import secrets
 

@@ -194,6 +194,14 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DEFAULT_FROM_EMAIL', 'Ontime <no-reply@aitechnologiesplc.com>'
 )
 
+# Per-account cooldown between verification email sends (in seconds).
+# Set EMAIL_VERIFICATION_COOLDOWN_SECONDS=0 in the environment to disable the
+# cooldown for testing, or leave at the default of 3600 seconds (1 hour) for
+# production.
+EMAIL_VERIFICATION_COOLDOWN_SECONDS = int(
+    os.environ.get("EMAIL_VERIFICATION_COOLDOWN_SECONDS", "3600")
+)
+
 # SMS settings (Twilio) - for future use
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')

@@ -322,15 +322,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _requestEmailVerification() async {
-    if (_me == null || _isEmailVerified) return;
-    try {
-      await ApiClient().post('/me/request-email-verification/', data: {});
-    } catch (_) {
-      // Silently ignore errors; Profile page will surface status.
-    }
-  }
-
   // Open a show: if single season, go to episodes; else go to seasons list
   Future<void> _openShow(String slug, String title) async {
     try {

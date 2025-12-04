@@ -35,6 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _verificationSent = false;
   int _verificationCooldown = 0;
   Timer? _verificationTimer;
+  bool _pendingSuccessDialog = false;
 
   String _originalFirstName = '';
   String _originalLastName = '';
@@ -122,11 +123,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       _verificationSent = true;
       _startVerificationCooldown();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_t('verification_email_sent')),
-        ),
-      );
+      _pendingSuccessDialog = true;
     } catch (e) {
       if (!mounted) return;
 
@@ -146,6 +143,13 @@ class _ProfilePageState extends State<ProfilePage> {
               }
               message =
                   'You have requested too many verification emails. Please wait about 1 hour and try again.';
+            } else if (error == 'cooldown_active') {
+              final ra = data['retry_after_seconds'];
+              if (ra is int && ra > 0) {
+                retryAfterSeconds = ra;
+              }
+              message =
+                  'A verification email was recently sent. Please wait about 1 hour and check your inbox.';
             }
           }
         }
@@ -166,6 +170,37 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _verifying = false;
         });
+        if (_pendingSuccessDialog) {
+          _pendingSuccessDialog = false;
+          // Show a simple confirmation dialog so the user clearly sees that
+          // the email was sent, instead of only a transient snackbar.
+          showDialog<void>(
+            context: context,
+            barrierDismissible: true,
+            builder: (ctx) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.mark_email_read_outlined,
+                      color: Colors.green,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _t('verification_email_sent'),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
       }
     }
   }
