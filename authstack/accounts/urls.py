@@ -38,10 +38,10 @@ urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
 
     path("me/", MeView.as_view(), name="me"),
-    path("me/request-email-verification/", RequestEmailVerificationView.as_view(), name="request_email_verification"),
-    path("verify-email/", VerifyEmailView.as_view(), name="verify_email"),
-    path("me/change-password/", ChangePasswordView.as_view(), name="me_change_password"),
-    path("me/delete-account/", DeleteMeView.as_view(), name="me_delete_account"),
+    path("account/me/request-email-verification/", RequestEmailVerificationView.as_view(), name="request_email_verification"),
+    path("account/verify-email/", VerifyEmailView.as_view(), name="verify_email"),
+    path("account/me/change-password/", ChangePasswordView.as_view(), name="me_change_password"),
+    path("account/me/delete-account/", DeleteMeView.as_view(), name="me_delete_account"),
     path("admin-only/", AdminOnlyView.as_view(), name="admin_only"),
     path("users/", UserWriteView.as_view(), name="users"),
     # Tenant-scoped admin users management
