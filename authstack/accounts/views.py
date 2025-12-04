@@ -437,13 +437,20 @@ class RequestEmailVerificationView(APIView):
     def post(self, request):
         # Avoid abuse: limit each authenticated user to 3 verification emails
         # per hour. When the limit is exceeded, django_ratelimit marks the
-        # request as limited and we return a clear 429 response.
+        # request as limited and we return a clear 429 response with
+        # client-friendly metadata.
         try:
             if getattr(request, "limited", False):
+                # We don't get the exact reset time from django-ratelimit, so
+                # conservatively instruct the client to wait up to 1 hour.
+                retry_after_seconds = 60 * 60
+                next_allowed_at = (timezone.now() + timezone.timedelta(seconds=retry_after_seconds)).isoformat()
                 return Response(
                     {
-                        "detail": "Too many verification attempts. Please try again later.",
+                        "detail": "Too many verification attempts. Please wait before trying again.",
                         "error": "too_many_requests",
+                        "retry_after_seconds": retry_after_seconds,
+                        "next_allowed_at": next_allowed_at,
                     },
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )

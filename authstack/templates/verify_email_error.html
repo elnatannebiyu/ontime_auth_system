@@ -4,6 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Verification Failed · {{ app_name }}</title>
+
+    <!-- SEO & Social -->
+    <meta name="description" content="Your email verification link is invalid or expired. Request a new link from the app." />
+    <meta property="og:title" content="Verification Failed - {{ app_name }}" />
+    <meta property="og:description" content="Your email verification link is invalid or has expired." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="YOUR_LOGO_URL" />
+    <meta name="theme-color" content="#050816" />
+
+    <!-- PWA Capability -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+
     <style>
       body {
         margin: 0;
@@ -15,7 +29,14 @@
         align-items: center;
         justify-content: center;
         min-height: 100vh;
+        animation: fadeIn 0.5s ease; /* smooth fade-in */
       }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
       .card {
         background: rgba(15,23,42,0.9);
         border-radius: 16px;
@@ -26,6 +47,7 @@
         border: 1px solid rgba(148,163,184,0.3);
         text-align: center;
       }
+
       .icon {
         width: 56px;
         height: 56px;
@@ -38,40 +60,65 @@
         color: #fff7ed;
         font-size: 32px;
       }
+
       h1 {
         font-size: 1.4rem;
         margin: 0 0 8px;
       }
+
       p {
         margin: 0 0 12px;
         font-size: 0.95rem;
-        color: #e5e7eb;
+        color: #d1d5db; /* improved contrast */
       }
+
       .hint {
         font-size: 0.8rem;
         color: #9ca3af;
         margin-top: 8px;
       }
+
       a {
         color: #38bdf8;
       }
+
+      /* Optional: Mobile-only "Open App" button */
+      .retry-btn {
+        margin-top: 16px;
+        padding: 10px 14px;
+        background: #2563eb;
+        border-radius: 8px;
+        text-decoration: none;
+        color: white;
+        font-size: 0.9rem;
+        display: none;
+      }
+
+      @media (max-width: 600px) {
+        .retry-btn {
+          display: inline-block;
+        }
+      }
     </style>
   </head>
+
   <body>
-    <main class="card">
-      <div class="icon">!</div>
+    <main class="card" role="alert">
+      <div class="icon" aria-label="Warning">!</div>
+
       <h1>Verification link not valid</h1>
-      <p>
-        This verification link is invalid or has expired.
-      </p>
-      <p>
-        Please return to the {{ app_name }} app and request a new
-        verification email from your profile page.
-      </p>
+
+      <p>This verification link is invalid or has expired.</p>
+
+      <p>Please return to the {{ app_name }} app and request a new verification email from your profile page.</p>
+
       <p class="hint">
         If this keeps happening, please contact our support team at
-        <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+        <a href="mailto:{{ support_email }}" rel="noopener noreferrer">{{ support_email }}</a>.
       </p>
+
+      <!-- Optional: Only shows on mobile browsers -->
+      <a class="retry-btn" href="{{ app_deeplink }}">Open App</a>
     </main>
   </body>
 </html>

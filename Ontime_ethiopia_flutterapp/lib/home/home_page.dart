@@ -144,20 +144,12 @@ class _HomePageState extends State<HomePage> {
     });
     try {
       widget.api.setTenant(widget.tenantId);
-      // Prefer a cached me with a generous TTL so we don't spam /me on refresh
-      final cached = ApiClient().getFreshMe(
-        ttl: const Duration(minutes: 10),
-      );
-      if (cached != null) {
-        setState(() {
-          _me = cached;
-        });
-      } else {
-        final me = await widget.api.me();
-        setState(() {
-          _me = me;
-        });
-      }
+      // Always fetch the latest profile so flags like email_verified are
+      // immediately reflected after changes (e.g., verification link).
+      final me = await widget.api.me();
+      setState(() {
+        _me = me;
+      });
       // Load channel preview for bubbles (non-blocking for rest of UI)
       unawaited(_loadChannelBubbles());
     } catch (e) {
@@ -439,9 +431,12 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       title: Text(_t('profile_settings')),
-                      onTap: () {
+                      onTap: () async {
                         Navigator.of(ctx).pop();
-                        Navigator.of(context).pushNamed('/profile');
+                        await Navigator.of(context).pushNamed('/profile');
+                        if (mounted) {
+                          _load();
+                        }
                       },
                     ),
                     ListTile(
@@ -779,8 +774,12 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pushNamed('/profile');
+                                  onPressed: () async {
+                                    await Navigator.of(context)
+                                        .pushNamed('/profile');
+                                    if (mounted) {
+                                      _load();
+                                    }
                                   },
                                   child: Text(_t('verify_now')),
                                 ),

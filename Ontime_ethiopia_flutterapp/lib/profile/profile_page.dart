@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../auth/tenant_auth_client.dart';
 import '../auth/services/simple_session_manager.dart';
@@ -32,6 +33,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool _verifying = false;
   bool _verificationSent = false;
+  int _verificationCooldown = 0;
+  Timer? _verificationTimer;
 
   String _originalFirstName = '';
   String _originalLastName = '';
@@ -77,6 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _firstNameFocus.dispose();
     _firstName.dispose();
     _lastName.dispose();
+    _verificationTimer?.cancel();
     _connSub?.cancel();
     super.dispose();
   }
@@ -94,6 +98,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _requestEmailVerification() async {
     if (_me == null || _isEmailVerified) return;
+    if (_verificationCooldown > 0) return;
     setState(() {
       _verifying = true;
     });
@@ -116,16 +121,43 @@ class _ProfilePageState extends State<ProfilePage> {
       await ApiClient().post('/me/request-email-verification/', data: {});
       if (!mounted) return;
       _verificationSent = true;
+      _startVerificationCooldown();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_t('verification_email_sent')),
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+
+      String message = _t('verification_email_failed');
+      int? retryAfterSeconds;
+
+      if (e is DioException) {
+        final res = e.response;
+        if (res != null && res.statusCode == 429) {
+          final data = res.data;
+          if (data is Map) {
+            final error = data['error']?.toString();
+            if (error == 'too_many_requests') {
+              final ra = data['retry_after_seconds'];
+              if (ra is int && ra > 0) {
+                retryAfterSeconds = ra;
+              }
+              message =
+                  'You have requested too many verification emails. Please wait about 1 hour and try again.';
+            }
+          }
+        }
+      }
+
+      if (retryAfterSeconds != null) {
+        _startVerificationCooldown(retryAfterSeconds);
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_t('verification_email_failed')),
+          content: Text(message),
         ),
       );
     } finally {
@@ -136,6 +168,29 @@ class _ProfilePageState extends State<ProfilePage> {
         });
       }
     }
+  }
+
+  void _startVerificationCooldown([int seconds = 60]) {
+    _verificationTimer?.cancel();
+    setState(() {
+      _verificationCooldown = seconds;
+    });
+    _verificationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_verificationCooldown <= 1) {
+        setState(() {
+          _verificationCooldown = 0;
+        });
+        timer.cancel();
+      } else {
+        setState(() {
+          _verificationCooldown -= 1;
+        });
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -369,13 +424,19 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                         if (!_isEmailVerified)
                                           TextButton(
-                                            onPressed: (_loading || _verifying)
+                                            onPressed: (_loading ||
+                                                    _verifying ||
+                                                    _verificationCooldown > 0)
                                                 ? null
                                                 : _requestEmailVerification,
                                             child: Text(
                                               _verificationSent
-                                                  ? _t('resend_email')
-                                                  : _t('verify_now'),
+                                                  ? _verificationCooldown > 0
+                                                      ? '${_t('resend_email')} (${_verificationCooldown}s)'
+                                                      : _t('resend_email')
+                                                  : _verificationCooldown > 0
+                                                      ? '${_t('verify_now')} (${_verificationCooldown}s)'
+                                                      : _t('verify_now'),
                                             ),
                                           ),
                                       ],
