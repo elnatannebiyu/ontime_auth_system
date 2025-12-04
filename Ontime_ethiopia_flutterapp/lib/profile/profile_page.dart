@@ -30,6 +30,8 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _offline = false;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
 
+  bool _verifying = false;
+
   String _originalFirstName = '';
   String _originalLastName = '';
   bool _dirty = false;
@@ -91,6 +93,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _requestEmailVerification() async {
     if (_me == null || _isEmailVerified) return;
+    setState(() {
+      _verifying = true;
+    });
     try {
       await ApiClient().post('/me/request-email-verification/', data: {});
       if (!mounted) return;
@@ -106,6 +111,12 @@ class _ProfilePageState extends State<ProfilePage> {
           content: Text(_t('verification_email_failed')),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _verifying = false;
+        });
+      }
     }
   }
 
@@ -340,10 +351,19 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                         if (!_isEmailVerified)
                                           TextButton(
-                                            onPressed: _loading
+                                            onPressed: (_loading || _verifying)
                                                 ? null
                                                 : _requestEmailVerification,
-                                            child: Text(_t('verify_now')),
+                                            child: _verifying
+                                                ? SizedBox(
+                                                    width: 16,
+                                                    height: 16,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : Text(_t('verify_now')),
                                           ),
                                       ],
                                     ),

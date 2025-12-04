@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group
 from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils import timezone
+from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -554,6 +555,18 @@ class VerifyEmailView(APIView):
             profile.email_verified = True
             profile.save(update_fields=["email_verified"])
 
+        # For normal browsers, render a friendly HTML page instead of raw JSON.
+        accept = (request.META.get("HTTP_ACCEPT") or "").lower()
+        if "text/html" in accept or "*/*" in accept or not accept:
+            return render(
+                request,
+                "verify_email_success.html",
+                {
+                    "app_name": "Ontime",
+                },
+            )
+
+        # Fallback: JSON response for API clients
         return Response(
             {"detail": "Email verified successfully."},
             status=status.HTTP_200_OK,

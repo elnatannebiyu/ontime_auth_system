@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Account Verified · {{ app_name }}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #050816;
+        color: #f9fafb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: rgba(15,23,42,0.9);
+        border-radius: 16px;
+        padding: 24px 20px;
+        max-width: 420px;
+        width: 100%;
+        box-shadow: 0 18px 45px rgba(0,0,0,0.6);
+        border: 1px solid rgba(148,163,184,0.3);
+        text-align: center;
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 999px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 30% 20%, #22c55e, #16a34a);
+        color: #ecfdf5;
+        font-size: 32px;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 16px;
+        font-size: 0.95rem;
+        color: #cbd5f5;
+      }
+      .hint {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-top: 8px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        border: none;
+        padding: 10px 18px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        background: linear-gradient(135deg, #22c55e, #4ade80);
+        color: #022c22;
+        text-decoration: none;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="icon">✓</div>
+      <h1>Account verified</h1>
+      <p>
+        Your email has been successfully verified.
+      </p>
+      <p>
+        You can now return to the {{ app_name }} app and refresh your profile
+        to see the latest status.
+      </p>
+      <p class="hint">
+        If you opened this on a desktop browser, simply open the app on your
+        phone and continue.
+      </p>
+    </main>
+  </body>
+</html>

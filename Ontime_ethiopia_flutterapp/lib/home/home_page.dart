@@ -334,19 +334,8 @@ class _HomePageState extends State<HomePage> {
     if (_me == null || _isEmailVerified) return;
     try {
       await ApiClient().post('/me/request-email-verification/', data: {});
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_t('verification_email_sent')),
-        ),
-      );
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_t('verification_email_failed')),
-        ),
-      );
+      // Silently ignore errors; Profile page will surface status.
     }
   }
 
@@ -425,7 +414,30 @@ class _HomePageState extends State<HomePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.account_circle_outlined),
+                      leading: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.account_circle_outlined),
+                          if (!_isEmailVerified)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Theme.of(context)
+                                        .scaffoldBackgroundColor,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       title: Text(_t('profile_settings')),
                       onTap: () {
                         Navigator.of(ctx).pop();
