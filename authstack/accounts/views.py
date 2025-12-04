@@ -475,13 +475,24 @@ class RequestEmailVerificationView(APIView):
             "If you did not request this, you can ignore this email. The link will expire in 1 hour."
         )
 
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+        except Exception as exc:
+            # Surface a clear API error instead of an unhandled 500 while still
+            # logging the underlying SMTP issue on the server.
+            return Response(
+                {
+                    "detail": "Could not send verification email.",
+                    "error": "email_send_failed",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         return Response(
             {"detail": "Verification email sent."},

@@ -92,8 +92,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _requestEmailVerification() async {
     if (_me == null || _isEmailVerified) return;
     try {
-      await ApiClient()
-          .post('/accounts/me/request-email-verification/', data: {});
+      await ApiClient().post('/me/request-email-verification/', data: {});
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
