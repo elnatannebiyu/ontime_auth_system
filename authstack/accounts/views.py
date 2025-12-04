@@ -427,12 +427,30 @@ class MeView(APIView):
         return Response(MeSerializer(user, context={"request": request}).data)
 
 
+@method_decorator(ratelimit(key='user', rate='3/h', method='POST'), name='dispatch')
 class RequestEmailVerificationView(APIView):
     """Send a verification email with a one-time token to the current user."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # Avoid abuse: limit each authenticated user to 3 verification emails
+        # per hour. When the limit is exceeded, django_ratelimit marks the
+        # request as limited and we return a clear 429 response.
+        try:
+            if getattr(request, "limited", False):
+                return Response(
+                    {
+                        "detail": "Too many verification attempts. Please try again later.",
+                        "error": "too_many_requests",
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+        except Exception:
+            # If ratelimit integration fails for any reason, fall back to
+            # normal behavior rather than breaking the endpoint.
+            pass
+
         user = request.user
         email = (user.email or "").strip()
         if not email:
