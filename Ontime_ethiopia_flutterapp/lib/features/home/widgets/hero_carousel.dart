@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 class HeroCarousel extends StatefulWidget {
   final VoidCallback onPlay;
@@ -24,17 +25,38 @@ class HeroCarousel extends StatefulWidget {
 class _HeroCarouselState extends State<HeroCarousel> {
   final PageController _controller = PageController(viewportFraction: .9);
   int _index = 0;
+  Timer? _autoTimer;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(() => setState(() {}));
+    _startAutoRotate();
   }
 
   @override
   void dispose() {
+    _autoTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _startAutoRotate() {
+    _autoTimer?.cancel();
+    if (!mounted) return;
+    _autoTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+      if (!mounted || !(_controller.hasClients)) return;
+      final total = widget.items.isNotEmpty ? widget.items.length : 5;
+      if (total <= 1) return;
+      final currentPage =
+          _controller.page ?? _controller.initialPage.toDouble();
+      int nextPage = (currentPage.round() + 1) % total;
+      _controller.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override

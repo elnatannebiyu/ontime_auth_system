@@ -203,6 +203,13 @@ class LocalizationController extends ChangeNotifier {
       'profile_load_error': 'Problem loading profile',
       'profile_update_success': 'Profile updated',
       'profile_update_error': 'Failed to update profile',
+      // Email verification
+      'email_not_verified_banner':
+          'Your email is not verified. Some features may be limited.',
+      'verify_now': 'Verify now',
+      'verification_email_sent': 'Verification email sent. Check your inbox.',
+      'verification_email_failed':
+          'Could not send verification email. Please try again.',
     };
     const am = {
       'home': 'መነሻ',
@@ -354,6 +361,11 @@ class LocalizationController extends ChangeNotifier {
       'profile_load_error': 'መገለጫ መጫን አልተሳካም',
       'profile_update_success': 'መገለጫ ተዘምኗል',
       'profile_update_error': 'መገለጫ ማዘመን አልተቻለም',
+      // Email verification
+      'email_not_verified_banner': 'ኢሜልዎ አልተረጋገጠም። አንዳንድ ተግባሮች ሊገደቡ ይችላሉ።',
+      'verify_now': 'አሁን ተረጋግጥ',
+      'verification_email_sent': 'የማረጋገጫ ኢሜል ተልኳል። እባክዎ መልዕክት ሳጥኑን ይመልከቱ።',
+      'verification_email_failed': 'የማረጋገጫ ኢሜል መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።',
     };
     const om = {
       'home': 'Mana',
@@ -488,6 +500,14 @@ class LocalizationController extends ChangeNotifier {
       'profile_load_error': 'Rakkoo fe’ii profaayilii',
       'profile_update_success': 'Profaayiliin haaromfame',
       'profile_update_error': 'Haaromsuu hin milkoofne',
+      // Email verification
+      'email_not_verified_banner':
+          'Imeelli kee hin mirkanoofne. Amaloota muraasni ni daangeffamu.',
+      'verify_now': 'Amma mirkaneessi',
+      'verification_email_sent':
+          'Imeeli mirkaneessuu ergameera. Sanduuqa galtee kee ilaali.',
+      'verification_email_failed':
+          'Imeeli mirkaneessuu ergu hin dandeenye. Mee irra deebiʼi yaali.',
       // Common UI extras
       'search': 'Barbaadi',
       'menu': 'Cuqaasaa',

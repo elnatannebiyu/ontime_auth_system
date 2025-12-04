@@ -42,6 +42,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String _t(String key) => widget.localizationController.t(key);
 
+  bool get _isEmailVerified {
+    final v = _me?['email_verified'];
+    if (v is bool) return v;
+    if (v is String) {
+      return v.toLowerCase() == 'true';
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +86,27 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _dirty = isDirty;
       });
+    }
+  }
+
+  Future<void> _requestEmailVerification() async {
+    if (_me == null || _isEmailVerified) return;
+    try {
+      await ApiClient()
+          .post('/accounts/me/request-email-verification/', data: {});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('verification_email_sent')),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('verification_email_failed')),
+        ),
+      );
     }
   }
 
@@ -278,6 +308,45 @@ class _ProfilePageState extends State<ProfilePage> {
                                       style:
                                           Theme.of(context).textTheme.bodySmall,
                                       overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          _isEmailVerified
+                                              ? Icons.verified
+                                              : Icons.error_outline,
+                                          size: 16,
+                                          color: _isEmailVerified
+                                              ? Colors.green
+                                              : Colors.redAccent,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            _isEmailVerified
+                                                ? _t('email_verified_banner')
+                                                : _t(
+                                                    'email_not_verified_banner'),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: _isEmailVerified
+                                                      ? Colors.green
+                                                      : Colors.redAccent,
+                                                ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (!_isEmailVerified)
+                                          TextButton(
+                                            onPressed: _loading
+                                                ? null
+                                                : _requestEmailVerification,
+                                            child: Text(_t('verify_now')),
+                                          ),
+                                      ],
                                     ),
                                   ],
                                 ),

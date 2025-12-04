@@ -330,6 +330,27 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _requestEmailVerification() async {
+    if (_me == null || _isEmailVerified) return;
+    try {
+      await ApiClient()
+          .post('/accounts/me/request-email-verification/', data: {});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('verification_email_sent')),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('verification_email_failed')),
+        ),
+      );
+    }
+  }
+
   // Open a show: if single season, go to episodes; else go to seasons list
   Future<void> _openShow(String slug, String title) async {
     try {
@@ -375,6 +396,15 @@ class _HomePageState extends State<HomePage> {
         .trim();
     if (name.isEmpty) return '?';
     return name[0].toUpperCase();
+  }
+
+  bool get _isEmailVerified {
+    final v = _me?['email_verified'];
+    if (v is bool) return v;
+    if (v is String) {
+      return v.toLowerCase() == 'true';
+    }
+    return false;
   }
 
   void _showProfileSheet() {
@@ -582,14 +612,37 @@ class _HomePageState extends State<HomePage> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(999),
                                 onTap: _showProfileSheet,
-                                child: CircleAvatar(
-                                  radius: 16,
-                                  child: Text(
-                                    _profileInitial(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      child: Text(
+                                        _profileInitial(),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (!_isEmailVerified)
+                                      Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: BoxDecoration(
+                                            color: Colors.redAccent,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Theme.of(context)
+                                                  .scaffoldBackgroundColor,
+                                              width: 1,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -679,6 +732,47 @@ class _HomePageState extends State<HomePage> {
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: Text(_error!,
                                 style: const TextStyle(color: Colors.red)),
+                          ),
+                        if (_me != null && !_isEmailVerified)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.amber.withOpacity(0.6),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _t('email_not_verified_banner'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _requestEmailVerification,
+                                  child: Text(_t('verify_now')),
+                                ),
+                              ],
+                            ),
                           ),
                         // Hero carousel (extracted)
                         HeroCarousel(
