@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.models import Group
+from django.core.mail import send_mail
+from django.urls import reverse
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -15,7 +18,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from accounts.jwt_auth import CustomTokenObtainPairSerializer, RefreshTokenRotation, _get_client_ip, _infer_os_from_ua
-from .models import UserSession
+from .models import UserSession, ActionToken, UserProfile
 from .serializers import CookieTokenObtainPairSerializer, RegistrationSerializer, MeSerializer, UserAdminSerializer
 from .permissions import (
     HasAnyRole,
@@ -422,6 +425,110 @@ class MeView(APIView):
         user.save(update_fields=["first_name", "last_name"])
 
         return Response(MeSerializer(user, context={"request": request}).data)
+
+
+class RequestEmailVerificationView(APIView):
+    """Send a verification email with a one-time token to the current user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        email = (user.email or "").strip()
+        if not email:
+            return Response(
+                {"detail": "No email address on file for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Ensure profile exists
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        if profile.email_verified:
+            return Response(
+                {"detail": "Email already verified."},
+                status=status.HTTP_200_OK,
+            )
+
+        # Create a one-time token valid for 1 hour
+        import secrets
+
+        token_str = secrets.token_urlsafe(48)
+        now = timezone.now()
+        expires_at = now + timezone.timedelta(hours=1)
+        ActionToken.objects.create(
+            user=user,
+            purpose=ActionToken.PURPOSE_VERIFY_EMAIL,
+            token=token_str,
+            expires_at=expires_at,
+        )
+
+        # Build verification URL relative to this request
+        verify_path = reverse("verify_email")
+        verify_url = request.build_absolute_uri(f"{verify_path}?token={token_str}")
+
+        subject = "Verify your Ontime account"
+        message = (
+            "Hello,\n\n"
+            "Please confirm your email address for your Ontime account by clicking the link "
+            "below:\n\n"
+            f"{verify_url}\n\n"
+            "If you did not request this, you can ignore this email. The link will expire in 1 hour."
+        )
+
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+
+        return Response(
+            {"detail": "Verification email sent."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerifyEmailView(APIView):
+    """Verify a user's email based on a one-time token."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token_str = (request.query_params.get("token") or "").strip()
+        if not token_str:
+            return Response(
+                {"detail": "Missing token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        try:
+            t = ActionToken.objects.select_related("user").get(
+                token=token_str,
+                purpose=ActionToken.PURPOSE_VERIFY_EMAIL,
+                used=False,
+                expires_at__gt=now,
+            )
+        except ActionToken.DoesNotExist:
+            return Response(
+                {"detail": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Mark token used and flag email as verified
+        t.used = True
+        t.save(update_fields=["used"])
+
+        profile, _ = UserProfile.objects.get_or_create(user=t.user)
+        if not profile.email_verified:
+            profile.email_verified = True
+            profile.save(update_fields=["email_verified"])
+
+        return Response(
+            {"detail": "Email verified successfully."},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ---- Example protected views ----

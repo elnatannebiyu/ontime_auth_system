@@ -155,3 +155,36 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return f"Profile<{self.user_id}>"
+
+
+class ActionToken(models.Model):
+    """One-time tokens for account actions (email verify, logout-all, delete).
+
+    Purpose values (convention):
+    - verify_email
+    - confirm_logout_all
+    - confirm_account_delete
+    """
+
+    PURPOSE_VERIFY_EMAIL = "verify_email"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="action_tokens",
+    )
+    purpose = models.CharField(max_length=64, db_index=True)
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "purpose", "used"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        return f"ActionToken<{self.purpose}:{self.user_id}>"
