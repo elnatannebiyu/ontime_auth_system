@@ -168,13 +168,31 @@ MEDIA_ROOT = os.environ.get('MEDIA_ROOT', '/srv/media/short/videos')
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+# In development, send email to console; in production, use SMTP.
+EMAIL_BACKEND = (
+    'django.core.mail.backends.console.EmailBackend'
+    if DEBUG
+    else 'django.core.mail.backends.smtp.EmailBackend'
+)
+
+# Defaults target the cPanel SMTP for no-reply@aitechnologiesplc.com using SSL
+# on port 465. All values can be overridden via environment variables on the
+# server so that secrets (passwords) are not committed to git.
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'mail.aitechnologiesplc.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '465'))
+
+# Prefer SSL on 465 by default for shared hosting SMTP. You can override these
+# flags via environment variables if your provider requires TLS on 587 instead.
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True') == 'True'
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False') == 'True'
+
+EMAIL_HOST_USER = os.environ.get(
+    'EMAIL_HOST_USER', 'no-reply@aitechnologiesplc.com'
+)
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@ontime.com')
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'DEFAULT_FROM_EMAIL', 'Ontime <no-reply@aitechnologiesplc.com>'
+)
 
 # SMS settings (Twilio) - for future use
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')

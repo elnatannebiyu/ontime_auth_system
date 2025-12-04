@@ -250,9 +250,9 @@ class _LoginPageState extends State<LoginPage> {
           body: SafeArea(
             child: Column(
               children: [
-                // Top-right language selector, separate from the auth card
+                // Top-right language selector, slightly lower from the very top
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: PopupMenuButton<AppLanguage>(
@@ -420,10 +420,6 @@ class _LoginPageState extends State<LoginPage> {
                                       }
                                       return;
                                     }
-                                    final err = (data is Map &&
-                                            data['error'] is String)
-                                        ? data['error'] as String
-                                        : e.message ?? 'Google sign-in failed.';
                                     if (mounted) {
                                       setState(() {
                                         _socialLoading = false;
