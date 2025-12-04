@@ -527,6 +527,18 @@ class VerifyEmailView(APIView):
     def get(self, request):
         token_str = (request.query_params.get("token") or "").strip()
         if not token_str:
+            # Missing token: render a friendly error page for browsers and
+            # JSON for API clients.
+            accept = (request.META.get("HTTP_ACCEPT") or "").lower()
+            if "text/html" in accept or "*/*" in accept or not accept:
+                return render(
+                    request,
+                    "verify_email_error.html",
+                    {
+                        "app_name": "Ontime Ethiopia",
+                        "support_email": "support@aitechnologiesplc.com",
+                    },
+                )
             return Response(
                 {"detail": "Missing token."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -541,6 +553,16 @@ class VerifyEmailView(APIView):
                 expires_at__gt=now,
             )
         except ActionToken.DoesNotExist:
+            accept = (request.META.get("HTTP_ACCEPT") or "").lower()
+            if "text/html" in accept or "*/*" in accept or not accept:
+                return render(
+                    request,
+                    "verify_email_error.html",
+                    {
+                        "app_name": "Ontime",
+                        "support_email": "support@aitechnologiesplc.com",
+                    },
+                )
             return Response(
                 {"detail": "Invalid or expired token."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -562,7 +584,7 @@ class VerifyEmailView(APIView):
                 request,
                 "verify_email_success.html",
                 {
-                    "app_name": "Ontime",
+                    "app_name": "Ontime Ethiopia",
                 },
             )
 

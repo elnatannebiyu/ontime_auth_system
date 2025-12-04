@@ -779,7 +779,9 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: _requestEmailVerification,
+                                  onPressed: () {
+                                    Navigator.of(context).pushNamed('/profile');
+                                  },
                                   child: Text(_t('verify_now')),
                                 ),
                               ],

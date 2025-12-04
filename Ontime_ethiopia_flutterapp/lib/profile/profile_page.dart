@@ -31,6 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   bool _verifying = false;
+  bool _verificationSent = false;
 
   String _originalFirstName = '';
   String _originalLastName = '';
@@ -96,9 +97,25 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _verifying = true;
     });
+
+    // Show a simple full-screen loading dialog while the request is in
+    // progress so the user clearly sees that something is happening.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
     try {
       await ApiClient().post('/me/request-email-verification/', data: {});
       if (!mounted) return;
+      _verificationSent = true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_t('verification_email_sent')),
@@ -113,6 +130,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     } finally {
       if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
         setState(() {
           _verifying = false;
         });
@@ -354,16 +372,11 @@ class _ProfilePageState extends State<ProfilePage> {
                                             onPressed: (_loading || _verifying)
                                                 ? null
                                                 : _requestEmailVerification,
-                                            child: _verifying
-                                                ? SizedBox(
-                                                    width: 16,
-                                                    height: 16,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  )
-                                                : Text(_t('verify_now')),
+                                            child: Text(
+                                              _verificationSent
+                                                  ? _t('resend_email')
+                                                  : _t('verify_now'),
+                                            ),
                                           ),
                                       ],
                                     ),
