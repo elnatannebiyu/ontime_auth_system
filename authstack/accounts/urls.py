@@ -7,6 +7,10 @@ from .views import (
     RequestEmailVerificationView,
     VerifyEmailView,
     ChangePasswordView,
+    EnablePasswordView,
+    DisablePasswordView,
+    RequestPasswordResetView,
+    ConfirmPasswordResetView,
     DeleteMeView,
     AdminOnlyView,
     UserWriteView,
@@ -41,6 +45,8 @@ urlpatterns = [
     path("me/request-email-verification/", RequestEmailVerificationView.as_view(), name="request_email_verification"),
     path("me/verify-email/", VerifyEmailView.as_view(), name="verify_email"),
     path("me/change-password/", ChangePasswordView.as_view(), name="me_change_password"),
+    path("me/enable-password/", EnablePasswordView.as_view(), name="me_enable_password"),
+    path("me/disable-password/", DisablePasswordView.as_view(), name="me_disable_password"),
     path("me/delete-account/", DeleteMeView.as_view(), name="me_delete_account"),
     path("admin-only/", AdminOnlyView.as_view(), name="admin_only"),
     path("users/", UserWriteView.as_view(), name="users"),
@@ -68,4 +74,7 @@ urlpatterns = [
     path('sessions/admin/stats/', AdminSessionsStatsView.as_view(), name='admin_sessions_stats'),
     path('sessions/admin/list/', AdminSessionsListView.as_view(), name='admin_sessions_list'),
     path('sessions/admin/revoke/<uuid:session_id>/', AdminSessionRevokeView.as_view(), name='admin_session_revoke'),
+    # Password reset (anonymous)
+    path('password-reset/request/', RequestPasswordResetView.as_view(), name='password_reset_request'),
+    path('password-reset/confirm/', ConfirmPasswordResetView.as_view(), name='password_reset_confirm'),
 ]

@@ -69,7 +69,7 @@ class LocalizationController extends ChangeNotifier {
       'now_playing': 'Now Playing',
       // Login page
       'welcome_back': 'Welcome back',
-      'login_subtitle': 'Sign in with your Google or Apple account',
+      'login_subtitle': 'Sign in with your Google account',
       'toggle_dark_mode': 'Toggle dark mode',
       'create_account': 'Create an account',
       'enter_valid_email': 'Enter a valid email address.',
@@ -80,8 +80,8 @@ class LocalizationController extends ChangeNotifier {
       'account_locked':
           'Account temporarily locked due to failed attempts. Try again later.',
       'generic_error': 'Something went wrong. Please try again.',
-      'email_or_username': 'Email or username',
-      'email_or_username_required': 'Enter your email/username',
+      'email_or_username': 'Email',
+      'email_or_username_required': 'Enter your email',
       'password_label': 'Password',
       'password_required': 'Enter password',
       'sign_in': 'Sign in',
@@ -95,6 +95,8 @@ class LocalizationController extends ChangeNotifier {
       'apple_signin_coming_soon': 'Apple sign-in coming soon.',
       'google_signin_failed': 'Google sign-in failed. Please try again.',
       'apple_signin_failed': 'Apple sign-in failed. Please try again.',
+      'sign_in_or_sign_up_with_google': 'Sign in or Sign up with Google',
+      'sign_in_or_sign_up_with_apple': 'Sign in or Sign up with Apple',
       'tv': 'TV',
       'radio': 'Radio',
       'live_tv': 'Live TV',
@@ -210,6 +212,21 @@ class LocalizationController extends ChangeNotifier {
       'verification_email_sent': 'Verification email sent. Check your inbox.',
       'verification_email_failed':
           'Could not send verification email. Please try again.',
+      // Password & security
+      'password_status_enabled': 'Password: enabled',
+      'password_status_not_set': 'Password: not set',
+      'password_manage_requires_verified_email':
+          'Verify your email to manage your password.',
+      'enable_password': 'Set password',
+      'disable_password': 'Disable password',
+      'password_enabled_logged_out':
+          'Password enabled. You have been logged out from all devices.',
+      'password_disabled_logged_out':
+          'Password disabled. You have been logged out from all devices.',
+      // Forgot password
+      'forgot_password': 'Forgot password?',
+      'password_reset_email_sent_generic':
+          'If an account with a verified email exists, a reset link has been sent.',
     };
     const am = {
       'home': 'መነሻ',
@@ -234,7 +251,7 @@ class LocalizationController extends ChangeNotifier {
       'now_playing': 'አሁን የሚጫወተው',
       // Login page
       'welcome_back': 'እንኳን በደህና መለሱ',
-      'login_subtitle': 'በGoogle ወይም Apple መለያዎ ይግቡ',
+      'login_subtitle': 'በGoogle መለያዎ ይግቡ',
       'toggle_dark_mode': 'የጨለማ ገጽታ ቀይር',
       'create_account': 'መለያ ይፍጠሩ',
       'enter_valid_email': 'ትክክለኛ ኢሜል ያስገቡ።',
@@ -257,6 +274,8 @@ class LocalizationController extends ChangeNotifier {
       'apple_signin_coming_soon': 'የApple መግቢያ በቅርብ ጊዜ ይመጣል።',
       'google_signin_failed': 'የGoogle መግቢያ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
       'apple_signin_failed': 'የApple መግቢያ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
+      'sign_in_or_sign_up_with_google': 'በGoogle መለያ መግባት ወይም መመዝገብ',
+      'sign_in_or_sign_up_with_apple': 'በApple መለያ መግባት ወይም መመዝገብ',
       'tv': 'ቲቪ',
       'radio': 'ሬዲዮ',
       'live_tv': 'ቀጥታ ቲቪ',
@@ -366,6 +385,19 @@ class LocalizationController extends ChangeNotifier {
       'verify_now': 'አሁን ተረጋግጥ',
       'verification_email_sent': 'የማረጋገጫ ኢሜል ተልኳል። እባክዎ መልዕክት ሳጥኑን ይመልከቱ።',
       'verification_email_failed': 'የማረጋገጫ ኢሜል መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።',
+      // Password & security
+      'password_status_enabled': 'ፓስዎርድ፡ ተያይዟል',
+      'password_status_not_set': 'ፓስዎርድ፡ አልተዘጋጀም',
+      'password_manage_requires_verified_email':
+          'ፓስዎርድዎን ለመቆጣጠር መጀመሪያ ኢሜልዎን ያረጋግጡ።',
+      'enable_password': 'ፓስዎርድ አቅርብ',
+      'disable_password': 'ፓስዎርድ አቋርጥ',
+      'password_enabled_logged_out': 'ፓስዎርድ ተያይዟል። ከሁሉም መሣሪያዎች ወጥተዋል።',
+      'password_disabled_logged_out': 'ፓስዎርድ ዘግቷል። ከሁሉም መሣሪያዎች ወጥተዋል።',
+      // Forgot password
+      'forgot_password': 'ፓስዎርድ ረስተዋል?',
+      'password_reset_email_sent_generic':
+          'ተረጋገጠ ኢሜል ያለው መለያ ካለ የመመለሻ አገናኝ ተልኳል።',
     };
     const om = {
       'home': 'Mana',
@@ -390,7 +422,7 @@ class LocalizationController extends ChangeNotifier {
       'now_playing': 'Amma taphachaa jiru',
       // Login page
       'welcome_back': 'Baga deebiʼan',
-      'login_subtitle': 'Akaawuntii Google ykn Apple kee fayyadamuun seeni',
+      'login_subtitle': 'Akaawuntii Google kee fayyadamuun seeni',
       'toggle_dark_mode': 'Haala dukkanaaʼaa baddaluu',
       'create_account': 'Akaawuntii uumi',
       'enter_valid_email': 'Imeelii sirrii galchi.',
@@ -417,6 +449,10 @@ class LocalizationController extends ChangeNotifier {
       'apple_signin_coming_soon': 'Seensa Apple dhiyootti ni dhufa.',
       'google_signin_failed': 'Seensi Google hin milkoofne. Mee deebiʼi yaali.',
       'apple_signin_failed': 'Seensi Apple hin milkoofne. Mee deebiʼi yaali.',
+      'sign_in_or_sign_up_with_google':
+          'Google fayyadamuun seeni yookaan galmaa’i',
+      'sign_in_or_sign_up_with_apple':
+          'Apple fayyadamuun seeni yookaan galmaa’i',
       'tv': 'TV',
       'radio': 'Raadiyoo',
       'live_tv': 'TV kallattiin',
@@ -513,6 +549,21 @@ class LocalizationController extends ChangeNotifier {
       'menu': 'Cuqaasaa',
       'coming_soon': 'Dhiyootti ni dhufa',
       'all': 'Hunduu',
+      // Password & security
+      'password_status_enabled': 'Jecha iccitii: hojiirra jira',
+      'password_status_not_set': 'Jecha iccitii: hin jiru',
+      'password_manage_requires_verified_email':
+          'Jecha iccitii to’achuuf jalqaba imeelii kee mirkaneessi.',
+      'enable_password': 'Jecha iccitii qindeessi',
+      'disable_password': 'Jecha iccitii jalaa buusi',
+      'password_enabled_logged_out':
+          'Jecha iccitii qindeessite. Meeshaalee hunda irraa baattee jirta.',
+      'password_disabled_logged_out':
+          'Jecha iccitii jalaa buuste. Meeshaalee hunda irraa baattee jirta.',
+      // Forgot password
+      'forgot_password': 'Jecha iccitii dagatte?',
+      'password_reset_email_sent_generic':
+          'Akaawuntiin imeelii mirkanaaʼe qabu yoo jiraate, qunnamtiin haaromsuu ergameera.',
     };
     final dict = _lang == AppLanguage.en
         ? en

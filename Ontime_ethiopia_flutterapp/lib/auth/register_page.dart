@@ -152,6 +152,8 @@ class _RegisterPageState extends State<RegisterPage> {
           children: [
             // Social sign-in buttons
             SocialAuthButtons(
+              googleLabel: 'Sign in or Sign up with Google',
+              appleLabel: 'Sign in or Sign up with Apple',
               onGoogle: () async {
                 final service = SocialAuthService();
                 try {

@@ -11,6 +11,7 @@ class MeSerializer(serializers.ModelSerializer):
     tenant_roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     email_verified = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -18,6 +19,7 @@ class MeSerializer(serializers.ModelSerializer):
             "username",
             "email",
             "email_verified",
+            "has_password",
             "first_name",
             "last_name",
             "roles",          # global groups
@@ -67,6 +69,18 @@ class MeSerializer(serializers.ModelSerializer):
                 return False
             val = getattr(profile, "email_verified", False)
             return bool(val)
+        except Exception:
+            return False
+
+    def get_has_password(self, obj):
+        """Return whether this user has a usable password set.
+
+        This mirrors Django's has_usable_password() helper and allows the
+        frontend to decide whether to show enable/disable password actions
+        in the profile UI.
+        """
+        try:
+            return bool(obj.has_usable_password())
         except Exception:
             return False
 

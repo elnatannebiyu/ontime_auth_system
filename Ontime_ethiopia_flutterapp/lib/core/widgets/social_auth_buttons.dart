@@ -4,12 +4,16 @@ class SocialAuthButtons extends StatelessWidget {
   final VoidCallback? onGoogle;
   final VoidCallback? onApple;
   final bool showApple;
+  final String googleLabel;
+  final String appleLabel;
 
   const SocialAuthButtons({
     super.key,
     this.onGoogle,
     this.onApple,
     this.showApple = true,
+    required this.googleLabel,
+    required this.appleLabel,
   });
 
   @override
@@ -22,7 +26,7 @@ class SocialAuthButtons extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: onGoogle,
             icon: const Icon(Icons.g_mobiledata),
-            label: const Text('Sign in or Sign up with Google'),
+            label: Text(googleLabel),
           ),
         ),
         if (showApple) ...[
@@ -32,7 +36,7 @@ class SocialAuthButtons extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onApple,
               icon: const Icon(Icons.apple),
-              label: const Text('Sign in or Sign up with Apple'),
+              label: Text(appleLabel),
             ),
           ),
         ],

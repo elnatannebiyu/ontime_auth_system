@@ -1121,6 +1121,345 @@ class ChangePasswordView(APIView):
         return res
 
 
+class EnablePasswordView(APIView):
+    """Allow an authenticated user to enable password login on their account.
+
+    This is primarily for accounts that were created via social login and
+    currently have no usable password set.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
+        operation_id="me_enable_password",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        # Require a verified email before enabling password login so that
+        # password-based access is only allowed on accounts with a confirmed
+        # recovery channel.
+        try:
+            from .models import UserProfile as _UserProfileForCheck
+
+            profile, _ = _UserProfileForCheck.objects.get_or_create(user=user)
+            if not getattr(profile, "email_verified", False):
+                return Response(
+                    {"detail": "Email must be verified before enabling password login."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except Exception:
+            # If profile lookup fails, fall back to a conservative denial.
+            return Response(
+                {"detail": "Email must be verified before enabling password login."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_password = request.data.get("new_password") or ""
+        if not new_password:
+            return Response({"detail": "new_password is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If password is already enabled, advise the client to use change-password instead.
+        if user.has_usable_password():
+            return Response(
+                {"detail": "Password is already set for this account. Use change-password instead."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate password strength
+        try:
+            validate_password(new_password, user=user)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Revoke all sessions so the new password becomes the only valid credential
+        try:
+            from .models import UserSession as LegacySession
+
+            sessions = list(LegacySession.objects.filter(user=user, is_active=True))
+            for s in sessions:
+                try:
+                    s.revoke("password_enabled")
+                except Exception:
+                    try:
+                        s.is_active = False
+                        s.save(update_fields=["is_active"])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+
+            RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+                revoked_at=_tz.now(), revoke_reason="password_enabled"
+            )
+        except Exception:
+            pass
+
+        res = Response(
+            {"detail": "Password enabled. You have been logged out from all devices."},
+            status=status.HTTP_200_OK,
+        )
+        clear_refresh_cookie(res)
+        return res
+
+
+class DisablePasswordView(APIView):
+    """Allow an authenticated user to disable password login for their account.
+
+    This sets an unusable password so that only social login remains. Requires
+    the current password for safety.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[TokenObtainPairWithCookieView.PARAM_TENANT],
+        operation_id="me_disable_password",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            return Response({"detail": "Unknown tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if not user.has_usable_password():
+            return Response({"detail": "No password is set for this account."}, status=status.HTTP_200_OK)
+
+        current_password = request.data.get("current_password") or ""
+        if not current_password:
+            return Response({"detail": "current_password is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.check_password(current_password):
+            return Response({"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_unusable_password()
+        user.save()
+
+        # Revoke all sessions just like a password change
+        try:
+            from .models import UserSession as LegacySession
+
+            sessions = list(LegacySession.objects.filter(user=user, is_active=True))
+            for s in sessions:
+                try:
+                    s.revoke("password_disabled")
+                except Exception:
+                    try:
+                        s.is_active = False
+                        s.save(update_fields=["is_active"])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+
+            RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+                revoked_at=_tz.now(), revoke_reason="password_disabled"
+            )
+        except Exception:
+            pass
+
+        res = Response(
+            {"detail": "Password disabled. You have been logged out from all devices."},
+            status=status.HTTP_200_OK,
+        )
+        clear_refresh_cookie(res)
+        return res
+
+
+class RequestPasswordResetView(APIView):
+    """Initiate a password reset via email.
+
+    Accepts an email address and, if a matching user exists, sends a one-time
+    token that can be used to set a new password. The response is always 200
+    for privacy (no user enumeration).
+    """
+
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_id="password_reset_request",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        email = (request.data.get("email") or "").strip().lower()
+        if not email:
+            return Response({"detail": "email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            # Do not leak whether the email exists
+            return Response({"detail": "If an account exists for this email, a reset link has been sent."})
+
+        # Only allow password reset for accounts whose email has been verified.
+        # For unverified emails we respond with the same generic message but do
+        # not create a token or send mail.
+        try:
+            from .models import UserProfile as _UserProfileForReset
+
+            profile, _ = _UserProfileForReset.objects.get_or_create(user=user)
+            if not getattr(profile, "email_verified", False):
+                return Response(
+                    {"detail": "If an account exists for this email, a reset link has been sent."},
+                    status=status.HTTP_200_OK,
+                )
+        except Exception:
+            # On any profile lookup error, behave as if the email is not eligible
+            # for reset while preserving the generic response.
+            return Response(
+                {"detail": "If an account exists for this email, a reset link has been sent."},
+                status=status.HTTP_200_OK,
+            )
+
+        # Create a one-time token valid for 1 hour
+        import secrets
+
+        token_str = secrets.token_urlsafe(48)
+        now = timezone.now()
+        expires_at = now + timezone.timedelta(hours=1)
+        ActionToken.objects.create(
+            user=user,
+            purpose=ActionToken.PURPOSE_RESET_PASSWORD,
+            token=token_str,
+            expires_at=expires_at,
+        )
+
+        reset_path = reverse("password_reset_confirm")
+        reset_url = request.build_absolute_uri(f"{reset_path}?token={token_str}")
+
+        subject = "Reset your Ontime account password"
+        message = (
+            "Hello,\n\n"
+            "We received a request to reset the password for your Ontime account. "
+            "If you made this request, you can reset your password by clicking the link below "
+            "or by entering this code in the app's reset password screen.\n\n"
+            f"Reset link: {reset_url}\n"
+            f"Code: {token_str}\n\n"
+            "If you did not request this, you can safely ignore this email. "
+            "This link and code will expire in 1 hour."
+        )
+
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Could not send password reset email.", "error": "email_send_failed"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {"detail": "If an account exists for this email, a reset link has been sent."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ConfirmPasswordResetView(APIView):
+    """Confirm a password reset using a one-time token.
+
+    This endpoint is intended for both web and mobile clients. It accepts a
+    token and a new password in the request body.
+    """
+
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_id="password_reset_confirm",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        token_str = (request.data.get("token") or "").strip()
+        new_password = request.data.get("new_password") or ""
+
+        if not token_str or not new_password:
+            return Response(
+                {"detail": "token and new_password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        try:
+            t = ActionToken.objects.select_related("user").get(
+                token=token_str,
+                purpose=ActionToken.PURPOSE_RESET_PASSWORD,
+                used=False,
+                expires_at__gt=now,
+            )
+        except ActionToken.DoesNotExist:
+            return Response(
+                {"detail": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = t.user
+
+        # Validate password strength
+        try:
+            validate_password(new_password, user=user)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update password and mark token used
+        user.set_password(new_password)
+        user.save()
+        t.used = True
+        t.save(update_fields=["used"])
+
+        # Revoke all sessions for security, similar to ChangePasswordView
+        try:
+            from .models import UserSession as LegacySession
+
+            sessions = list(LegacySession.objects.filter(user=user, is_active=True))
+            for s in sessions:
+                try:
+                    s.revoke("password_reset")
+                except Exception:
+                    try:
+                        s.is_active = False
+                        s.save(update_fields=["is_active"])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            from user_sessions.models import Session as RefreshSession
+            from django.utils import timezone as _tz
+
+            RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+                revoked_at=_tz.now(), revoke_reason="password_reset",
+            )
+        except Exception:
+            pass
+
+        # No cookies to clear here since this is typically called unauthenticated
+        return Response(
+            {"detail": "Password has been reset. Please sign in with your new password."},
+            status=status.HTTP_200_OK,
+        )
+
 class DeleteMeView(APIView):
     """Allow the authenticated user to delete their own account.
 

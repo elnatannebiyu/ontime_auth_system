@@ -164,9 +164,12 @@ class ActionToken(models.Model):
     - verify_email
     - confirm_logout_all
     - confirm_account_delete
+    - reset_password
     """
 
     PURPOSE_VERIFY_EMAIL = "verify_email"
+    PURPOSE_CONFIRM_ACCOUNT_DELETE = "confirm_account_delete"
+    PURPOSE_RESET_PASSWORD = "reset_password"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(

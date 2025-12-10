@@ -1,6 +1,7 @@
 // ignore_for_file: unused_field
 
 import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
@@ -81,19 +82,26 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _load();
-    // Ask for notification permission gracefully after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      NotificationPermissionManager().ensurePermissionFlow(context);
-    });
+    // Ask for notification permission gracefully after first frame.
+    // Temporarily disabled on iOS while Firebase/FCM are not configured.
+    if (!Platform.isIOS) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationPermissionManager().ensurePermissionFlow(context);
+      });
+    }
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _loadHeroRandom();
     _loadTrendingNew();
     _loadUnreadCount();
-    _notifSub = FcmManager().notificationStream.listen((_) {
-      if (mounted) {
-        _loadUnreadCount();
-      }
-    });
+    // FCM-based notification stream is temporarily disabled on iOS while
+    // Firebase/FCM are not configured.
+    if (!Platform.isIOS) {
+      _notifSub = FcmManager().notificationStream.listen((_) {
+        if (mounted) {
+          _loadUnreadCount();
+        }
+      });
+    }
     _connSub = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {

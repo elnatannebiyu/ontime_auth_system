@@ -7,6 +7,7 @@ import 'auth_repository.dart';
 import 'auth/tenant_auth_client.dart';
 import 'auth/login_page.dart';
 import 'auth/register_page.dart';
+import 'auth/forgot_password_page.dart';
 import 'home/home_page.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/theme/app_theme.dart';
@@ -46,8 +47,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Register Firebase Messaging background handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // NOTE: Firebase was temporarily disabled for local iOS testing.
+  // Now that the iOS Firebase project (GoogleService-Info.plist) is configured,
+  // we initialize Firebase and register the background message handler.
+  try {
+    debugPrint('[firebase] Initializing default app...');
+    await Firebase.initializeApp();
+    debugPrint('[firebase] Initialization succeeded');
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e, st) {
+    debugPrint('[firebase] Initialization FAILED: $e');
+    debugPrint('[firebase] Stack: $st');
+    // Do not crash app if Firebase init fails; Google/FCM on iOS will remain disabled.
+  }
   // Initialize enterprise auth client and token store
   final api = AuthApi();
   final tokenStore = SecureTokenStore();
@@ -225,9 +237,10 @@ class _MyAppState extends State<MyApp> {
       _showUpdateDialog(ctx, message, storeUrl);
     });
 
-    // Initialize Firebase Cloud Messaging (mobile only)
+    // Initialize app-level checks (version gate, pending update dialog).
+    // NOTE: FCM / FirebaseMessaging integration is temporarily disabled for
+    // local iOS testing until Firebase is fully configured for this app.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      FcmManager().initialize(context: appNavigatorKey.currentContext);
       final ctx = appNavigatorKey.currentContext;
       // If a pending 426 was cached before context existed, show it now
       if (ctx != null && !_updateDialogShown && _pendingUpdateMsg != null) {
@@ -239,19 +252,10 @@ class _MyAppState extends State<MyApp> {
         VersionGate.checkAndPrompt(ctx);
       }
 
-      // Handle the case where the app was opened from a notification
-      // while terminated.
-      FirebaseMessaging.instance.getInitialMessage().then((message) {
-        if (message != null && message.data.isNotEmpty) {
-          _handleNotificationNavigation(message.data);
-        }
-      });
-      // Handle taps on notifications when the app is in background.
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        if (message.data.isNotEmpty) {
-          _handleNotificationNavigation(message.data);
-        }
-      });
+      // FCMManager / FirebaseMessaging hooks removed temporarily.
+      // Re-enable these when Firebase.initializeApp is configured for iOS.
+      // FcmManager().initialize(context: appNavigatorKey.currentContext);
+      // FirebaseMessaging.instance.getInitialMessage()... etc.
     });
   }
 
@@ -345,6 +349,10 @@ class _MyAppState extends State<MyApp> {
                   tokenStore: tokenStore,
                   tenantId: tenantId,
                   themeController: themeController,
+                  localizationController: localizationController,
+                ),
+            '/forgot-password': (_) => ForgotPasswordPage(
+                  localizationController: localizationController,
                 ),
             '/register': (_) => RegisterPage(
                   api: api,

@@ -58,6 +58,15 @@ class _ProfilePageState extends State<ProfilePage> {
     return false;
   }
 
+  bool get _hasPassword {
+    final v = _me?['has_password'];
+    if (v is bool) return v;
+    if (v is String) {
+      return v.toLowerCase() == 'true';
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +103,169 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _dirty = isDirty;
       });
+    }
+  }
+
+  Future<void> _enablePassword() async {
+    if (!_isEmailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('password_manage_requires_verified_email'))),
+      );
+      return;
+    }
+
+    final controller1 = TextEditingController();
+    final controller2 = TextEditingController();
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(_t('enable_password')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller1,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New password',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller2,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm password',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(_t('cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (controller1.text != controller2.text ||
+                      controller1.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                          content: Text('Passwords do not match or are empty')),
+                    );
+                    return;
+                  }
+                  Navigator.of(ctx).pop(true);
+                },
+                child: Text(_t('enable_password')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ApiClient().post('/me/enable-password/', data: {
+        'new_password': controller1.text,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('password_enabled_logged_out'))),
+      );
+      await SimpleSessionManager().logout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to enable password.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _disablePassword() async {
+    if (!_isEmailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('password_manage_requires_verified_email'))),
+      );
+      return;
+    }
+
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(_t('disable_password')),
+            content: TextField(
+              controller: controller,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Current password',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(_t('cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (controller.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                          content: Text('Enter your current password')),
+                    );
+                    return;
+                  }
+                  Navigator.of(ctx).pop(true);
+                },
+                child: Text(_t('disable_password')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ApiClient().post('/me/disable-password/', data: {
+        'current_password': controller.text,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('password_disabled_logged_out'))),
+      );
+      await SimpleSessionManager().logout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to disable password.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -560,6 +732,46 @@ class _ProfilePageState extends State<ProfilePage> {
                               icon: const Icon(Icons.logout),
                               onPressed: _logout,
                               label: Text(_t('sign_out')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Password & Security
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _t('security'),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            !_isEmailVerified
+                                ? _t('password_manage_requires_verified_email')
+                                : _hasPassword
+                                    ? _t('password_status_enabled')
+                                    : _t('password_status_not_set'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: OutlinedButton(
+                              onPressed: _loading || !_isEmailVerified
+                                  ? null
+                                  : (_hasPassword
+                                      ? _disablePassword
+                                      : _enablePassword),
+                              child: Text(_hasPassword
+                                  ? _t('disable_password')
+                                  : _t('enable_password')),
                             ),
                           ),
                         ],
