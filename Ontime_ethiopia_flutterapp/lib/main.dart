@@ -21,7 +21,6 @@ import 'settings/session_management_page.dart';
 import 'settings/session_security_page.dart';
 import 'auth/services/simple_session_manager.dart';
 import 'features/forms/pages/dynamic_form_page.dart';
-import 'core/notifications/fcm_manager.dart';
 import 'live/live_page.dart';
 import 'live/global_mini_bar.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -257,20 +256,6 @@ class _MyAppState extends State<MyApp> {
       // FcmManager().initialize(context: appNavigatorKey.currentContext);
       // FirebaseMessaging.instance.getInitialMessage()... etc.
     });
-  }
-
-  void _handleNotificationNavigation(Map<String, dynamic> data) {
-    final nav = appNavigatorKey.currentState;
-    if (nav == null) return;
-
-    // For now, always open the notification inbox as a safe, predictable
-    // destination. We can expand this later to route based on data['type']
-    // and data['link'] when app sections are fully wired.
-    nav.push(
-      MaterialPageRoute(
-        builder: (_) => const NotificationInboxPage(),
-      ),
-    );
   }
 
   void _showUpdateDialog(BuildContext ctx, String message, String? storeUrl) {

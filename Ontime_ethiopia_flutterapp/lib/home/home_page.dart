@@ -690,6 +690,8 @@ class _HomePageState extends State<HomePage> {
 
   // For You main content with pull-to-refresh
   Widget _buildForYou(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = screenWidth < 700 ? 640.0 : 900.0;
     return RefreshIndicator(
       onRefresh: () async {
         // If we're clearly offline, avoid spamming network calls and
@@ -712,7 +714,7 @@ class _HomePageState extends State<HomePage> {
       },
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: _loading
