@@ -1116,33 +1116,35 @@ class ChangePasswordView(APIView):
             return Response({"detail": "current_password and new_password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verify current password
+        if not request.user.check_password(current_password):
+            return Response({"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate new password strength
-            try:
-                validate_password(new_password, user=request.user)
-            except Exception as e:
-                # Parse validation errors into user-friendly format
-                if hasattr(e, 'messages'):
-                    errors = list(e.messages)
-                    return Response(
-                        {
-                            "detail": "Password does not meet requirements.",
-                            "errors": errors,
-                            "requirements": [
-                                "At least 8 characters",
-                                "At least one uppercase letter",
-                                "At least one lowercase letter",
-                                "At least one number",
-                                "At least one special character",
-                            ]
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate new password strength
+        try:
+            validate_password(new_password, user=request.user)
+        except Exception as e:
+            # Parse validation errors into user-friendly format
+            if hasattr(e, 'messages'):
+                errors = list(e.messages)
+                return Response(
+                    {
+                        "detail": "Password does not meet requirements.",
+                        "errors": errors,
+                        "requirements": [
+                            "At least 8 characters",
+                            "At least one uppercase letter",
+                            "At least one lowercase letter",
+                            "At least one number",
+                            "At least one special character",
+                        ]
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Set new password
-            request.user.set_password(new_password)
-            request.user.save()
+        # Set new password
+        request.user.set_password(new_password)
+        request.user.save()
 
         # Revoke all sessions for this user in legacy UserSession table
         try:
@@ -1229,6 +1231,22 @@ class EnablePasswordView(APIView):
         try:
             validate_password(new_password, user=user)
         except Exception as e:
+            if hasattr(e, 'messages'):
+                errors = list(e.messages)
+                return Response(
+                    {
+                        "detail": "Password does not meet requirements.",
+                        "errors": errors,
+                        "requirements": [
+                            "At least 8 characters",
+                            "At least one uppercase letter",
+                            "At least one lowercase letter",
+                            "At least one number",
+                            "At least one special character",
+                        ]
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(new_password)
