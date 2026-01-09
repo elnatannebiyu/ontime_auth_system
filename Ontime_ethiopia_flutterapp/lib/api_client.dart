@@ -130,7 +130,7 @@ class ApiClient {
       return {...std, ...extra};
     }
 
-    // Attach Authorization, tenant, and device headers
+    // Attach Authorization, tenant, device headers, and CSRF token
     dio.interceptors.add(InterceptorsWrapper(onRequest:
         (RequestOptions options, RequestInterceptorHandler handler) async {
       // Lazy init ensures persisted cookies and stored access token are loaded
@@ -157,6 +157,16 @@ class ApiClient {
       if (_tenantSlug != null && _tenantSlug!.isNotEmpty) {
         options.headers['X-Tenant-Id'] = _tenantSlug;
       }
+
+      // AUDIT FIX #5: Include CSRF token for state-changing requests
+      final method = options.method.toUpperCase();
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].contains(method)) {
+        final csrfToken = await _getCsrfToken();
+        if (csrfToken != null && csrfToken.isNotEmpty) {
+          options.headers['X-CSRFToken'] = csrfToken;
+        }
+      }
+
       try {
         final std = await DeviceInfoService.getStandardDeviceHeaders();
         final extra = await DeviceInfoService.getDeviceHeaders();
@@ -568,6 +578,20 @@ class ApiClient {
       }
     } catch (_) {}
     return false;
+  }
+
+  /// AUDIT FIX #5: Extract CSRF token from cookies for state-changing requests
+  Future<String?> _getCsrfToken() async {
+    try {
+      final uri = Uri.parse(dio.options.baseUrl);
+      final cookies = await cookieJar.loadForRequest(uri);
+      for (final c in cookies) {
+        if (c.name.toLowerCase() == 'csrftoken') {
+          return c.value;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
