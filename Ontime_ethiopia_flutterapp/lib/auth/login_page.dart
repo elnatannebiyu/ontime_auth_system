@@ -151,6 +151,7 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(
         builder: (context) => SimplePasswordResetPage(
           tenantId: widget.tenantId,
+          localizationController: widget.localizationController,
         ),
       ),
     );

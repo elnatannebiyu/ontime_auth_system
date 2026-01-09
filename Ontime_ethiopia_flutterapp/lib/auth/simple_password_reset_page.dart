@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../api_client.dart';
+import '../core/localization/l10n.dart';
 
 class SimplePasswordResetPage extends StatefulWidget {
   final String tenantId;
+  final LocalizationController? localizationController;
 
   const SimplePasswordResetPage({
     super.key,
     required this.tenantId,
+    this.localizationController,
   });
 
   @override
@@ -28,6 +31,10 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
   String? _error;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+
+  LocalizationController get _lc =>
+      widget.localizationController ?? LocalizationController();
+  String _t(String key) => _lc.t(key);
 
   @override
   void initState() {
@@ -221,16 +228,16 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           final confirm = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Cancel password reset?'),
-              content: const Text('Your progress will be lost.'),
+              title: Text(_t('cancel_reset_title')),
+              content: Text(_t('cancel_reset_message')),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Stay'),
+                  child: Text(_t('stay')),
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('Leave'),
+                  child: Text(_t('leave')),
                 ),
               ],
             ),
@@ -239,57 +246,60 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
         }
         return true;
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Reset Password'),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Progress indicator
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildStepIndicator(1, 'Email'),
-                    _buildStepLine(1),
-                    _buildStepIndicator(2, 'Code'),
-                    _buildStepLine(2),
-                    _buildStepIndicator(3, 'Password'),
-                  ],
-                ),
-                const SizedBox(height: 32),
-
-                // Step content
-                if (_step == 1) _buildEmailStep(),
-                if (_step == 2) _buildOtpStep(),
-                if (_step == 3) _buildPasswordStep(),
-
-                const SizedBox(height: 24),
-
-                // Error message
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(_error!,
-                              style: TextStyle(color: Colors.red.shade700)),
-                        ),
-                      ],
-                    ),
+      child: AnimatedBuilder(
+        animation: _lc,
+        builder: (context, _) => Scaffold(
+          appBar: AppBar(
+            title: Text(_t('reset_password')),
+          ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Progress indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStepIndicator(1, _t('email_or_username')),
+                      _buildStepLine(1),
+                      _buildStepIndicator(2, _t('code_label')),
+                      _buildStepLine(2),
+                      _buildStepIndicator(3, _t('password_label')),
+                    ],
                   ),
-              ],
+                  const SizedBox(height: 32),
+
+                  // Step content
+                  if (_step == 1) _buildEmailStep(),
+                  if (_step == 2) _buildOtpStep(),
+                  if (_step == 3) _buildPasswordStep(),
+
+                  const SizedBox(height: 24),
+
+                  // Error message
+                  if (_error != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade700),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(_error!,
+                                style: TextStyle(color: Colors.red.shade700)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -301,35 +311,41 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
     final isActive = _step >= stepNum;
     final isCurrent = _step == stepNum;
 
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? Colors.blue : Colors.grey.shade300,
-            border: isCurrent ? Border.all(color: Colors.blue, width: 2) : null,
-          ),
-          child: Center(
-            child: Text(
-              '$stepNum',
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade600,
-                fontWeight: FontWeight.bold,
+    return Flexible(
+      child: Column(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive ? Colors.blue : Colors.grey.shade300,
+              border:
+                  isCurrent ? Border.all(color: Colors.blue, width: 2) : null,
+            ),
+            child: Center(
+              child: Text(
+                '$stepNum',
+                style: TextStyle(
+                  color: isActive ? Colors.white : Colors.grey.shade600,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: isActive ? Colors.blue : Colors.grey.shade600,
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              color: isActive ? Colors.blue : Colors.grey.shade600,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -347,24 +363,24 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Enter your email address',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          _t('enter_email_address'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'We\'ll send you a 6-digit code to reset your password',
-          style: TextStyle(color: Colors.grey),
+        Text(
+          _t('send_code_instruction'),
+          style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
         TextField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            prefixIcon: Icon(Icons.email),
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: _t('email_or_username'),
+            prefixIcon: const Icon(Icons.email),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 24),
@@ -380,7 +396,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white),
                   )
-                : const Text('Send Code'),
+                : Text(_t('send_code')),
           ),
         ),
       ],
@@ -391,24 +407,24 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Check your email',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          _t('check_your_email'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
-          'If an account exists for ${_emailController.text}, you\'ll receive a 6-digit code.',
+          _t('code_sent_to'),
           style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Didn\'t receive a code? The email may not be registered.',
-          style: TextStyle(color: Colors.orange, fontSize: 12),
+        Text(
+          _t('code_not_received'),
+          style: const TextStyle(color: Colors.orange, fontSize: 12),
         ),
         const SizedBox(height: 4),
-        const Text(
-          '💡 Tip: Check your spam/junk folder',
-          style: TextStyle(
+        Text(
+          _t('check_spam_folder'),
+          style: const TextStyle(
               color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 24),
@@ -421,9 +437,9 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           style: const TextStyle(
               fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            labelText: '6-Digit Code',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: _t('code_label'),
+            border: const OutlineInputBorder(),
             counterText: '',
           ),
           onChanged: (value) {
@@ -438,7 +454,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           height: 48,
           child: FilledButton(
             onPressed: _verifyOtp,
-            child: const Text('Continue'),
+            child: Text(_t('continue_button')),
           ),
         ),
         const SizedBox(height: 12),
@@ -451,7 +467,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
                 _error = null;
               });
             },
-            child: const Text('Didn\'t receive code? Try again'),
+            child: Text(_t('try_again')),
           ),
         ),
       ],
@@ -462,14 +478,14 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Create new password',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          _t('create_new_password'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Choose a strong password (at least 8 characters)',
-          style: TextStyle(color: Colors.grey),
+        Text(
+          _t('password_requirements_hint'),
+          style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
         TextField(
@@ -477,7 +493,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           obscureText: _obscurePassword,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: 'New Password',
+            labelText: _t('new_password'),
             prefixIcon: const Icon(Icons.lock),
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
@@ -493,7 +509,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           controller: _confirmPasswordController,
           obscureText: _obscureConfirm,
           decoration: InputDecoration(
-            labelText: 'Confirm Password',
+            labelText: _t('confirm_password'),
             prefixIcon: const Icon(Icons.lock_outline),
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
@@ -518,7 +534,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white),
                   )
-                : const Text('Reset Password'),
+                : Text(_t('reset_password_button')),
           ),
         ),
       ],

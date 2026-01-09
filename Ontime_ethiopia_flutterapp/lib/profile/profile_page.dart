@@ -175,9 +175,16 @@ class _ProfilePageState extends State<ProfilePage> {
         'new_password': controller1.text,
       });
       if (!mounted) return;
+
+      // Clear token immediately to prevent double logout glitch
+      // Backend revokes all sessions, so we clear locally before calling logout
+      ApiClient().setAccessToken(null);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_t('password_enabled_logged_out'))),
       );
+
+      // Logout will clean up cookies and navigate
       await SimpleSessionManager().logout();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);

@@ -206,6 +206,7 @@ class LocalizationController extends ChangeNotifier {
       'profile_update_success': 'Profile updated',
       'profile_update_error': 'Failed to update profile',
       // Email verification
+      'email_verified_banner': 'Email verified',
       'email_not_verified_banner':
           'Your email is not verified. Some features may be limited.',
       'verify_now': 'Verify now',
@@ -227,6 +228,51 @@ class LocalizationController extends ChangeNotifier {
       'forgot_password': 'Forgot password?',
       'password_reset_email_sent_generic':
           'If an account with a verified email exists, a reset link has been sent.',
+      // Password reset flow
+      'reset_password': 'Reset Password',
+      'enter_email_address': 'Enter your email address',
+      'send_code_instruction':
+          'We\'ll send you a 6-digit code to reset your password',
+      'send_code': 'Send Code',
+      'check_your_email': 'Check your email',
+      'code_sent_to':
+          'If an account exists for this email, you\'ll receive a 6-digit code.',
+      'code_not_received':
+          'Didn\'t receive a code? The email may not be registered.',
+      'check_spam_folder': '💡 Tip: Check your spam/junk folder',
+      'enter_6_digit_code': 'Enter the 6-digit code from your email',
+      'code_label': '6-Digit Code',
+      'continue_button': 'Continue',
+      'try_again': 'Didn\'t receive code? Try again',
+      'create_new_password': 'Create new password',
+      'password_requirements_hint':
+          'Choose a strong password (at least 8 characters)',
+      'new_password': 'New Password',
+      'confirm_password': 'Confirm Password',
+      'reset_password_button': 'Reset Password',
+      'password_reset_success': 'Password reset successful! You can now login.',
+      'invalid_expired_code':
+          'Invalid or expired code. Please check and try again.',
+      'too_many_reset_requests':
+          'Too many requests. Please wait an hour before trying again.',
+      'cancel_reset_title': 'Cancel password reset?',
+      'cancel_reset_message': 'Your progress will be lost.',
+      'stay': 'Stay',
+      'leave': 'Leave',
+      // Password validation errors
+      'password_requirements': 'Password requirements:',
+      'password_too_short': 'Password must be at least 8 characters',
+      'password_too_common': 'This password is too common',
+      'password_entirely_numeric': 'Password cannot be entirely numeric',
+      'password_needs_uppercase':
+          'Password must contain at least one uppercase letter',
+      'password_needs_lowercase':
+          'Password must contain at least one lowercase letter',
+      'password_needs_number': 'Password must contain at least one number',
+      'password_needs_special':
+          'Password must contain at least one special character',
+      'passwords_do_not_match': 'Passwords do not match',
+      'password_required_field': 'Password is required',
     };
     const am = {
       'home': 'መነሻ',
@@ -381,6 +427,7 @@ class LocalizationController extends ChangeNotifier {
       'profile_update_success': 'መገለጫ ተዘምኗል',
       'profile_update_error': 'መገለጫ ማዘመን አልተቻለም',
       // Email verification
+      'email_verified_banner': 'ኢሜል ተረጋግጧል',
       'email_not_verified_banner': 'ኢሜልዎ አልተረጋገጠም። አንዳንድ ተግባሮች ሊገደቡ ይችላሉ።',
       'verify_now': 'አሁን ተረጋግጥ',
       'verification_email_sent': 'የማረጋገጫ ኢሜል ተልኳል። እባክዎ መልዕክት ሳጥኑን ይመልከቱ።',
@@ -398,6 +445,42 @@ class LocalizationController extends ChangeNotifier {
       'forgot_password': 'ፓስዎርድ ረስተዋል?',
       'password_reset_email_sent_generic':
           'ተረጋገጠ ኢሜል ያለው መለያ ካለ የመመለሻ አገናኝ ተልኳል።',
+      // Password reset flow
+      'reset_password': 'ፓስዎርድ ዳግም አስጀምር',
+      'enter_email_address': 'የኢሜል አድራሻዎን ያስገቡ',
+      'send_code_instruction': 'ፓስዎርድዎን ለመቀየር 6-አሃዝ ኮድ እንልክልዎታለን',
+      'send_code': 'ኮድ ላክ',
+      'check_your_email': 'ኢሜልዎን ይመልከቱ',
+      'code_sent_to': 'ለዚህ ኢሜል መለያ ካለ 6-አሃዝ ኮድ ይደርስዎታል።',
+      'code_not_received': 'ኮድ አልደረሰዎትም? ኢሜሉ ላይመዘገብ ይችላል።',
+      'check_spam_folder': '💡 ምክር፡ የስፓም/ጃንክ አቃፊዎን ይመልከቱ',
+      'enter_6_digit_code': 'ከኢሜልዎ የተላከውን 6-አሃዝ ኮድ ያስገቡ',
+      'code_label': '6-አሃዝ ኮድ',
+      'continue_button': 'ቀጥል',
+      'try_again': 'ኮድ አልደረሰዎትም? እንደገና ይሞክሩ',
+      'create_new_password': 'አዲስ ፓስዎርድ ይፍጠሩ',
+      'password_requirements_hint': 'ጠንካራ ፓስዎርድ ይምረጡ (ቢያንስ 8 ቁምፊዎች)',
+      'new_password': 'አዲስ ፓስዎርድ',
+      'confirm_password': 'ፓስዎርድ አረጋግጥ',
+      'reset_password_button': 'ፓስዎርድ ዳግም አስጀምር',
+      'password_reset_success': 'ፓስዎርድ በተሳካ ሁኔታ ተቀይሯል! አሁን መግባት ይችላሉ።',
+      'invalid_expired_code': 'ልክ ያልሆነ ወይም ጊዜው ያለፈ ኮድ። እባክዎ ያረጋግጡና እንደገና ይሞክሩ።',
+      'too_many_reset_requests': 'ብዙ ጥያቄዎች። እባክዎ አንድ ሰዓት ቆይተው ይሞክሩ።',
+      'cancel_reset_title': 'የፓስዎርድ ዳግም ማስጀመር ይሰረዝ?',
+      'cancel_reset_message': 'ያደረጉት እድገት ይጠፋል።',
+      'stay': 'ቆይ',
+      'leave': 'ውጣ',
+      // Password validation errors
+      'password_requirements': 'የፓስዎርድ መስፈርቶች፡',
+      'password_too_short': 'ፓስዎርድ ቢያንስ 8 ቁምፊዎች መሆን አለበት',
+      'password_too_common': 'ይህ ፓስዎርድ በጣም የተለመደ ነው',
+      'password_entirely_numeric': 'ፓስዎርድ ሙሉ በሙሉ ቁጥር መሆን አይችልም',
+      'password_needs_uppercase': 'ፓስዎርድ ቢያንስ አንድ ትልቅ ፊደል መያዝ አለበት',
+      'password_needs_lowercase': 'ፓስዎርድ ቢያንስ አንድ ትንሽ ፊደል መያዝ አለበት',
+      'password_needs_number': 'ፓስዎርድ ቢያንስ አንድ ቁጥር መያዝ አለበት',
+      'password_needs_special': 'ፓስዎርድ ቢያንስ አንድ ልዩ ቁምፊ መያዝ አለበት',
+      'passwords_do_not_match': 'ፓስዎርዶች አይዛመዱም',
+      'password_required_field': 'ፓስዎርድ ያስፈልጋል',
     };
     const om = {
       'home': 'Mana',
@@ -537,6 +620,7 @@ class LocalizationController extends ChangeNotifier {
       'profile_update_success': 'Profaayiliin haaromfame',
       'profile_update_error': 'Haaromsuu hin milkoofne',
       // Email verification
+      'email_verified_banner': 'Imeeliin mirkanaaʼe',
       'email_not_verified_banner':
           'Imeelli kee hin mirkanoofne. Amaloota muraasni ni daangeffamu.',
       'verify_now': 'Amma mirkaneessi',
@@ -564,6 +648,55 @@ class LocalizationController extends ChangeNotifier {
       'forgot_password': 'Jecha iccitii dagatte?',
       'password_reset_email_sent_generic':
           'Akaawuntiin imeelii mirkanaaʼe qabu yoo jiraate, qunnamtiin haaromsuu ergameera.',
+      // Password reset flow
+      'reset_password': 'Jecha Iccitii Haaromsi',
+      'enter_email_address': 'Teessoo imeelii kee galchi',
+      'send_code_instruction':
+          'Jecha iccitii kee haaromsuuf lakkofsa 6 si ergina',
+      'send_code': 'Lakkofsa Ergi',
+      'check_your_email': 'Imeelii kee ilaali',
+      'code_sent_to':
+          'Akaawuntiin imeelii kanaaf yoo jiraate, lakkofsa 6 ni argatta.',
+      'code_not_received':
+          'Lakkofsi hin arganne? Imeelichi hin galmaaʼin taʼa.',
+      'check_spam_folder': '💡 Yaada: Sanduuqa spam/junk kee ilaali',
+      'enter_6_digit_code': 'Lakkofsa 6 imeelii irraa galchi',
+      'code_label': 'Lakkofsa 6',
+      'continue_button': 'Itti Fufi',
+      'try_again': 'Lakkofsi hin arganne? Irra deebiʼi yaali',
+      'create_new_password': 'Jecha iccitii haaraa uumi',
+      'password_requirements_hint':
+          'Jecha iccitii cimaa filadhu (yoo xiqqaate qubee 8)',
+      'new_password': 'Jecha Iccitii Haaraa',
+      'confirm_password': 'Jecha Iccitii Mirkaneessi',
+      'reset_password_button': 'Jecha Iccitii Haaromsi',
+      'password_reset_success':
+          'Jecha iccitii milkaaʼinaan haaromfame! Amma seenuu dandeessa.',
+      'invalid_expired_code':
+          'Lakkofsi sirrii miti ykn yeroon isaa darbe. Mee irra deebiʼi yaali.',
+      'too_many_reset_requests':
+          'Gaaffii baayʼee. Saʼaatii tokko eegee irra deebiʼi yaali.',
+      'cancel_reset_title': 'Haaromsuu jecha iccitii haquu?',
+      'cancel_reset_message': 'Adeemsi kee ni bada.',
+      'stay': 'Turi',
+      'leave': 'Baʼi',
+      // Password validation errors
+      'password_requirements': 'Ulaagaalee jecha iccitii:',
+      'password_too_short': 'Jecha iccitii yoo xiqqaate qubee 8 qabaachuu qaba',
+      'password_too_common': 'Jecha iccitiin kun baayʼee beekamaa dha',
+      'password_entirely_numeric':
+          'Jecha iccitii guutummaatti lakkoofsaa taʼuu hin dandaʼu',
+      'password_needs_uppercase':
+          'Jecha iccitii yoo xiqqaate qubee guddaa tokko qabaachuu qaba',
+      'password_needs_lowercase':
+          'Jecha iccitii yoo xiqqaate qubee xiqqaa tokko qabaachuu qaba',
+      'password_needs_number':
+          'Jecha iccitii yoo xiqqaate lakkofsa tokko qabaachuu qaba',
+      'password_needs_special':
+          'Jecha iccitii yoo xiqqaate mallattoo addaa tokko qabaachuu qaba',
+      'passwords_do_not_match': 'Jechoonni iccitii wal hin simatan',
+      'password_required_field': 'Jecha iccitii barbaachisaa dha',
+      'hide_empty_channels': 'Kanaalota duwwaa dhoksi',
     };
     final dict = _lang == AppLanguage.en
         ? en
