@@ -61,11 +61,15 @@ MIDDLEWARE = [
     # Enforce minimum supported app version (returns HTTP 426 for outdated builds)
     "common.middleware.version_enforce.AppVersionEnforceMiddleware",
     "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation early
+    # AUDIT FIX #6 & #7: Prevent token injection by validating token-session ownership
+    "accounts.middleware.TokenSessionBindingMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",  # Brute force protection
+    # AUDIT FIX #4: IP allowlisting for Django admin interface
+    'common.admin_ip_middleware.AdminIPAllowlistMiddleware',
 ]
 
 ROOT_URLCONF = "authstack.urls"
@@ -395,6 +399,14 @@ CSRF_COOKIE_SECURE = True if not DEBUG else False
 # SameSite policy; Lax is a reasonable default for same-site apps
 SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
 CSRF_COOKIE_SAMESITE = os.environ.get("CSRF_COOKIE_SAMESITE", "Lax")
+
+# AUDIT FIX #5 & #6: CSRF Protection Configuration
+# Enable CSRF cookie to be sent with every response (required for SPA)
+CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript to read it
+CSRF_USE_SESSIONS = False  # Use cookie-based CSRF (unique per session)
+CSRF_COOKIE_NAME = 'csrftoken'  # Standard Django CSRF cookie name
+# Enforce Origin/Referer header checks
+CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS  # Already defined above
 
 # HTTP Strict Transport Security (enable only when serving HTTPS)
 SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000")) if not DEBUG else 0

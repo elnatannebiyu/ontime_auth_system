@@ -698,7 +698,7 @@ class UserWriteView(APIView):
         return Response({"ok": True, "action": "Would write something"})
 
 
-@method_decorator(csrf_exempt, name='dispatch')
+# AUDIT FIX #5: Removed csrf_exempt to enable CSRF protection on registration
 @method_decorator(ratelimit(key='ip', rate=('30/h' if settings.DEBUG else '3/h'), method='POST'), name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]

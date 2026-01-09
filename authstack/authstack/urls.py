@@ -32,8 +32,12 @@ if get_schema_view and openapi:
 else:
     schema_view = None
 
+# AUDIT FIX #4: Obscure admin URL to reduce attack surface
+# Set via environment variable ADMIN_URL_PATH (default: secret-admin-panel)
+ADMIN_URL_PATH = os.environ.get('ADMIN_URL_PATH', 'secret-admin-panel')
+
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(f"{ADMIN_URL_PATH}/", admin.site.urls),
     path("api/", include("accounts.urls")),
     path("api/channels/", include("onchannels.urls")),
     path("api/auth/otp/", include("otp_auth.urls")),
