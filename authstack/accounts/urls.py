@@ -10,6 +10,7 @@ from .views import (
     EnablePasswordView,
     DisablePasswordView,
     RequestPasswordResetView,
+    VerifyPasswordResetCodeView,
     ConfirmPasswordResetView,
     DeleteMeView,
     AdminOnlyView,
@@ -76,5 +77,6 @@ urlpatterns = [
     path('sessions/admin/revoke/<uuid:session_id>/', AdminSessionRevokeView.as_view(), name='admin_session_revoke'),
     # Password reset (anonymous)
     path('password-reset/request/', RequestPasswordResetView.as_view(), name='password_reset_request'),
+    path('password-reset/verify/', VerifyPasswordResetCodeView.as_view(), name='password_reset_verify'),
     path('password-reset/confirm/', ConfirmPasswordResetView.as_view(), name='password_reset_confirm'),
 ]

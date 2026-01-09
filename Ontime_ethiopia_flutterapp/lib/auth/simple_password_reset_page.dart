@@ -82,9 +82,45 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
     }
 
     setState(() {
-      _step = 3;
+      _loading = true;
       _error = null;
     });
+
+    try {
+      // Verify OTP with backend before navigating to password step
+      final res = await _client.post('/password-reset/verify/', data: {
+        'token': otp,
+      });
+
+      final data = res.data as Map;
+      final isValid = data['valid'] == true;
+
+      if (isValid) {
+        // OTP is valid, proceed to password step
+        if (mounted) {
+          setState(() {
+            _step = 3;
+            _loading = false;
+          });
+        }
+      } else {
+        // Should not happen if backend returns 400 for invalid
+        if (mounted) {
+          setState(() {
+            _error = 'Invalid code. Please try again.';
+            _loading = false;
+          });
+        }
+      }
+    } catch (e) {
+      // Backend returned error (invalid or expired code)
+      if (mounted) {
+        setState(() {
+          _error = 'Invalid or expired code. Please check and try again.';
+          _loading = false;
+        });
+      }
+    }
   }
 
   Future<void> _resetPassword() async {
@@ -299,8 +335,13 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          'We sent a 6-digit code to ${_emailController.text}',
+          'If an account exists for ${_emailController.text}, you\'ll receive a 6-digit code.',
           style: const TextStyle(color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Didn\'t receive a code? The email may not be registered.',
+          style: TextStyle(color: Colors.orange, fontSize: 12),
         ),
         const SizedBox(height: 24),
         TextField(

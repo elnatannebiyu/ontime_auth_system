@@ -57,8 +57,14 @@ class AuthApi {
     final data = res.data as Map;
     final access = data['access'] as String?;
     if (access == null) {
+      // Preserve backend error details instead of generic message
+      final detail = data['detail']?.toString() ?? 'Login failed';
+      final error = data['error']?.toString();
       throw DioException(
-          requestOptions: res.requestOptions, message: 'No access token');
+        requestOptions: res.requestOptions,
+        response: res,
+        message: error ?? detail,
+      );
     }
     _client.setAccessToken(access);
     return Tokens(access: access, refresh: null);

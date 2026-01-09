@@ -1430,6 +1430,45 @@ class RequestPasswordResetView(APIView):
         )
 
 
+class VerifyPasswordResetCodeView(APIView):
+    """Verify a password reset OTP code without consuming it.
+    
+    This allows the mobile app to validate the code before navigating
+    to the password entry screen, improving UX.
+    """
+    
+    permission_classes = [AllowAny]
+    
+    @swagger_auto_schema(
+        operation_id="password_reset_verify_code",
+        tags=["Auth"],
+    )
+    def post(self, request):
+        token_str = (request.data.get("token") or "").strip()
+        
+        if not token_str:
+            return Response(
+                {"detail": "token is required.", "valid": False},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        now = timezone.now()
+        try:
+            # Check if token exists and is valid (but don't mark as used)
+            ActionToken.objects.get(
+                token=token_str,
+                purpose=ActionToken.PURPOSE_RESET_PASSWORD,
+                used=False,
+                expires_at__gt=now,
+            )
+            return Response({"detail": "Code is valid.", "valid": True}, status=status.HTTP_200_OK)
+        except ActionToken.DoesNotExist:
+            return Response(
+                {"detail": "Invalid or expired code.", "valid": False},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
 class ConfirmPasswordResetView(APIView):
     """Confirm a password reset using a one-time token.
 
