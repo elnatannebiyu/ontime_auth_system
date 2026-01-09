@@ -211,23 +211,45 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             client_ip = _get_client_ip(request)
 
             # Try to find existing session for this device and update it, or create new
-            session, created = UserSession.objects.update_or_create(
-                user=self.user,
-                device_id=device_id,
-                defaults={
-                    'device_name': request.META.get('HTTP_X_DEVICE_NAME', ''),
-                    'device_type': request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
-                    'os_name': os_name,
-                    'os_version': os_version,
-                    'ip_address': client_ip,
-                    'user_agent': ua,
-                    'refresh_token_jti': jti,
-                    'access_token_jti': access_token_jti,
-                    'expires_at': timezone.now() + timedelta(days=7),
-                    'is_active': True,  # Reactivate if it was revoked
-                    'last_activity': timezone.now()
-                }
-            )
+            # Handle edge case where multiple sessions exist for same device_id
+            try:
+                session, created = UserSession.objects.update_or_create(
+                    user=self.user,
+                    device_id=device_id,
+                    defaults={
+                        'device_name': request.META.get('HTTP_X_DEVICE_NAME', ''),
+                        'device_type': request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
+                        'os_name': os_name,
+                        'os_version': os_version,
+                        'ip_address': client_ip,
+                        'user_agent': ua,
+                        'refresh_token_jti': jti,
+                        'access_token_jti': access_token_jti,
+                        'expires_at': timezone.now() + timedelta(days=7),
+                        'is_active': True,
+                        'last_activity': timezone.now()
+                    }
+                )
+            except UserSession.MultipleObjectsReturned:
+                # Multiple sessions exist for this device - use most recent and delete others
+                sessions = UserSession.objects.filter(user=self.user, device_id=device_id).order_by('-last_activity')
+                session = sessions.first()
+                # Update the most recent session
+                session.device_name = request.META.get('HTTP_X_DEVICE_NAME', '')
+                session.device_type = request.META.get('HTTP_X_DEVICE_TYPE', 'unknown')
+                session.os_name = os_name
+                session.os_version = os_version
+                session.ip_address = client_ip
+                session.user_agent = ua
+                session.refresh_token_jti = jti
+                session.access_token_jti = access_token_jti
+                session.expires_at = timezone.now() + timedelta(days=7)
+                session.is_active = True
+                session.last_activity = timezone.now()
+                session.save()
+                # Delete duplicates
+                sessions.exclude(id=session.id).delete()
+                created = False
             
             # AUDIT FIX: Enforce session concurrency limit per user
             # Automatically revoke oldest sessions when limit exceeded
