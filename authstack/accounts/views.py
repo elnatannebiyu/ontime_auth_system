@@ -87,7 +87,7 @@ class RegisterThrottle(AnonRateThrottle):
     rate = '30/hour' if settings.DEBUG else '3/hour'
     scope = 'register'
 
-@method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='dispatch')
+@method_decorator(ratelimit(key='ip', rate='5/m', method='POST', block=False), name='dispatch')
 class TokenObtainPairWithCookieView(TokenObtainPairView):
     """Login endpoint that returns JWT tokens and sets refresh token in httpOnly cookie"""
     throttle_classes = [LoginThrottle]
@@ -428,7 +428,7 @@ class MeView(APIView):
         return Response(MeSerializer(user, context={"request": request}).data)
 
 
-@method_decorator(ratelimit(key='user', rate='3/h', method='POST'), name='dispatch')
+@method_decorator(ratelimit(key='user', rate='3/h', method='POST', block=False), name='dispatch')
 class RequestEmailVerificationView(APIView):
     """Send a verification email with a one-time token to the current user."""
 
@@ -699,7 +699,7 @@ class UserWriteView(APIView):
 
 
 # AUDIT FIX #5: Removed csrf_exempt to enable CSRF protection on registration
-@method_decorator(ratelimit(key='ip', rate=('30/h' if settings.DEBUG else '3/h'), method='POST'), name='dispatch')
+@method_decorator(ratelimit(key='ip', rate=('30/h' if settings.DEBUG else '3/h'), method='POST', block=False), name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [RegisterThrottle]
