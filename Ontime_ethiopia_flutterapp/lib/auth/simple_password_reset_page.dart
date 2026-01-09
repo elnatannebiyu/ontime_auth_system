@@ -182,6 +182,26 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
           if (mounted) Navigator.of(context).pop();
         });
       }
+    } on DioException catch (e) {
+      if (mounted) {
+        String errorMsg = 'Invalid or expired code. Please try again.';
+
+        // Parse password validation errors
+        final data = e.response?.data;
+        if (data is Map) {
+          if (data['errors'] is List) {
+            final errors = (data['errors'] as List).cast<String>();
+            errorMsg = 'Password requirements:\n• ' + errors.join('\n• ');
+          } else if (data['detail'] is String) {
+            errorMsg = data['detail'] as String;
+          }
+        }
+
+        setState(() {
+          _error = errorMsg;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -194,57 +214,83 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Progress indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildStepIndicator(1, 'Email'),
-                  _buildStepLine(1),
-                  _buildStepIndicator(2, 'Code'),
-                  _buildStepLine(2),
-                  _buildStepIndicator(3, 'Password'),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Step content
-              if (_step == 1) _buildEmailStep(),
-              if (_step == 2) _buildOtpStep(),
-              if (_step == 3) _buildPasswordStep(),
-
-              const SizedBox(height: 24),
-
-              // Error message
-              if (_error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red.shade700),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(_error!,
-                            style: TextStyle(color: Colors.red.shade700)),
-                      ),
-                    ],
-                  ),
+    return WillPopScope(
+      onWillPop: () async {
+        // Confirm before leaving if user is in the middle of the flow
+        if (_step > 1 && !_loading) {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Cancel password reset?'),
+              content: const Text('Your progress will be lost.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Stay'),
                 ),
-            ],
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Leave'),
+                ),
+              ],
+            ),
+          );
+          return confirm ?? false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Reset Password'),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Progress indicator
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildStepIndicator(1, 'Email'),
+                    _buildStepLine(1),
+                    _buildStepIndicator(2, 'Code'),
+                    _buildStepLine(2),
+                    _buildStepIndicator(3, 'Password'),
+                  ],
+                ),
+                const SizedBox(height: 32),
+
+                // Step content
+                if (_step == 1) _buildEmailStep(),
+                if (_step == 2) _buildOtpStep(),
+                if (_step == 3) _buildPasswordStep(),
+
+                const SizedBox(height: 24),
+
+                // Error message
+                if (_error != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(_error!,
+                              style: TextStyle(color: Colors.red.shade700)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -358,6 +404,12 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
         const Text(
           'Didn\'t receive a code? The email may not be registered.',
           style: TextStyle(color: Colors.orange, fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '💡 Tip: Check your spam/junk folder',
+          style: TextStyle(
+              color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 24),
         TextField(
