@@ -21,6 +21,16 @@ export const setAccessToken = (t: string | null) => {
 };
 export const getAccessToken = () => accessToken;
 
+// AUDIT FIX #5: CSRF Token Helper
+const getCsrfToken = (): string | null => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; csrftoken=`);
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() || null;
+  }
+  return null;
+};
+
 api.interceptors.request.use((config) => {
   config.headers = config.headers || {};
   // Always send tenant header (required by backend middleware)
@@ -28,6 +38,16 @@ api.interceptors.request.use((config) => {
   if (accessToken) {
     (config.headers as any)["Authorization"] = `Bearer ${accessToken}`;
   }
+  
+  // AUDIT FIX #5: Include CSRF token for state-changing requests
+  const method = config.method?.toUpperCase();
+  if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      (config.headers as any)["X-CSRFToken"] = csrfToken;
+    }
+  }
+  
   return config;
 });
 
