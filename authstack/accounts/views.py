@@ -1322,12 +1322,15 @@ class DisablePasswordView(APIView):
         return res
 
 
+@method_decorator(ratelimit(key='ip', rate='3/h', method='POST'), name='dispatch')
 class RequestPasswordResetView(APIView):
     """Initiate a password reset via email.
 
     Accepts an email address and, if a matching user exists, sends a one-time
     token that can be used to set a new password. The response is always 200
     for privacy (no user enumeration).
+    
+    Rate limited to 3 requests/hour per IP to prevent email bombing.
     """
 
     permission_classes = [AllowAny]
@@ -1337,6 +1340,13 @@ class RequestPasswordResetView(APIView):
         tags=["Auth"],
     )
     def post(self, request):
+        # Check rate limit
+        if getattr(request, "limited", False):
+            return Response(
+                {"detail": "Too many password reset requests. Please wait before trying again."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        
         email = (request.data.get("email") or "").strip().lower()
         if not email:
             return Response({"detail": "email is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1346,6 +1356,14 @@ class RequestPasswordResetView(APIView):
         except User.DoesNotExist:
             # Do not leak whether the email exists
             return Response({"detail": "If an account exists for this email, a reset link has been sent."})
+        
+        # Prevent password reset for social-only accounts (no password set)
+        if not user.has_usable_password():
+            # Return generic message to avoid user enumeration
+            return Response(
+                {"detail": "If an account exists for this email, a reset link has been sent."},
+                status=status.HTTP_200_OK,
+            )
 
         # Only allow password reset for accounts whose email has been verified.
         # For unverified emails we respond with the same generic message but do
@@ -1367,32 +1385,27 @@ class RequestPasswordResetView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        # Create a one-time token valid for 1 hour
-        import secrets
+        # Create a 6-digit OTP valid for 15 minutes (simpler for mobile UX)
+        import random
 
-        token_str = secrets.token_urlsafe(48)
+        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
         now = timezone.now()
-        expires_at = now + timezone.timedelta(hours=1)
+        expires_at = now + timezone.timedelta(minutes=15)
         ActionToken.objects.create(
             user=user,
             purpose=ActionToken.PURPOSE_RESET_PASSWORD,
-            token=token_str,
+            token=otp_code,
             expires_at=expires_at,
         )
 
-        reset_path = reverse("password_reset_confirm")
-        reset_url = request.build_absolute_uri(f"{reset_path}?token={token_str}")
-
-        subject = "Reset your Ontime account password"
+        subject = "Reset your Ontime password"
         message = (
             "Hello,\n\n"
-            "We received a request to reset the password for your Ontime account. "
-            "If you made this request, you can reset your password by clicking the link below "
-            "or by entering this code in the app's reset password screen.\n\n"
-            f"Reset link: {reset_url}\n"
-            f"Code: {token_str}\n\n"
+            "We received a request to reset your Ontime account password.\n\n"
+            f"Your password reset code is: {otp_code}\n\n"
+            "Enter this code in the app to reset your password.\n\n"
             "If you did not request this, you can safely ignore this email. "
-            "This link and code will expire in 1 hour."
+            "This code will expire in 15 minutes."
         )
 
         try:
