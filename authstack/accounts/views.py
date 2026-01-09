@@ -660,11 +660,22 @@ class AdminOnlyView(APIView):
 
 
 class UserWriteView(APIView):
-    """Read allowed to any authenticated user; write requires 'auth.change_user'."""
-    permission_classes = [ReadOnlyOrPerm]
+    """AUDIT FIX: Enforce proper RBAC on /api/users/ endpoint.
+    
+    GET requires 'auth.view_user' permission (not just authentication).
+    POST/PUT/DELETE require 'auth.change_user' permission.
+    This fixes the broken access control vulnerability where frontend restrictions
+    were bypassed via direct API calls.
+    """
+    permission_classes = [DjangoPermissionRequired]
+    
     def get_permissions(self):
         p = super().get_permissions()[0]
-        p.required_perm = "auth.change_user"
+        # Require view permission for GET, change permission for writes
+        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
+            p.required_perm = "auth.view_user"
+        else:
+            p.required_perm = "auth.change_user"
         return [p]
 
     @swagger_auto_schema(
@@ -673,6 +684,7 @@ class UserWriteView(APIView):
         tags=["Auth"],
     )
     def get(self, request):
+        # Permission check is enforced by DjangoPermissionRequired above
         users = list(User.objects.values("id", "username", "email")[:25])
         return Response({"results": users})
 

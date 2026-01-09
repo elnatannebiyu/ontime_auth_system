@@ -229,6 +229,30 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                 }
             )
             
+            # AUDIT FIX: Enforce session concurrency limit per user
+            # Automatically revoke oldest sessions when limit exceeded
+            from django.conf import settings
+            max_sessions = getattr(settings, 'MAX_CONCURRENT_SESSIONS', 5)
+            if max_sessions > 0:
+                active_sessions = UserSession.objects.filter(
+                    user=self.user,
+                    is_active=True
+                ).order_by('-last_activity')
+                
+                if active_sessions.count() > max_sessions:
+                    # Revoke oldest sessions beyond the limit
+                    sessions_to_revoke = active_sessions[max_sessions:]
+                    for old_session in sessions_to_revoke:
+                        old_session.revoke('session_limit_exceeded')
+                        # Also revoke in new backend
+                        try:
+                            rs = RefreshSession.objects.get(id=old_session.id)
+                            rs.revoked_at = timezone.now()
+                            rs.revoke_reason = 'session_limit_exceeded'
+                            rs.save()
+                        except RefreshSession.DoesNotExist:
+                            pass
+            
             # Store session ID in token
             refresh_token['session_id'] = str(session.id)
             # Also embed session_id into the access token for middleware checks

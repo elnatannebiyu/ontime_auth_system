@@ -267,6 +267,12 @@ SIMPLE_JWT = {
 REFRESH_COOKIE_NAME = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/token/refresh/"
 
+# AUDIT FIX: Session concurrency enforcement (Risk #2: Unrestricted Concurrent Sessions)
+# Maximum number of active sessions allowed per user account.
+# When a user logs in and exceeds this limit, the oldest sessions are automatically revoked.
+# Set to 0 to disable limit (not recommended for production).
+MAX_CONCURRENT_SESSIONS = int(os.environ.get("MAX_CONCURRENT_SESSIONS", "5"))
+
 # YouTube API key (set via environment)
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
