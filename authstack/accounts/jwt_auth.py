@@ -127,8 +127,13 @@ class TokenVersionMixin:
             user = (User.objects.filter(username__iexact=username).first()
                     or User.objects.filter(email__iexact=username).first())
             if user is not None and not user.has_usable_password():
-                # Distinct signal for social-only accounts
-                raise AuthenticationFailed('password_auth_not_set')
+                # Distinct signal for social-only accounts - use dict for structured error
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'detail': 'This account uses social login only.',
+                    'error': 'password_auth_not_set',
+                    'hint': 'Use Google sign-in or enable password in app settings.'
+                })
             # For all other credential failures, return a consistent generic message
             raise AuthenticationFailed('invalid username and password') from exc
         

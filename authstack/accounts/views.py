@@ -1358,8 +1358,10 @@ class RequestPasswordResetView(APIView):
             return Response({"detail": "If an account exists for this email, a reset link has been sent."})
         
         # Prevent password reset for social-only accounts (no password set)
+        # These accounts should use "Enable Password" feature in app settings instead
         if not user.has_usable_password():
             # Return generic message to avoid user enumeration
+            # (Don't reveal that this is a social-only account)
             return Response(
                 {"detail": "If an account exists for this email, a reset link has been sent."},
                 status=status.HTTP_200_OK,
