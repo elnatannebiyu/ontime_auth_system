@@ -733,14 +733,32 @@ class RegisterView(APIView):
         from .models import Membership
         membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
 
-        # Ensure default role 'Viewer' exists and assign to new member
+        # AUDIT FIX #8: Ensure default role 'Viewer' exists with restricted permissions
         viewer, created_viewer = Group.objects.get_or_create(name="Viewer")
-        # Ensure Viewer has baseline read-only permissions (all 'view_*')
+        # LOW RISK FIX: Only grant safe, non-sensitive view permissions to Viewer role
+        # Exclude sensitive models: auth.User, admin.LogEntry, sessions.Session, etc.
         try:
             from django.contrib.auth.models import Permission
-            view_perms = Permission.objects.filter(codename__startswith='view_')
-            # Add any missing view_* perms (idempotent)
-            viewer.permissions.add(*view_perms)
+            from django.contrib.contenttypes.models import ContentType
+            
+            # Define safe apps/models that Viewers can access
+            safe_apps = ['onchannels', 'series', 'live']  # App-specific content only
+            
+            # Get content types for safe apps only
+            safe_content_types = ContentType.objects.filter(app_label__in=safe_apps)
+            
+            # Get view permissions for safe models only
+            safe_view_perms = Permission.objects.filter(
+                content_type__in=safe_content_types,
+                codename__startswith='view_'
+            )
+            
+            # Clear existing permissions and set only safe ones
+            if created_viewer:
+                viewer.permissions.set(safe_view_perms)
+            else:
+                # For existing Viewer role, only add safe perms (don't remove existing)
+                viewer.permissions.add(*safe_view_perms)
         except Exception:
             # Do not block registration if permission assignment fails
             pass
@@ -940,10 +958,19 @@ class AdminUsersView(APIView):
         from .models import Membership
         membership, _ = Membership.objects.get_or_create(user=user, tenant=tenant)
         try:
+            # AUDIT FIX #8: Restrict Viewer role to safe permissions only
             viewer, _ = Group.objects.get_or_create(name='Viewer')
             from django.contrib.auth.models import Permission
-            view_perms = Permission.objects.filter(codename__startswith='view_')
-            viewer.permissions.add(*view_perms)
+            from django.contrib.contenttypes.models import ContentType
+            
+            # Only grant safe app permissions (exclude auth, admin, sessions)
+            safe_apps = ['onchannels', 'series', 'live']
+            safe_content_types = ContentType.objects.filter(app_label__in=safe_apps)
+            safe_view_perms = Permission.objects.filter(
+                content_type__in=safe_content_types,
+                codename__startswith='view_'
+            )
+            viewer.permissions.add(*safe_view_perms)
             membership.roles.add(viewer)
         except Exception:
             pass
