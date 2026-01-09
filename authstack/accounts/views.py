@@ -1322,7 +1322,7 @@ class DisablePasswordView(APIView):
         return res
 
 
-@method_decorator(ratelimit(key='ip', rate='3/h', method='POST'), name='dispatch')
+@method_decorator(ratelimit(key='ip', rate='3/h', method='POST', block=False), name='dispatch')
 class RequestPasswordResetView(APIView):
     """Initiate a password reset via email.
 

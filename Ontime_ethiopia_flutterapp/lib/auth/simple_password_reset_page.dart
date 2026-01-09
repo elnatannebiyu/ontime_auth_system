@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
 import '../api_client.dart';
 
 class SimplePasswordResetPage extends StatefulWidget {
@@ -61,6 +62,21 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
       if (mounted) {
         setState(() {
           _step = 2;
+          _loading = false;
+        });
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        String errorMsg = 'Failed to send code. Please try again.';
+
+        // Handle rate limiting (429)
+        if (e.response?.statusCode == 429) {
+          errorMsg =
+              'Too many requests. Please wait an hour before trying again.';
+        }
+
+        setState(() {
+          _error = errorMsg;
           _loading = false;
         });
       }
