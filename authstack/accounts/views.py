@@ -1401,6 +1401,8 @@ class RequestPasswordResetView(APIView):
         )
 
         subject = "Reset your Ontime password"
+        
+        # Plain text version
         message = (
             "Hello,\n\n"
             "We received a request to reset your Ontime account password.\n\n"
@@ -1409,15 +1411,63 @@ class RequestPasswordResetView(APIView):
             "If you did not request this, you can safely ignore this email. "
             "This code will expire in 15 minutes."
         )
+        
+        # HTML version with easy-to-copy code
+        html_message = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 30px; text-align: center;">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">Reset Your Password</h2>
+                <p style="font-size: 16px; color: #555; margin-bottom: 30px;">
+                    We received a request to reset your Ontime account password.
+                </p>
+                
+                <div style="background-color: white; border: 2px solid #3498db; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;">
+                        Your Reset Code
+                    </p>
+                    <div style="font-size: 42px; font-weight: bold; color: #2c3e50; letter-spacing: 8px; font-family: 'Courier New', monospace; user-select: all;">
+                        {otp_code}
+                    </div>
+                    <p style="font-size: 12px; color: #95a5a6; margin-top: 10px;">
+                        Tap to select and copy
+                    </p>
+                </div>
+                
+                <p style="font-size: 14px; color: #555; margin-top: 30px;">
+                    Enter this code in the app to reset your password.
+                </p>
+                
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin-top: 20px; text-align: left;">
+                    <p style="margin: 0; font-size: 13px; color: #856404;">
+                        <strong>⏱️ This code expires in 15 minutes</strong><br>
+                        If you didn't request this, you can safely ignore this email.
+                    </p>
+                </div>
+            </div>
+            
+            <p style="font-size: 12px; color: #95a5a6; text-align: center; margin-top: 30px;">
+                © 2026 Ontime Ethiopia. All rights reserved.
+            </p>
+        </body>
+        </html>
+        """
 
         try:
-            send_mail(
+            from django.core.mail import EmailMultiAlternatives
+            
+            email_msg = EmailMultiAlternatives(
                 subject,
-                message,
+                message,  # Plain text fallback
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=False,
             )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
         except Exception:
             return Response(
                 {"detail": "Could not send password reset email.", "error": "email_send_failed"},
