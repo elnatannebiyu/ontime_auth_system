@@ -315,9 +315,10 @@ AXES_LOCKOUT_TEMPLATE = None  # Return 403 instead of template
 AXES_VERBOSE = True
 
 # Add axes backend for authentication
+# Custom backend allows login with email OR username
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
-    'django.contrib.auth.backends.ModelBackend',
+    'accounts.backends.EmailOrUsernameBackend',  # Custom backend for email/username login
 ]
 
 # Cache configuration for rate limiting
