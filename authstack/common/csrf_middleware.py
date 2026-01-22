@@ -71,6 +71,17 @@ class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
                     secure=not request.META.get('DEBUG', False),
                     httponly=False,  # Must be readable by JavaScript
                     samesite='Lax',
+                    path='/',
                 )
+                try:
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        "CSRF set-cookie: user_id=%s path=%s token_len=%s",
+                        getattr(getattr(request, 'user', None), 'id', None),
+                        getattr(request, 'path', ''),
+                        len(csrf_token) if csrf_token else 0,
+                    )
+                except Exception:
+                    pass
         
         return super().process_response(request, response)
