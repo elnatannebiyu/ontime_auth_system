@@ -3,6 +3,27 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import UserSession, LoginAttempt, Membership, UserProfile
+try:
+    from axes.handlers.proxy import AxesProxyHandler  # type: ignore
+    def _axes_reset_user(username: str) -> None:
+        AxesProxyHandler.reset(username=username)
+    def _axes_reset_ip(ip: str) -> None:
+        AxesProxyHandler.reset(ip_address=ip)
+except Exception:  # noqa: BLE001
+    try:
+        from axes.helpers import reset as axes_reset  # type: ignore
+        def _axes_reset_user(username: str) -> None:
+            axes_reset(username=username)
+        def _axes_reset_ip(ip: str) -> None:
+            try:
+                axes_reset(ip_address=ip)
+            except TypeError:
+                axes_reset(ip=ip)  # older versions
+    except Exception:  # noqa: BLE001
+        def _axes_reset_user(username: str) -> None:
+            raise ImportError("django-axes reset helper not available")
+        def _axes_reset_ip(ip: str) -> None:
+            raise ImportError("django-axes reset helper not available")
 from common.fcm_sender import send_to_user
 
 @admin.register(UserSession)
@@ -36,12 +57,29 @@ class LoginAttemptAdmin(admin.ModelAdmin):
     search_fields = ('username', 'ip_address')
     readonly_fields = ('username', 'ip_address', 'user_agent', 'success', 
                       'failure_reason', 'timestamp')
+    actions = ['axes_unblock_ips']
     
     def has_add_permission(self, request):
         return False  # Don't allow manual creation
     
     def has_change_permission(self, request, obj=None):
         return False  # Read-only
+
+    def axes_unblock_ips(self, request, queryset):
+        ips = set(q.ip_address for q in queryset if q.ip_address)
+        count = 0
+        errors = 0
+        for ip in ips:
+            try:
+                _axes_reset_ip(ip)
+                count += 1
+            except Exception:
+                errors += 1
+        msg = f"Unblocked {count} IP(s) in Axes"
+        if errors:
+            msg += f"; {errors} error(s)"
+        self.message_user(request, msg)
+    axes_unblock_ips.short_description = "Unblock selected IPs (clear Axes lockouts)"
 
 
 @admin.register(Membership)
@@ -99,7 +137,7 @@ except Exception:
 
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
-    actions = ['send_test_push']
+    actions = ['send_test_push', 'axes_unblock_users']
     inlines = [UserProfileInline]
 
     def send_test_push(self, request, queryset):
@@ -116,3 +154,18 @@ class UserAdmin(DjangoUserAdmin):
                 self.message_user(request, f"Failed to send to user {user.id}: {exc}", level='error')
         self.message_user(request, f"Sent to {total_ok} token(s); failed {total_bad}.")
     send_test_push.short_description = "Send test push to selected users"
+
+    def axes_unblock_users(self, request, queryset):
+        count = 0
+        errors = 0
+        for user in queryset:
+            try:
+                _axes_reset_user(user.get_username())
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+        msg = f"Unblocked {count} user(s) in Axes"
+        if errors:
+            msg += f"; {errors} error(s)"
+        self.message_user(request, msg)
+    axes_unblock_users.short_description = "Unblock selected users (clear Axes lockouts)"
