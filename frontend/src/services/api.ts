@@ -9,17 +9,32 @@ const api = axios.create({
   withCredentials: true,
 });
 
-const ACCESS_KEY = "admin_fe_access";
-let accessToken: string | null = sessionStorage.getItem(ACCESS_KEY);
+let accessToken: string | null = null; // Keep access token in memory only
 let loggedOut = false;
 export const setLoggedOut = (v: boolean) => { loggedOut = v; };
 export const isLoggedOut = () => loggedOut;
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
-  if (t) sessionStorage.setItem(ACCESS_KEY, t);
-  else sessionStorage.removeItem(ACCESS_KEY);
 };
 export const getAccessToken = () => accessToken;
+
+// Stable per-device identifier (safe to persist)
+const DEVICE_KEY = "ontime_device_id";
+const getDeviceId = (): string => {
+  try {
+    let d = localStorage.getItem(DEVICE_KEY);
+    if (!d) {
+      const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+      d = `WEB-${id}`;
+      localStorage.setItem(DEVICE_KEY, d);
+    }
+    return d;
+  } catch {
+    return `WEB-${(navigator?.userAgent || 'UA')}`;
+  }
+};
 
 // AUDIT FIX #5: CSRF Token Helper
 const getCsrfToken = (): string | null => {
@@ -35,6 +50,8 @@ api.interceptors.request.use((config) => {
   config.headers = config.headers || {};
   // Always send tenant header (required by backend middleware)
   (config.headers as any)["X-Tenant-Id"] = TENANT_ID;
+  // Send stable device identifier
+  (config.headers as any)["X-Device-Id"] = getDeviceId();
   if (accessToken) {
     (config.headers as any)["Authorization"] = `Bearer ${accessToken}`;
   }
@@ -88,7 +105,6 @@ api.interceptors.response.use(
       !orig._retry &&
       !isAuthEndpoint &&
       !loggedOut &&
-      !!accessToken &&
       !refreshMissing
     );
     
@@ -109,5 +125,19 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+// Attempt silent bootstrap via refresh cookie to align FE-BE flow on cold loads
+export const bootstrapAuth = async (): Promise<boolean> => {
+  try {
+    const res = await api.post("/token/refresh/", {});
+    const t = res.data?.access as string | undefined;
+    if (t) {
+      setAccessToken(t);
+      setLoggedOut(false);
+      return true;
+    }
+  } catch {}
+  return false;
+};
 
 export default api;

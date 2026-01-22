@@ -26,7 +26,7 @@ import ShortsIngestion from './components/ShortsIngestion';
 import ShortsMetrics from './components/ShortsMetrics';
 import MyProfile from './components/MyProfile';
 import ChannelDetail from './components/ChannelDetail';
-import { getAccessToken, isLoggedOut } from './services/api';
+import { getAccessToken, isLoggedOut, bootstrapAuth } from './services/api';
 import LiveAdmin from './components/LiveAdmin';
 import SeriesAdmin from './components/SeriesAdmin';
 import { AppThemeProvider, useThemeMode } from './theme';
@@ -246,6 +246,16 @@ function App() {
     const onLogout = () => setIsAuthenticated(false);
     window.addEventListener('admin_fe_logout', onLogout);
     return () => window.removeEventListener('admin_fe_logout', onLogout);
+  }, []);
+
+  // Align FE-BE flow on cold loads: try to obtain access via refresh cookie silently
+  useEffect(() => {
+    (async () => {
+      try {
+        const ok = await bootstrapAuth();
+        if (ok) setIsAuthenticated(true);
+      } catch {}
+    })();
   }, []);
 
   const handleLogin = () => {
