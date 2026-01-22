@@ -1,4 +1,5 @@
 from django.conf import settings
+import logging
 import secrets
 from django.contrib.auth.models import User
 from django.contrib.auth.models import Group
@@ -62,6 +63,7 @@ except Exception:
 
 REFRESH_COOKIE_NAME = getattr(settings, "REFRESH_COOKIE_NAME", "refresh_token")
 REFRESH_COOKIE_PATH = getattr(settings, "REFRESH_COOKIE_PATH", "/")
+logger = logging.getLogger(__name__)
 
 
 def set_refresh_cookie(response: Response, refresh: str):
@@ -1299,8 +1301,9 @@ class RequestSecurityOtpView(APIView):
                 html_message=html_message,
                 fail_silently=False,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            # Log but do not fail the endpoint to avoid UX leakage
+            logger.exception("Failed to send security OTP email: %s", exc)
 
         return Response({"detail": "Verification code sent."}, status=status.HTTP_200_OK)
 
@@ -1652,10 +1655,12 @@ class RequestPasswordResetView(APIView):
             )
             email_msg.attach_alternative(html_message, "text/html")
             email_msg.send(fail_silently=False)
-        except Exception:
+        except Exception as exc:
+            # Log the failure but return a generic 200 to avoid user enumeration and 500s
+            logger.exception("Failed to send password reset email to %s: %s", email, exc)
             return Response(
-                {"detail": "Could not send password reset email.", "error": "email_send_failed"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"detail": "If an account exists for this email, a reset link has been sent."},
+                status=status.HTTP_200_OK,
             )
 
         return Response(
