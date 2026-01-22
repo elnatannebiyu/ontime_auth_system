@@ -58,6 +58,162 @@ class _ProfilePageState extends State<ProfilePage> {
     return false;
   }
 
+  Future<void> _changePassword() async {
+    if (!_isEmailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('password_manage_requires_verified_email'))),
+      );
+      return;
+    }
+
+    final cur = TextEditingController();
+    final new1 = TextEditingController();
+    final new2 = TextEditingController();
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(_t('change_password')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: cur,
+                  obscureText: true,
+                  decoration:
+                      const InputDecoration(labelText: 'Current password'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: new1,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: _t('new_password')),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: new2,
+                  obscureText: true,
+                  decoration:
+                      InputDecoration(labelText: _t('confirm_password')),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(_t('cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (new1.text != new2.text || new1.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                          content: Text('Passwords do not match or are empty')),
+                    );
+                    return;
+                  }
+                  Navigator.of(ctx).pop(true);
+                },
+                child: Text(_t('change_password')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // Request OTP for change password
+      await ApiClient().post('/me/request-security-otp/', data: {
+        'purpose': 'change_password',
+      });
+
+      final otpController = TextEditingController();
+      final gotOtp = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(_t('verify_now')),
+              content: TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  labelText: _t('code_label'),
+                  counterText: '',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(_t('cancel')),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(_t('continue_button')),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!gotOtp || otpController.text.trim().length != 6) {
+        throw DioException(
+            requestOptions: RequestOptions(path: '/me/change-password/'),
+            error: 'otp_missing');
+      }
+
+      final resp = await ApiClient().post('/me/change-password/', data: {
+        'current_password': cur.text,
+        'new_password': new1.text,
+        'otp': otpController.text.trim(),
+      });
+
+      if (!mounted) return;
+
+      // Clear token immediately to prevent any race with server-side revocation
+      ApiClient().setAccessToken(null);
+
+      final detail = (resp.data is Map && resp.data['detail'] is String)
+          ? resp.data['detail'] as String
+          : _t('password_status_enabled');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(detail)),
+      );
+
+      await SimpleSessionManager().logout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      String errorMsg = 'Failed to change password';
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data['errors'] is List) {
+          final errors = (data['errors'] as List).cast<String>();
+          errorMsg = 'Password requirements:\n• ${errors.join('\n• ')}';
+        } else if (data['detail'] is String) {
+          errorMsg = data['detail'] as String;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
   bool get _hasPassword {
     final v = _me?['has_password'];
     if (v is bool) return v;
@@ -171,8 +327,47 @@ class _ProfilePageState extends State<ProfilePage> {
       _error = null;
     });
     try {
+      // Step 1: request OTP
+      await ApiClient().post('/me/request-security-otp/', data: {
+        'purpose': 'enable_password',
+      });
+      // Step 2: ask for OTP
+      final otpController = TextEditingController();
+      final gotOtp = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(_t('verify_now')),
+              content: TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  labelText: _t('code_label'),
+                  counterText: '',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(_t('cancel')),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(_t('continue_button')),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!gotOtp || otpController.text.trim().length != 6) {
+        throw DioException(
+            requestOptions: RequestOptions(path: '/me/enable-password/'),
+            error: 'otp_missing');
+      }
+      // Step 3: enable with OTP
       await ApiClient().post('/me/enable-password/', data: {
         'new_password': controller1.text,
+        'otp': otpController.text.trim(),
       });
       if (!mounted) return;
 
@@ -197,7 +392,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (data is Map) {
         if (data['errors'] is List) {
           final errors = (data['errors'] as List).cast<String>();
-          errorMsg = 'Password requirements:\n• ' + errors.join('\n• ');
+          errorMsg = 'Password requirements:\n• ${errors.join('\n• ')}';
         } else if (data['detail'] is String) {
           errorMsg = data['detail'] as String;
         }
@@ -803,6 +998,19 @@ class _ProfilePageState extends State<ProfilePage> {
                                   : _t('enable_password')),
                             ),
                           ),
+                          if (_hasPassword) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 44,
+                              child: OutlinedButton(
+                                onPressed: _loading || !_isEmailVerified
+                                    ? null
+                                    : _changePassword,
+                                child: Text(_t('change_password')),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

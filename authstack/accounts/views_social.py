@@ -173,6 +173,36 @@ def social_login_view(request):
             session = existing_session
         except Exception:
             session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
+
+    # Enforce concurrent session limit (aligns with JWT login path)
+    try:
+        from django.conf import settings as _settings
+        max_sessions = int(getattr(_settings, 'MAX_CONCURRENT_SESSIONS', 5))
+    except Exception:
+        max_sessions = 5
+    if max_sessions > 0:
+        try:
+            # Enforce on new refresh-session backend (user_sessions.Session)
+            active = Session.objects.filter(user=user, revoked_at__isnull=True).order_by('-last_used_at')
+            if active.count() > max_sessions:
+                for old in active[max_sessions:]:
+                    old.revoked_at = _tz.now()
+                    old.revoke_reason = 'session_limit_exceeded'
+                    old.save(update_fields=['revoked_at', 'revoke_reason'])
+        except Exception:
+            pass
+        try:
+            # Also enforce on legacy accounts.UserSession for parity
+            from .models import UserSession as LegacySession
+            legacy_active = LegacySession.objects.filter(user=user, is_active=True).order_by('-last_activity')
+            if legacy_active.count() > max_sessions:
+                for old_l in legacy_active[max_sessions:]:
+                    try:
+                        old_l.revoke('session_limit_exceeded')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     else:
         session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
     

@@ -14,6 +14,9 @@ class ChannelBubbles extends StatelessWidget {
     this.onTapChannel,
   });
 
+  // Cache the last non-empty data set for offline fallback within the session
+  static List<Map<String, String>>? _lastNonEmpty;
+
   Map<String, String>? _authHeadersFor(String url) {
     // Only add headers for our backend origin
     if (!url.startsWith(kApiBase)) return null;
@@ -32,14 +35,20 @@ class ChannelBubbles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Prefer current data; if empty, fall back to last known non-empty set
+    final List<Map<String, String>> data =
+        channels.isNotEmpty ? channels : (_lastNonEmpty ?? const []);
+    if (channels.isNotEmpty) {
+      _lastNonEmpty = channels;
+    }
     return SizedBox(
       height: 90,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: channels.length,
+        itemCount: data.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
-          final item = channels[i];
+          final item = data[i];
           final name = item['name'] ?? '';
           final slug = item['slug'] ?? name;
           final thumb = item['thumbUrl'];

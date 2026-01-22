@@ -170,6 +170,9 @@ class ActionToken(models.Model):
     PURPOSE_VERIFY_EMAIL = "verify_email"
     PURPOSE_CONFIRM_ACCOUNT_DELETE = "confirm_account_delete"
     PURPOSE_RESET_PASSWORD = "reset_password"
+    # Added for OTP gating of sensitive actions
+    PURPOSE_CONFIRM_PASSWORD_CHANGE = "confirm_password_change"
+    PURPOSE_CONFIRM_PASSWORD_ENABLE = "confirm_password_enable"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(

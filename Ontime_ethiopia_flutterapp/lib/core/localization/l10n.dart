@@ -134,8 +134,13 @@ class LocalizationController extends ChangeNotifier {
       'tip_pull_refresh':
           'Tip: Pull to refresh, or check that your device can reach the server.',
       'loading': 'Loading…',
+      'playlists': 'Playlists',
+      'videos': 'Videos',
       'no_playlists': 'No playlists',
       'no_videos': 'No videos',
+      'no_results': 'No results',
+      'search_playlists': 'Search playlists…',
+      'something_went_wrong': 'Something went wrong',
       'refresh_playlists': 'Refresh playlists',
       // Channel details modal
       'channel_details': 'Channel details',
@@ -219,6 +224,7 @@ class LocalizationController extends ChangeNotifier {
       'password_manage_requires_verified_email':
           'Verify your email to manage your password.',
       'enable_password': 'Set password',
+      'change_password': 'Change password',
       'disable_password': 'Disable password',
       'password_enabled_logged_out':
           'Password enabled. You have been logged out from all devices.',
@@ -357,8 +363,13 @@ class LocalizationController extends ChangeNotifier {
       'tenant': 'ተከራይ',
       'tip_pull_refresh': 'መጀመሪያ ለማደስ ይጎትቱ ወይም መሣሪያዎ ሰርቨሩን መድረስ እንደሚችል ያረጋግጡ።',
       'loading': 'በመጫን ላይ…',
+      'playlists': 'ፕሌይሊስቶች',
+      'videos': 'ቪዲዮዎች',
       'no_playlists': 'ፕሌይሊስት የለም',
       'no_videos': 'ቪዲዮዎች የሉም',
+      'no_results': 'ውጤት የለም',
+      'search_playlists': 'ፕሌይሊስቶችን ፈልግ…',
+      'something_went_wrong': 'ነገር ተሳስቷል',
       'refresh_playlists': 'ፕሌይሊስቶችን አድስ',
       // Channel details modal
       'channel_details': 'የቻናል ዝርዝር',
@@ -438,6 +449,7 @@ class LocalizationController extends ChangeNotifier {
       'password_manage_requires_verified_email':
           'ፓስዎርድዎን ለመቆጣጠር መጀመሪያ ኢሜልዎን ያረጋግጡ።',
       'enable_password': 'ፓስዎርድ አቅርብ',
+      'change_password': 'ፓስዎርድ ቀይር',
       'disable_password': 'ፓስዎርድ አቋርጥ',
       'password_enabled_logged_out': 'ፓስዎርድ ተያይዟል። ከሁሉም መሣሪያዎች ወጥተዋል።',
       'password_disabled_logged_out': 'ፓስዎርድ ዘግቷል። ከሁሉም መሣሪያዎች ወጥተዋል።',
@@ -566,10 +578,15 @@ class LocalizationController extends ChangeNotifier {
       'showing_cached': 'Kanaalota kuufaman ni mul’atu.',
       'retry': 'Irra deebi’i',
       'loading': 'Fe’amaa jira…',
+      'playlists': 'Tarree taphataa',
+      'videos': 'Vidiyoo',
       'you_are_offline': 'Al internaatii jirtu',
       'some_actions_offline': 'Hojii muraasni interneetiin hin hojjatu.',
       'no_playlists': 'Tarree taphataa hin jiru',
       'no_videos': 'Vidiyoo hin jiru',
+      'no_results': 'Buʼaa hin jiru',
+      'search_playlists': 'Tarree taphataa barbaadi…',
+      'something_went_wrong': 'Rakkoon uumame',
       'refresh_playlists': 'Taphattoota haaromsu',
       // Channel details modal
       'channel_details': 'Odeeffannoo kanaalaa',
@@ -639,6 +656,7 @@ class LocalizationController extends ChangeNotifier {
       'password_manage_requires_verified_email':
           'Jecha iccitii to’achuuf jalqaba imeelii kee mirkaneessi.',
       'enable_password': 'Jecha iccitii qindeessi',
+      'change_password': 'Jecha iccitii jijjiiri',
       'disable_password': 'Jecha iccitii jalaa buusi',
       'password_enabled_logged_out':
           'Jecha iccitii qindeessite. Meeshaalee hunda irraa baattee jirta.',

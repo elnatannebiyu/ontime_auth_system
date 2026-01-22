@@ -12,8 +12,10 @@ import '../auth/tenant_auth_client.dart';
 import '../channels/channels_page.dart';
 import '../core/localization/l10n.dart';
 import '../features/home/widgets/hero_carousel.dart';
+import '../channels/playlist_grid_sheet.dart';
 import '../features/home/widgets/section_header.dart';
 import '../features/home/widgets/poster_row.dart';
+import '../features/home/widgets/lazy_categories_sections.dart';
 // import '../features/home/widgets/mini_player_bar.dart';
 import '../features/series/series_service.dart';
 import '../features/series/pages/series_seasons_page.dart';
@@ -68,6 +70,11 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   int _unreadCount = 0;
   StreamSubscription<void>? _notifSub;
+  late final ScrollController _scrollController;
+  late final ValueNotifier<String?> _showsCategorySelector;
+  bool _navigatingShow = false;
+  bool _openingShorts = false;
+  bool _openingChannelSheet = false;
 
   // Lightweight language toggle (session only)
   // Localization is now centralized
@@ -93,6 +100,8 @@ class _HomePageState extends State<HomePage> {
     _loadHeroRandom();
     _loadTrendingNew();
     _loadUnreadCount();
+    _scrollController = ScrollController();
+    _showsCategorySelector = ValueNotifier<String?>(null);
     // FCM-based notification stream is temporarily disabled on iOS while
     // Firebase/FCM are not configured.
     if (!Platform.isIOS) {
@@ -123,8 +132,12 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _connSub?.cancel();
     _notifSub?.cancel();
+    _scrollController.dispose();
+    _showsCategorySelector.dispose();
     super.dispose();
   }
+
+  // category lazy loading moved to LazyCategoriesSections widget
 
   Future<void> _loadUnreadCount() async {
     try {
@@ -332,6 +345,11 @@ class _HomePageState extends State<HomePage> {
 
   // Open a show: if single season, go to episodes; else go to seasons list
   Future<void> _openShow(String slug, String title) async {
+    if (_navigatingShow) {
+      debugPrint('[Home] Ignored duplicate tap: openShow($slug)');
+      return;
+    }
+    _navigatingShow = true;
     try {
       final seasons = await _series.getSeasons(slug);
       if (!mounted) return;
@@ -364,8 +382,13 @@ class _HomePageState extends State<HomePage> {
         );
       }
     } catch (_) {
-      // Swallow errors silently; Shows tab handles its own error states.
       if (!mounted) return;
+    } finally {
+      if (mounted) {
+        setState(() => _navigatingShow = false);
+      } else {
+        _navigatingShow = false;
+      }
     }
   }
 
@@ -664,6 +687,7 @@ class _HomePageState extends State<HomePage> {
                           api: widget.api,
                           tenantId: widget.tenantId,
                           localizationController: widget.localizationController,
+                          categorySelector: _showsCategorySelector,
                         ),
                         LivePage(
                           localizationController: widget.localizationController,
@@ -720,6 +744,7 @@ class _HomePageState extends State<HomePage> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -851,16 +876,18 @@ class _HomePageState extends State<HomePage> {
                             );
                           },
                           onTapChannel: (slug) {
-                            // For now, open full ChannelsPage; future: deep-link to slug
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ChannelsPage(
-                                  tenantId: widget.tenantId,
-                                  localizationController:
-                                      widget.localizationController,
-                                ),
+                            if (_openingChannelSheet) return;
+                            _openingChannelSheet = true;
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              showDragHandle: true,
+                              builder: (_) => PlaylistGridSheet(
+                                channelSlug: slug,
                               ),
-                            );
+                            ).whenComplete(() {
+                              _openingChannelSheet = false;
+                            });
                           },
                         ),
                         const SizedBox(height: 12),
@@ -876,7 +903,9 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 8),
                         PosterRow(
                           items: List<Map<String, dynamic>>.generate(
-                              _trendingShows.length, (i) {
+                              _trendingShows.length > 10
+                                  ? 10
+                                  : _trendingShows.length, (i) {
                             final s = _trendingShows[i];
                             return {
                               'title': (s['title'] ?? '').toString(),
@@ -915,17 +944,42 @@ class _HomePageState extends State<HomePage> {
                           }),
                           count: 12,
                           tall: true,
-                          onTap: (m) {
+                          onTap: (m) async {
                             final idx = (m['originalIndex'] ?? 0) as int;
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ShortsPlayerPage(
-                                  videos: _newShorts,
-                                  initialIndex: idx,
-                                  isOffline: _offline,
+                            if (_openingShorts) {
+                              debugPrint(
+                                  '[Home] Ignored duplicate tap: openShorts(index=$idx)');
+                              return;
+                            }
+                            _openingShorts = true;
+                            try {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ShortsPlayerPage(
+                                    videos: _newShorts,
+                                    initialIndex: idx,
+                                    isOffline: _offline,
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _openingShorts = false);
+                              } else {
+                                _openingShorts = false;
+                              }
+                            }
+                          },
+                        ),
+                        LazyCategoriesSections(
+                          series: _series,
+                          localizationController: widget.localizationController,
+                          scrollController: _scrollController,
+                          onOpenShow: (slug, title) => _openShow(slug, title),
+                          onSeeAll: (slug) {
+                            _showsCategorySelector.value = slug;
+                            final tc = DefaultTabController.of(context);
+                            tc.animateTo(1);
                           },
                         ),
                         const SizedBox(

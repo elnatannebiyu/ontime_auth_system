@@ -10,6 +10,8 @@ import '../core/cache/logo_probe_cache.dart';
 import '../core/widgets/offline_banner.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../features/series/mini_player/series_mini_player.dart';
+import 'playlist_grid_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ChannelsPage extends StatefulWidget {
   final String tenantId;
@@ -26,18 +28,11 @@ class _ChannelsPageState extends State<ChannelsPage> {
   bool _loading = true;
   String? _error;
   List<dynamic> _channels = const [];
-  final Map<String, List<dynamic>> _playlistsByChannel = {};
-  final Map<String, List<dynamic>> _videosByPlaylist = {};
-  // In-flight fetch caches to avoid duplicate network calls on rebuilds
-  final Map<String, Future<void>> _playlistsFetching = {};
-  final Set<String> _expandedChannels = <String>{};
   bool _offline = false;
-  // Playlist counts per channel, set when that channel's playlists are fetched
-  final Map<String, int> _playlistCounts = {};
-  bool _hideEmpty = false;
   // Logo availability cache for fallback /logo/ URLs per channel slug
   final Map<String, bool> _logoAvailable = {};
   StreamSubscription<List<ConnectivityResult>>? _connSub;
+  bool _openingPlaylistSheet = false;
 
   // Simple in-memory cache of last successful channels fetch (per app session)
   static List<dynamic> _cachedChannels = const [];
@@ -106,128 +101,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     super.dispose();
   }
 
-  // ---- Channel details modal ----
-
-  void _showChannelPlaylists(String channelSlug, Map<String, dynamic> ch) {
-    final playlists = _playlistsByChannel[channelSlug] ?? const [];
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _channelDisplayName(ch),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: _t('close'),
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (playlists.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Text(_t('no_playlists')),
-                  )
-                else
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: playlists.length,
-                      itemBuilder: (context, index) {
-                        final pl = playlists[index] as Map<String, dynamic>;
-                        final title = (pl['title'] ?? '').toString();
-                        final thumb = _thumbFromMap(pl);
-                        final playlistId = pl['id']?.toString() ?? '';
-                        final videos =
-                            _videosByPlaylist[playlistId] ?? const [];
-                        final isExpanded = videos.isNotEmpty;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              leading: _buildThumb(thumb, size: 40),
-                              title:
-                                  Text(title.isNotEmpty ? title : playlistId),
-                              trailing: Icon(
-                                isExpanded
-                                    ? Icons.expand_less
-                                    : Icons.expand_more,
-                              ),
-                              onTap: () async {
-                                if (isExpanded) {
-                                  setState(() {
-                                    _videosByPlaylist.remove(playlistId);
-                                  });
-                                } else {
-                                  await _fetchPlaylistVideos(playlistId);
-                                }
-                              },
-                            ),
-                            if (isExpanded)
-                              ...videos.map((video) {
-                                final vMap = video as Map<String, dynamic>;
-                                final vTitle = (vMap['title'] ?? '').toString();
-                                final vThumb = _thumbFromMap(vMap);
-                                final videoId =
-                                    vMap['video_id']?.toString() ?? '';
-
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.only(
-                                      left: 72, right: 16),
-                                  leading: _buildThumb(vThumb, size: 32),
-                                  title: Text(
-                                    vTitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  trailing: const Icon(
-                                      Icons.play_circle_outline,
-                                      size: 20),
-                                  dense: true,
-                                  onTap: () {
-                                    if (videoId.isEmpty) {
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                            '[ChannelsPage] No video_id for: $vTitle');
-                                      }
-                                      return;
-                                    }
-                                    _playVideo(videoId, vTitle, vThumb);
-                                  },
-                                );
-                              }).toList(),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // (legacy bottom sheet removed; channel tap now opens PlaylistGridSheet)
 
   Widget _buildOfflineCard() {
     return OfflineBanner(
@@ -249,17 +123,28 @@ class _ChannelsPageState extends State<ChannelsPage> {
   }
 
   Future<void> _primeFromCacheThenLoad() async {
-    // Load cached channels immediately if present
+    // Prefer in-memory session cache if present
+    if (_cachedChannels.isNotEmpty) {
+      setState(() {
+        _channels = _cachedChannels;
+        _loading = false;
+      });
+      return;
+    }
+    // Else try disk cache for a quick render
     final tenant = _client.tenant ?? widget.tenantId;
     try {
       final cached = await ChannelCache.load(tenant);
       if (cached.isNotEmpty) {
         setState(() {
           _channels = cached;
+          _cachedChannels = cached;
+          _loading = false;
         });
+        return;
       }
     } catch (_) {}
-    // Then load fresh from network
+    // No cache → fetch from network
     await _loadChannels();
   }
 
@@ -331,13 +216,21 @@ class _ChannelsPageState extends State<ChannelsPage> {
     }
     return ClipRRect(
       borderRadius: radius,
-      child: Image.network(
-        url,
+      child: CachedNetworkImage(
+        imageUrl: url,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        headers: _authHeadersFor(url),
-        errorBuilder: (_, __, ___) => Container(
+        httpHeaders: _authHeadersFor(url),
+        placeholder: (_, __) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: radius,
+          ),
+        ),
+        errorWidget: (_, __, ___) => Container(
           width: size,
           height: size,
           decoration: BoxDecoration(
@@ -352,12 +245,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
   }
 
   Future<void> _loadChannels({bool clearCaches = false}) async {
-    if (clearCaches) {
-      setState(() {
-        _playlistsByChannel.clear();
-        _videosByPlaylist.clear();
-      });
-    }
     setState(() {
       _loading = true;
       _error = null;
@@ -422,12 +309,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
         final logoUrl = '$kApiBase/api/channels/$slug/logo/';
         unawaited(_probeLogo(slug, logoUrl));
       }
-      // After channels reload, for any channels currently expanded,
-      // force-clear and re-fetch their playlists so UI shows fresh data
-      for (final slug in _expandedChannels) {
-        _playlistsByChannel.remove(slug);
-        await _ensurePlaylists(slug);
-      }
+      // (removed legacy expanded-channel playlist refresh)
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[ChannelsPage] Error loading channels: $e');
@@ -469,123 +351,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     }
   }
 
-  Future<void> _ensurePlaylists(String channelSlug) async {
-    if (_playlistsByChannel.containsKey(channelSlug)) return;
-    if (_playlistsFetching.containsKey(channelSlug)) {
-      return _playlistsFetching[channelSlug]!;
-    }
-    final future = _doFetchPlaylists(channelSlug);
-    _playlistsFetching[channelSlug] = future;
-    try {
-      await future;
-    } finally {
-      _playlistsFetching.remove(channelSlug);
-    }
-  }
-
-  Future<void> _doFetchPlaylists(String channelSlug) async {
-    if (kDebugMode) {
-      debugPrint('[ChannelsPage] Fetching playlists for channel=$channelSlug');
-    }
-    try {
-      final res = await _client.get('/channels/playlists/', queryParameters: {
-        'channel': channelSlug,
-        'is_active': 'true',
-      });
-      final raw = res.data;
-      List<dynamic> data;
-      if (raw is Map && raw['results'] is List) {
-        data = List<dynamic>.from(raw['results'] as List);
-      } else if (raw is List) {
-        data = raw;
-      } else {
-        data = const [];
-      }
-      setState(() {
-        _playlistsByChannel[channelSlug] = data;
-        _playlistCounts[channelSlug] = data.length;
-      });
-      if (kDebugMode) {
-        debugPrint(
-            '[ChannelsPage] Playlists loaded for $channelSlug: count=${data.length}');
-        final int sample = data.length < 3 ? data.length : 3;
-        for (int i = 0; i < sample; i++) {
-          final p = data[i] as Map<String, dynamic>;
-          debugPrint(
-              '[ChannelsPage] pl[$i] id=${p['id']} title=${p['title']} thumbs=${p['thumbnails'] ?? p['thumbnail'] ?? p['image']}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-            '[ChannelsPage] Failed to load playlists for $channelSlug: $e');
-      }
-      // Suppress SnackBar to avoid duplicate offline messaging; rely on offline UI
-    }
-  }
-
-  Future<void> _fetchPlaylistVideos(String playlistId) async {
-    if (kDebugMode) {
-      debugPrint('[ChannelsPage] Fetching videos for playlist=$playlistId');
-    }
-    try {
-      final res = await _client.get('/channels/videos/', queryParameters: {
-        'playlist': playlistId,
-      });
-      final raw = res.data;
-      List<dynamic> data;
-      if (raw is Map && raw['results'] is List) {
-        data = List<dynamic>.from(raw['results'] as List);
-      } else if (raw is List) {
-        data = raw;
-      } else {
-        data = const [];
-      }
-      if (mounted) {
-        setState(() {
-          _videosByPlaylist[playlistId] = data;
-        });
-      }
-      if (kDebugMode) {
-        debugPrint(
-            '[ChannelsPage] Videos loaded for playlist $playlistId: count=${data.length}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[ChannelsPage] Failed to load videos for $playlistId: $e');
-      }
-    }
-  }
-
-  void _playVideo(String videoId, String title, String? thumbnailUrl) {
-    if (kDebugMode) {
-      debugPrint('[ChannelsPage] Playing video: $videoId - $title');
-    }
-
-    // Close the modal
-    Navigator.of(context).pop();
-
-    // Open YouTube video in external app/browser
-    // For now, we'll use a simple approach - you can enhance this later
-    // with an in-app player or integration with the series player
-    final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
-
-    if (kDebugMode) {
-      debugPrint('[ChannelsPage] Opening YouTube URL: $youtubeUrl');
-    }
-
-    // Show a snackbar with the video title
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening: $title'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-
-    // TODO: Integrate with SeriesMiniPlayer or open in-app player
-    // For now, this is a placeholder - you can add url_launcher or
-    // integrate with the existing PlayerPage widget
-  }
+  // (legacy playlist/video handlers removed)
 
   @override
   Widget build(BuildContext context) {
@@ -594,29 +360,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
       builder: (_, __) => Scaffold(
         appBar: AppBar(
           title: BrandTitle(section: _t('channels')),
-          actions: [
-            PopupMenuButton<String>(
-              onSelected: (v) {
-                if (v == 'toggle_hide_empty') {
-                  setState(() => _hideEmpty = !_hideEmpty);
-                }
-              },
-              itemBuilder: (ctx) => [
-                PopupMenuItem<String>(
-                  value: 'toggle_hide_empty',
-                  child: Row(
-                    children: [
-                      Icon(_hideEmpty
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank),
-                      const SizedBox(width: 8),
-                      Text(_t('hide_empty_channels')),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
         body: Stack(
           children: [
@@ -629,19 +372,8 @@ class _ChannelsPageState extends State<ChannelsPage> {
                     : RefreshIndicator(
                         onRefresh: () => _loadChannels(clearCaches: true),
                         child: Builder(builder: (context) {
-                          // Prepare visible channels with optional hide-empty filtering
-                          final List<Map<String, dynamic>> allCh =
+                          final List<Map<String, dynamic>> visible =
                               _channels.cast<Map<String, dynamic>>();
-                          List<Map<String, dynamic>> visible = allCh;
-                          if (_hideEmpty) {
-                            visible = allCh.where((ch) {
-                              final slug = (ch['id_slug'] ?? '').toString();
-                              if (_playlistsByChannel.containsKey(slug)) {
-                                return (_playlistCounts[slug] ?? 0) > 0;
-                              }
-                              return true;
-                            }).toList();
-                          }
                           return ListView(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             children: [
@@ -674,14 +406,30 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                             '$kApiBase/api/channels/$slug/logo/';
                                       }
                                     }
-                                    final int? count = _playlistCounts[slug];
                                     final lang =
                                         (ch['language'] ?? '').toString();
                                     return InkWell(
-                                      onTap: () async {
-                                        await _ensurePlaylists(slug);
-                                        if (!mounted) return;
-                                        _showChannelPlaylists(slug, ch);
+                                      onTap: () {
+                                        if (_openingPlaylistSheet) return;
+                                        setState(() {
+                                          _openingPlaylistSheet = true;
+                                        });
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          showDragHandle: true,
+                                          builder: (_) => PlaylistGridSheet(
+                                            channelSlug: slug,
+                                          ),
+                                        ).whenComplete(() {
+                                          if (!mounted) {
+                                            _openingPlaylistSheet = false;
+                                            return;
+                                          }
+                                          setState(() {
+                                            _openingPlaylistSheet = false;
+                                          });
+                                        });
                                       },
                                       child: Container(
                                         decoration: BoxDecoration(
@@ -736,23 +484,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                                 ),
                                               ],
                                             ),
-                                            if (count != null)
-                                              Positioned(
-                                                top: 6,
-                                                right: 6,
-                                                child: Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2),
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .surfaceContainerHighest,
-                                                  child: Text('$count',
-                                                      style: const TextStyle(
-                                                          fontSize: 11)),
-                                                ),
-                                              ),
+                                            // (removed playlist count badge in simplified page)
                                           ],
                                         ),
                                       ),

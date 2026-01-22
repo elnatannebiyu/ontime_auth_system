@@ -193,6 +193,7 @@ class ApiClient {
           final code = data['code'];
           final status = response.statusCode;
           if (status != null && (status == 401 || status == 403)) {
+            // Explicit session revocation or inactive account
             if (code == 'SESSION_REVOKED') {
               _forceLogout();
               return handler.next(response);
@@ -202,6 +203,23 @@ class ApiClient {
               _notify(
                   'Your account has been deactivated. Please contact support.');
               return handler.next(response);
+            }
+            // If server says token is not valid, force logout immediately.
+            // This covers cases where we have no refresh cookie, or the
+            // endpoint isn't retried through the error interceptor path.
+            if (code == 'token_not_valid') {
+              _forceLogout();
+              return handler.next(response);
+            }
+            // Some backends include a messages array; check for token invalid hint
+            final messages = data['messages'];
+            if (messages is List) {
+              final msgStr = messages.join(' ').toString().toLowerCase();
+              if (msgStr.contains('token is invalid') ||
+                  msgStr.contains('not valid')) {
+                _forceLogout();
+                return handler.next(response);
+              }
             }
           }
         }
@@ -346,8 +364,6 @@ class ApiClient {
   }
 
   void _forceLogout() async {
-    // Only surface a logout message/navigation if we previously had an access token
-    final hadToken = _accessToken != null && _accessToken!.isNotEmpty;
     debugPrint('[ApiClient] Forcing logout: clearing access token and cookies');
     _accessToken = null;
     _lastMe = null;
@@ -359,7 +375,7 @@ class ApiClient {
       await _secure.delete(key: 'last_me_at');
     } catch (_) {}
     final cb = _onForceLogout;
-    if (cb != null && hadToken) {
+    if (cb != null) {
       debugPrint(
           '[ApiClient] Invoking force-logout callback (navigation to /login)');
       cb();

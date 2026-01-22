@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../../auth/tenant_auth_client.dart';
 import '../series_service.dart';
@@ -15,12 +16,16 @@ class SeriesShowsPage extends StatefulWidget {
   final AuthApi api;
   final String tenantId;
   final LocalizationController? localizationController;
+  final String? initialCategorySlug;
+  final ValueListenable<String?>? categorySelector;
 
   const SeriesShowsPage({
     super.key,
     required this.api,
     required this.tenantId,
     this.localizationController,
+    this.initialCategorySlug,
+    this.categorySelector,
   });
 
   @override
@@ -39,6 +44,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
   String _searchQuery = '';
   bool _navigating = false; // guard against multiple rapid taps
   bool _offline = false;
+  VoidCallback? _categorySelectorListener;
 
   LocalizationController get _lc =>
       widget.localizationController ?? LocalizationController();
@@ -73,7 +79,63 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
   void initState() {
     super.initState();
     _service = SeriesService(api: widget.api, tenantId: widget.tenantId);
+    _selectedCategorySlug = widget.initialCategorySlug;
     _load();
+    if (widget.categorySelector != null) {
+      _categorySelectorListener = () {
+        final slug = widget.categorySelector!.value;
+        _applyCategorySelection(slug);
+      };
+      widget.categorySelector!.addListener(_categorySelectorListener!);
+      final initialSlug = widget.categorySelector!.value;
+      if (initialSlug != null && initialSlug.isNotEmpty) {
+        _applyCategorySelection(initialSlug);
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SeriesShowsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categorySelector != widget.categorySelector) {
+      if (oldWidget.categorySelector != null &&
+          _categorySelectorListener != null) {
+        oldWidget.categorySelector!.removeListener(_categorySelectorListener!);
+      }
+      if (widget.categorySelector != null) {
+        _categorySelectorListener = () {
+          final slug = widget.categorySelector!.value;
+          _applyCategorySelection(slug);
+        };
+        widget.categorySelector!.addListener(_categorySelectorListener!);
+      } else {
+        _categorySelectorListener = null;
+      }
+    }
+  }
+
+  void _applyCategorySelection(String? slug) async {
+    if (!mounted) return;
+    if (slug == null || slug.isEmpty) return;
+    setState(() {
+      _selectedCategorySlug = slug;
+      _loading = true;
+      _error = null;
+      _offline = false;
+    });
+    try {
+      final list = await _service.getShowsByCategory(slug);
+      if (!mounted) return;
+      setState(() {
+        _categoryShows = list;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -300,6 +362,14 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
 
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    if (widget.categorySelector != null && _categorySelectorListener != null) {
+      widget.categorySelector!.removeListener(_categorySelectorListener!);
+    }
+    super.dispose();
+  }
 }
 
 class _ShowCard extends StatefulWidget {

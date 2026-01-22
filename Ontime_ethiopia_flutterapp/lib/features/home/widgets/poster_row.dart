@@ -1,6 +1,8 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../api_client.dart';
 
 class PosterRow extends StatelessWidget {
   final int count;
@@ -54,6 +56,22 @@ class _PosterTile extends StatefulWidget {
 class _PosterTileState extends State<_PosterTile> {
   bool _pressed = false;
 
+  Map<String, String>? _authHeadersFor(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (!url.startsWith(kApiBase)) return null;
+    final client = ApiClient();
+    final token = client.getAccessToken();
+    final tenant = client.tenant;
+    final headers = <String, String>{};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    if (tenant != null && tenant.isNotEmpty) {
+      headers['X-Tenant-Id'] = tenant;
+    }
+    return headers.isEmpty ? null : headers;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -95,8 +113,15 @@ class _PosterTileState extends State<_PosterTile> {
                         Positioned.fill(
                           child: widget.imageUrl != null &&
                                   widget.imageUrl!.isNotEmpty
-                              ? Image.network(widget.imageUrl!,
-                                  fit: BoxFit.cover)
+                              ? CachedNetworkImage(
+                                  imageUrl: widget.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  httpHeaders: _authHeadersFor(widget.imageUrl),
+                                  placeholder: (_, __) =>
+                                      Container(color: Colors.black26),
+                                  errorWidget: (_, __, ___) =>
+                                      Container(color: Colors.black26),
+                                )
                               : Container(color: Colors.black26),
                         ),
                         Positioned.fill(

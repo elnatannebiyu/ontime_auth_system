@@ -1115,6 +1115,22 @@ class ChangePasswordView(APIView):
         if not current_password or not new_password:
             return Response({"detail": "current_password and new_password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Require OTP for password change
+        otp = (request.data.get("otp") or "").strip()
+        if not otp:
+            return Response({"detail": "otp is required."}, status=status.HTTP_400_BAD_REQUEST)
+        now = timezone.now()
+        try:
+            t = ActionToken.objects.select_related("user").get(
+                user=request.user,
+                purpose=ActionToken.PURPOSE_CONFIRM_PASSWORD_CHANGE,
+                token=otp,
+                used=False,
+                expires_at__gt=now,
+            )
+        except ActionToken.DoesNotExist:
+            return Response({"detail": "Invalid or expired code."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Verify current password
         if not request.user.check_password(current_password):
             return Response({"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1141,6 +1157,13 @@ class ChangePasswordView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark OTP as used
+        try:
+            t.used = True
+            t.save(update_fields=["used"])
+        except Exception:
+            pass
 
         # Set new password
         request.user.set_password(new_password)
@@ -1175,6 +1198,84 @@ class ChangePasswordView(APIView):
         res = Response({"detail": "Password changed. You have been logged out from all devices."}, status=status.HTTP_200_OK)
         clear_refresh_cookie(res)
         return res
+
+
+class RequestSecurityOtpView(APIView):
+    """Send a 6-digit OTP to the authenticated user's verified email for
+    confirming sensitive actions (change/enable password)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id="me_request_security_otp",
+        tags=["Auth"],
+    )
+    @ratelimit(key="user_or_ip", rate="3/h", block=False)
+    def post(self, request):
+        if getattr(request, "limited", False):
+            return Response({"detail": "Too many requests. Please try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        purpose_in = (request.data.get("purpose") or "").strip()
+        if purpose_in not in ("change_password", "enable_password"):
+            return Response({"detail": "Invalid purpose."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure user has verified email
+        try:
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            if not getattr(profile, "email_verified", False):
+                return Response({"detail": "Email must be verified to perform this action."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"detail": "Email must be verified to perform this action."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if purpose_in == "change_password":
+            token_purpose = ActionToken.PURPOSE_CONFIRM_PASSWORD_CHANGE
+            subject = "Confirm password change"
+            intro = "Use this code to confirm your password change on Ontime."
+        else:
+            token_purpose = ActionToken.PURPOSE_CONFIRM_PASSWORD_ENABLE
+            subject = "Confirm enabling password login"
+            intro = "Use this code to confirm enabling password login on Ontime."
+
+        # Create OTP
+        import random
+        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        now = timezone.now()
+        expires_at = now + timezone.timedelta(minutes=15)
+        ActionToken.objects.create(
+            user=request.user,
+            purpose=token_purpose,
+            token=otp_code,
+            expires_at=expires_at,
+        )
+
+        message = (
+            f"{intro}\n\n"
+            f"Your verification code is: {otp_code}\n\n"
+            "If you did not request this, you can ignore this email. This code expires in 15 minutes."
+        )
+        html_message = f"""
+        <html><body style='font-family: Arial, sans-serif;'>
+        <h3>{subject}</h3>
+        <p>{intro}</p>
+        <div style='font-size: 28px; font-weight: bold; letter-spacing: 6px; padding: 12px 16px; border: 1px dashed #999; display: inline-block;'>
+            {otp_code}
+        </div>
+        <p style='color:#666'>This code expires in 15 minutes.</p>
+        </body></html>
+        """
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [request.user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+        except Exception:
+            pass
+
+        return Response({"detail": "Verification code sent."}, status=status.HTTP_200_OK)
 
 
 class EnablePasswordView(APIView):
@@ -1227,6 +1328,22 @@ class EnablePasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Require OTP for enabling password
+        otp = (request.data.get("otp") or "").strip()
+        if not otp:
+            return Response({"detail": "otp is required."}, status=status.HTTP_400_BAD_REQUEST)
+        now = timezone.now()
+        try:
+            t = ActionToken.objects.select_related("user").get(
+                user=user,
+                purpose=ActionToken.PURPOSE_CONFIRM_PASSWORD_ENABLE,
+                token=otp,
+                used=False,
+                expires_at__gt=now,
+            )
+        except ActionToken.DoesNotExist:
+            return Response({"detail": "Invalid or expired code."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Validate password strength
         try:
             validate_password(new_password, user=user)
@@ -1248,6 +1365,13 @@ class EnablePasswordView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark OTP as used
+        try:
+            t.used = True
+            t.save(update_fields=["used"])
+        except Exception:
+            pass
 
         user.set_password(new_password)
         user.save()

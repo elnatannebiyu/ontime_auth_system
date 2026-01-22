@@ -1,6 +1,8 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../api_client.dart';
 import 'dart:async';
 
 class HeroCarousel extends StatefulWidget {
@@ -61,6 +63,21 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    Map<String, String>? authHeadersFor(String url) {
+      if (!url.startsWith(kApiBase)) return null;
+      final client = ApiClient();
+      final token = client.getAccessToken();
+      final tenant = client.tenant;
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      if (tenant != null && tenant.isNotEmpty) {
+        headers['X-Tenant-Id'] = tenant;
+      }
+      return headers.isEmpty ? null : headers;
+    }
+
     final hasItems = widget.items.isNotEmpty;
     final itemCount = hasItems ? widget.items.length : 5;
     return Column(
@@ -96,10 +113,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
                     children: [
                       if (imageUrl.isNotEmpty)
                         Positioned.fill(
-                          child: Image.network(
-                            imageUrl,
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, _, __) =>
+                            httpHeaders: authHeadersFor(imageUrl),
+                            errorWidget: (context, _, __) =>
                                 const SizedBox.shrink(),
                           ),
                         ),

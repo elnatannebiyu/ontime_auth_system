@@ -198,7 +198,7 @@ class _SimplePasswordResetPageState extends State<SimplePasswordResetPage> {
         if (data is Map) {
           if (data['errors'] is List) {
             final errors = (data['errors'] as List).cast<String>();
-            errorMsg = 'Password requirements:\n• ' + errors.join('\n• ');
+            errorMsg = 'Password requirements:\n• ${errors.join('\n• ')}';
           } else if (data['detail'] is String) {
             errorMsg = data['detail'] as String;
           }
