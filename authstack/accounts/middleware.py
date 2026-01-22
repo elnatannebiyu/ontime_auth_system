@@ -17,6 +17,39 @@ class SessionRevocationMiddleware(MiddlewareMixin):
         if not request.path.startswith('/api/'):
             return None
 
+
+class AuthenticatedCSRFMiddleware(MiddlewareMixin):
+    """Enforce double-submit CSRF for authenticated unsafe API methods."""
+    def process_request(self, request):
+        # Only protect API routes
+        if not request.path.startswith('/api/'):
+            return None
+        # Safe methods do not require CSRF
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return None
+        # Skip public/auth endpoints
+        _skip_paths = {
+            '/api/social/login/',
+            '/api/token/',
+            '/api/token/refresh/',
+            '/api/register/',
+            '/api/password-reset/request/',
+            '/api/password-reset/verify/',
+            '/api/password-reset/confirm/',
+        }
+        if request.path in _skip_paths:
+            return None
+        # Apply only when using Bearer tokens (authenticated API clients)
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return None
+        # Double-submit: header must match cookie
+        csrf_cookie = request.COOKIES.get('csrftoken') or ''
+        csrf_header = request.META.get('HTTP_X_CSRFTOKEN') or request.META.get('HTTP_X_CSRF_TOKEN') or ''
+        if not csrf_cookie or csrf_cookie != csrf_header:
+            return JsonResponse({'error': 'CSRF failed'}, status=403)
+        return None
+
         # Do not enforce revocation on unauthenticated endpoints
         _skip_paths = {
             '/api/social/login/',

@@ -1,4 +1,5 @@
 from django.conf import settings
+import secrets
 from django.contrib.auth.models import User
 from django.contrib.auth.models import Group
 from django.core.mail import send_mail
@@ -135,6 +136,19 @@ class TokenObtainPairWithCookieView(TokenObtainPairView):
         if res.status_code == 200 and "refresh" in res.data:
             refresh = res.data.pop("refresh")
             set_refresh_cookie(res, refresh)
+            # Set CSRF double-submit cookie so authenticated writes can include X-CSRFToken
+            try:
+                csrf = secrets.token_urlsafe(32)
+            except Exception:
+                csrf = "csrf"
+            res.set_cookie(
+                key='csrftoken',
+                value=csrf,
+                httponly=False,
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                max_age=60*60*24*7,
+            )
         return res
 
     def get_serializer_context(self):
@@ -192,6 +206,19 @@ class CookieTokenRefreshView(TokenRefreshView):
                 samesite='Lax',
                 path=REFRESH_COOKIE_PATH,
                 max_age=60 * 60 * 24 * 7,
+            )
+            # Also rotate/set CSRF cookie for double-submit on authenticated writes
+            try:
+                csrf = secrets.token_urlsafe(32)
+            except Exception:
+                csrf = "csrf"
+            response.set_cookie(
+                key='csrftoken',
+                value=csrf,
+                httponly=False,
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                max_age=60*60*24*7,
             )
             
             return response

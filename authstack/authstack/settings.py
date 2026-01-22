@@ -63,7 +63,9 @@ MIDDLEWARE = [
     "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation early
     # AUDIT FIX #6 & #7: Prevent token injection by validating token-session ownership
     "accounts.middleware.TokenSessionBindingMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    # Enforce double-submit CSRF for authenticated API writes
+    "accounts.middleware.AuthenticatedCSRFMiddleware",
+    "common.csrf_middleware.SessionBoundCSRFMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
