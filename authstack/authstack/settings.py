@@ -60,13 +60,14 @@ MIDDLEWARE = [
     "common.tenancy.TenantResolverMiddleware",
     # Enforce minimum supported app version (returns HTTP 426 for outdated builds)
     "common.middleware.version_enforce.AppVersionEnforceMiddleware",
+    # Ensure request.user is populated before CSRF middlewares that bind/set tokens
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
     "accounts.middleware.SessionRevocationMiddleware",  # Check session revocation early
     # AUDIT FIX #6 & #7: Prevent token injection by validating token-session ownership
     "accounts.middleware.TokenSessionBindingMiddleware",
     # Enforce double-submit CSRF for authenticated API writes
     "accounts.middleware.AuthenticatedCSRFMiddleware",
     "common.csrf_middleware.SessionBoundCSRFMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",  # Brute force protection

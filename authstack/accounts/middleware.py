@@ -48,6 +48,18 @@ class AuthenticatedCSRFMiddleware(MiddlewareMixin):
         csrf_cookie = request.COOKIES.get('csrftoken') or ''
         csrf_header = request.META.get('HTTP_X_CSRFTOKEN') or request.META.get('HTTP_X_CSRF_TOKEN') or ''
         if not csrf_cookie or csrf_cookie != csrf_header:
+            try:
+                referer = request.META.get('HTTP_REFERER', '')
+                origin = request.META.get('HTTP_ORIGIN', '')
+                host = request.META.get('HTTP_HOST', '')
+                ip = (request.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', '')
+                ua = request.META.get('HTTP_USER_AGENT', '')
+                logger.warning(
+                    "[AuthenticatedCSRFMiddleware] CSRF failed path=%s method=%s has_cookie=%s has_header=%s referer=%s origin=%s host=%s ip=%s ua=%s",
+                    getattr(request, 'path', ''), getattr(request, 'method', ''), bool(csrf_cookie), bool(csrf_header), referer, origin, host, ip, ua[:120]
+                )
+            except Exception:
+                pass
             return JsonResponse({'error': 'CSRF failed'}, status=403)
         return None
 
