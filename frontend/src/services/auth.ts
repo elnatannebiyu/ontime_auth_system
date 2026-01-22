@@ -12,8 +12,7 @@ export interface User {
 export const login = async (username: string, password: string) => {
   const { data } = await api.post(
     "/token/",
-    { username, password },
-    { headers: { "X-Admin-Login": "1" } }
+    { username, password }
   );
   setAccessToken(data.access);
   setLoggedOut(false);
