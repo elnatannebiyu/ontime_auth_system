@@ -252,10 +252,10 @@ _csrf_env = os.environ.get("CSRF_TRUSTED_ORIGINS")
 if _csrf_env:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_env.split(",") if o.strip()]
 
-# Allow custom headers used by the admin frontend
+# Allow custom headers used by the frontend
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-tenant-id',
-    'x-admin-login',
+    'x-device-id',
 ]
 # Methods (use defaults, but make explicit for clarity)
 CORS_ALLOW_METHODS = list(default_methods)
