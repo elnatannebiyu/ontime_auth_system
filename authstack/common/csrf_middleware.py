@@ -5,6 +5,7 @@ This middleware ensures CSRF tokens are unique per session and properly validate
 on all state-changing endpoints (POST, PUT, PATCH, DELETE).
 """
 from django.middleware.csrf import CsrfViewMiddleware
+import logging
 from django.utils.crypto import get_random_string
 
 
@@ -34,6 +35,25 @@ class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
         
         # Call parent implementation for standard CSRF validation
         return super().process_view(request, callback, callback_args, callback_kwargs)
+    
+    def _reject(self, request, reason):
+        logger = logging.getLogger(__name__)
+        try:
+            user_id = getattr(getattr(request, 'user', None), 'id', None)
+            referer = request.META.get('HTTP_REFERER', '')
+            origin = request.META.get('HTTP_ORIGIN', '')
+            host = request.META.get('HTTP_HOST', '')
+            x_csrf = 'HTTP_X_CSRFTOKEN' in request.META
+            cookie_csrf = 'csrftoken' in getattr(request, 'COOKIES', {})
+            ip = (request.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', '')
+            ua = request.META.get('HTTP_USER_AGENT', '')
+            logger.warning(
+                "CSRF reject: reason=%s path=%s method=%s user_id=%s referer=%s origin=%s host=%s has_x_csrf=%s has_cookie_csrf=%s ip=%s ua=%s",
+                str(reason), getattr(request, 'path', ''), getattr(request, 'method', ''), str(user_id), referer, origin, host, x_csrf, cookie_csrf, ip, ua[:120]
+            )
+        except Exception:
+            pass
+        return super()._reject(request, reason)
     
     def process_response(self, request, response):
         """
