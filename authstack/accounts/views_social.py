@@ -152,6 +152,8 @@ def social_login_view(request):
     # Try to reuse a session for this user+device (even if previously revoked)
     from django.utils import timezone as _tz
     existing_session = None
+    session = None
+    refresh_token_plain = None
     try:
         qs = Session.objects.filter(user=user)
         if device_obj:
@@ -173,6 +175,10 @@ def social_login_view(request):
             session = existing_session
         except Exception:
             session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
+
+    # Ensure we have a session if none could be reused
+    if session is None:
+        session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
 
     # Enforce concurrent session limit (aligns with JWT login path)
     try:
@@ -203,8 +209,7 @@ def social_login_view(request):
                         pass
         except Exception:
             pass
-    else:
-        session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
+    # (no else): session already ensured above
     
     # Generate JWT tokens
     serializer = CustomTokenObtainPairSerializer()

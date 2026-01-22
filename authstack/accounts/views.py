@@ -1227,6 +1227,7 @@ class ChangePasswordView(APIView):
         return res
 
 
+@method_decorator(ratelimit(key='ip', rate='3/h', method='POST', block=False), name='dispatch')
 class RequestSecurityOtpView(APIView):
     """Send a 6-digit OTP to the authenticated user's verified email for
     confirming sensitive actions (change/enable password)."""
@@ -1237,7 +1238,6 @@ class RequestSecurityOtpView(APIView):
         operation_id="me_request_security_otp",
         tags=["Auth"],
     )
-    @ratelimit(key="user_or_ip", rate="3/h", block=False)
     def post(self, request):
         if getattr(request, "limited", False):
             return Response({"detail": "Too many requests. Please try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
