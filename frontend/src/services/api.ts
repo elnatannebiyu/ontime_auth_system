@@ -96,7 +96,11 @@ api.interceptors.response.use(
   async (err) => {
     const orig = err.config;
     // Don't retry refresh for logout or refresh endpoints
-    const isAuthEndpoint = orig.url?.includes('/logout') || orig.url?.includes('/token/refresh/');
+    const isAuthEndpoint = (
+      orig.url?.includes('/logout') ||
+      orig.url?.includes('/token/refresh/') ||
+      orig.url?.includes('/token/') // do not attempt refresh on credential failures
+    );
     
     const respDetail: string | undefined = err.response?.data?.detail;
     const refreshMissing = respDetail && String(respDetail).toLowerCase().includes('refresh token not found');
