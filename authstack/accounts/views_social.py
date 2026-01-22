@@ -119,7 +119,8 @@ def social_login_view(request):
     # Resolve device from headers
     dev_id = request.META.get('HTTP_X_DEVICE_ID') or ''
     dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
-    dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
+    dev_type_hdr = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
+    device_type_norm = 'mobile' if dev_type_hdr == 'mobile' else 'web'
     from user_sessions.models import Device as RefreshDevice
     device_obj = None
     try:
@@ -134,7 +135,7 @@ def social_login_view(request):
                     defaults={
                         'user': user,
                         'device_name': dev_name or 'Unknown',
-                        'device_type': dev_type or 'mobile',
+                        'device_type': device_type_norm,
                     }
                 )
                 # If exists for same user, update name/type best-effort
@@ -142,8 +143,8 @@ def social_login_view(request):
                     update = False
                     if dev_name and device_obj.device_name != dev_name:
                         device_obj.device_name = dev_name; update = True
-                    if dev_type and device_obj.device_type != dev_type:
-                        device_obj.device_type = dev_type; update = True
+                    if device_type_norm and device_obj.device_type != device_type_norm:
+                        device_obj.device_type = device_type_norm; update = True
                     if update:
                         device_obj.save()
     except Exception:
@@ -181,17 +182,31 @@ def social_login_view(request):
         session, refresh_token_plain = Session.create_session(user=user, request=request, device=device_obj)
 
     # Enforce concurrent session limit (aligns with JWT login path)
+    # Enforce per-device-type limits (prefer MOBILE_/WEB_ caps, fallback to global MAX_CONCURRENT_SESSIONS)
     try:
         from django.conf import settings as _settings
-        max_sessions = int(getattr(_settings, 'MAX_CONCURRENT_SESSIONS', 5))
+        global_limit = int(getattr(_settings, 'MAX_CONCURRENT_SESSIONS', 5))
+        mobile_limit = getattr(_settings, 'MOBILE_MAX_CONCURRENT_SESSIONS', None)
+        web_limit = getattr(_settings, 'WEB_MAX_CONCURRENT_SESSIONS', None)
+        if device_type_norm == 'mobile':
+            limit = int(mobile_limit) if mobile_limit is not None else global_limit
+        else:
+            limit = int(web_limit) if web_limit is not None else global_limit
     except Exception:
-        max_sessions = 5
-    if max_sessions > 0:
+        limit = 5
+
+    if limit > 0:
         try:
+            from django.db.models import Q
             # Enforce on new refresh-session backend (user_sessions.Session)
-            active = Session.objects.filter(user=user, revoked_at__isnull=True).order_by('-last_used_at')
-            if active.count() > max_sessions:
-                for old in active[max_sessions:]:
+            active = Session.objects.filter(user=user, revoked_at__isnull=True)
+            if device_type_norm == 'mobile':
+                active = active.filter(device__device_type='mobile')
+            else:
+                active = active.filter(Q(device__isnull=True) | Q(device__device_type='web'))
+            active = active.order_by('-last_used_at')
+            if active.count() > limit:
+                for old in active[limit:]:
                     old.revoked_at = _tz.now()
                     old.revoke_reason = 'session_limit_exceeded'
                     old.save(update_fields=['revoked_at', 'revoke_reason'])
@@ -200,16 +215,21 @@ def social_login_view(request):
         try:
             # Also enforce on legacy accounts.UserSession for parity
             from .models import UserSession as LegacySession
-            legacy_active = LegacySession.objects.filter(user=user, is_active=True).order_by('-last_activity')
-            if legacy_active.count() > max_sessions:
-                for old_l in legacy_active[max_sessions:]:
+            legacy_active = LegacySession.objects.filter(user=user, is_active=True)
+            if device_type_norm == 'mobile':
+                legacy_active = legacy_active.filter(device_type='mobile')
+            else:
+                legacy_active = legacy_active.filter(device_type='web')
+            legacy_active = legacy_active.order_by('-last_activity')
+            if legacy_active.count() > limit:
+                for old_l in legacy_active[limit:]:
                     try:
                         old_l.revoke('session_limit_exceeded')
                     except Exception:
                         pass
         except Exception:
             pass
-    # (no else): session already ensured above
+    # session already ensured above
     
     # Generate JWT tokens
     serializer = CustomTokenObtainPairSerializer()
@@ -268,7 +288,7 @@ def social_login_view(request):
         # Prefer explicit device headers sent by the app; fall back to UA/IP
         dev_id = request.META.get('HTTP_X_DEVICE_ID') or str(session.id)
         dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
-        dev_type = request.META.get('HTTP_X_DEVICE_TYPE', 'mobile')
+        dev_type = device_type_norm
         os_name = request.META.get('HTTP_X_OS_NAME', '')
         os_version = request.META.get('HTTP_X_OS_VERSION', '')
         # Prefer original client IP from X-Forwarded-For, falling back to REMOTE_ADDR
@@ -288,7 +308,7 @@ def social_login_view(request):
                 'refresh_token_jti': (refresh_jti or ''),
                 'device_id': dev_id,
                 'device_name': dev_name,
-                'device_type': dev_type,
+                'device_type': device_type_norm,
                 'os_name': os_name,
                 'os_version': os_version,
                 'ip_address': ip_addr,

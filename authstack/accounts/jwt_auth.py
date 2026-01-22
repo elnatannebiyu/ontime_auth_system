@@ -199,6 +199,10 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                     os_version = inferred_ver
             client_ip = _get_client_ip(request)
 
+            # Normalize device type to one of: 'mobile' or 'web'
+            dev_type_raw = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
+            device_type_norm = 'mobile' if dev_type_raw == 'mobile' else 'web'
+
             # Try to find existing session for this device and update it, or create new
             # Handle edge case where multiple sessions exist for same device_id
             try:
@@ -207,7 +211,7 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                     device_id=device_id,
                     defaults={
                         'device_name': request.META.get('HTTP_X_DEVICE_NAME', ''),
-                        'device_type': request.META.get('HTTP_X_DEVICE_TYPE', 'unknown'),
+                        'device_type': device_type_norm,
                         'os_name': os_name,
                         'os_version': os_version,
                         'ip_address': client_ip,
@@ -225,7 +229,7 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                 session = sessions.first()
                 # Update the most recent session
                 session.device_name = request.META.get('HTTP_X_DEVICE_NAME', '')
-                session.device_type = request.META.get('HTTP_X_DEVICE_TYPE', 'unknown')
+                session.device_type = device_type_norm
                 session.os_name = os_name
                 session.os_version = os_version
                 session.ip_address = client_ip
@@ -240,19 +244,29 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                 sessions.exclude(id=session.id).delete()
                 created = False
             
-            # AUDIT FIX: Enforce session concurrency limit per user
-            # Automatically revoke oldest sessions when limit exceeded
+            # Enforce per-device-type session concurrency limits
             from django.conf import settings
-            max_sessions = getattr(settings, 'MAX_CONCURRENT_SESSIONS', 5)
-            if max_sessions > 0:
+            # Prefer per-type limits if provided; fallback to global
+            global_limit = getattr(settings, 'MAX_CONCURRENT_SESSIONS', 5)
+            mobile_limit = getattr(settings, 'MOBILE_MAX_CONCURRENT_SESSIONS', None)
+            web_limit = getattr(settings, 'WEB_MAX_CONCURRENT_SESSIONS', None)
+
+            if device_type_norm == 'mobile':
+                limit = int(mobile_limit) if mobile_limit is not None else int(global_limit)
+                type_filter = {'device_type': 'mobile'}
+            else:
+                limit = int(web_limit) if web_limit is not None else int(global_limit)
+                type_filter = {'device_type': 'web'}
+
+            if limit > 0:
                 active_sessions = UserSession.objects.filter(
                     user=self.user,
-                    is_active=True
+                    is_active=True,
+                    **type_filter,
                 ).order_by('-last_activity')
-                
-                if active_sessions.count() > max_sessions:
-                    # Revoke oldest sessions beyond the limit
-                    sessions_to_revoke = active_sessions[max_sessions:]
+
+                if active_sessions.count() > limit:
+                    sessions_to_revoke = active_sessions[limit:]
                     for old_session in sessions_to_revoke:
                         old_session.revoke('session_limit_exceeded')
                         # Also revoke in new backend
