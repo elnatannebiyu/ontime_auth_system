@@ -11,7 +11,8 @@ try:
         AxesProxyHandler.reset(ip_address=ip)
 except Exception:  # noqa: BLE001
     try:
-        from axes.helpers import reset as axes_reset  # type: ignore
+        # Fallback for other django-axes versions
+        from axes.utils import reset as axes_reset  # type: ignore
         def _axes_reset_user(username: str) -> None:
             axes_reset(username=username)
         def _axes_reset_ip(ip: str) -> None:
