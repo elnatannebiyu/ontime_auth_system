@@ -158,13 +158,23 @@ class ApiClient {
         options.headers['X-Tenant-Id'] = _tenantSlug;
       }
 
+      final skipCsrfPrime = options.extra['csrf_prime'] == true;
       // AUDIT FIX #5: Include CSRF token for state-changing requests
       final method = options.method.toUpperCase();
       if (['POST', 'PUT', 'PATCH', 'DELETE'].contains(method)) {
-        final csrfToken = await _getCsrfToken();
+        String? csrfToken = await _getCsrfToken();
+        if ((csrfToken == null || csrfToken.isEmpty) && !skipCsrfPrime) {
+          try {
+            await dio.get('/me/',
+                options: Options(extra: {'csrf_prime': true}));
+          } catch (_) {}
+          csrfToken = await _getCsrfToken();
+        }
         if (csrfToken != null && csrfToken.isNotEmpty) {
           options.headers['X-CSRFToken'] = csrfToken;
         }
+        // CSRF Referer requirement: must be HTTPS and same origin
+        options.headers['Referer'] = 'https://api.aitechnologiesplc.com';
       }
 
       try {
@@ -172,6 +182,8 @@ class ApiClient {
         final extra = await DeviceInfoService.getDeviceHeaders();
         options.headers.addAll(std);
         options.headers.addAll(extra);
+        // Ensure mobile type for native app to get proper concurrency limits
+        options.headers['X-Device-Type'] = 'mobile';
       } catch (_) {}
       return handler.next(options);
     }));
