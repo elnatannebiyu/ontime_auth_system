@@ -1,4 +1,5 @@
 from django.contrib import admin
+import logging
 from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
@@ -26,6 +27,8 @@ except Exception:  # noqa: BLE001
         def _axes_reset_ip(ip: str) -> None:
             raise ImportError("django-axes reset helper not available")
 from common.fcm_sender import send_to_user
+
+LOG = logging.getLogger('axes')  # configured to console in settings.py
 
 @admin.register(UserSession)
 class UserSessionAdmin(admin.ModelAdmin):
@@ -74,6 +77,10 @@ class LoginAttemptAdmin(admin.ModelAdmin):
             try:
                 _axes_reset_ip(ip)
                 count += 1
+                try:
+                    LOG.info("[admin] Axes unblock by IP: ip=%s admin=%s", ip, request.user.username)
+                except Exception:
+                    pass
             except Exception:
                 errors += 1
         msg = f"Unblocked {count} IP(s) in Axes"
@@ -163,6 +170,10 @@ class UserAdmin(DjangoUserAdmin):
             try:
                 _axes_reset_user(user.get_username())
                 count += 1
+                try:
+                    LOG.info("[admin] Axes unblock by user: username=%s admin=%s", user.get_username(), request.user.username)
+                except Exception:
+                    pass
             except Exception as exc:  # noqa: BLE001
                 errors += 1
         msg = f"Unblocked {count} user(s) in Axes"
