@@ -576,14 +576,11 @@ class RequestEmailVerificationView(APIView):
                 fail_silently=False,
             )
         except Exception as exc:
-            # Surface a clear API error instead of an unhandled 500 while still
-            # logging the underlying SMTP issue on the server.
+            # Log but do not 500; avoid user leakage and noisy errors
+            logger.exception("Failed to send verification email to %s: %s", email, exc)
             return Response(
-                {
-                    "detail": "Could not send verification email.",
-                    "error": "email_send_failed",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"detail": "Verification email could not be sent right now. Please try again later."},
+                status=status.HTTP_200_OK,
             )
 
         return Response(
