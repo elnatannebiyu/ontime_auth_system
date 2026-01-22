@@ -168,23 +168,7 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                 # Deny login if user is not a member of this tenant
                 raise AuthenticationFailed('not_member_of_tenant')
 
-            # Enforce separation for Admin Frontend users via group membership
-            admin_login = request.META.get('HTTP_X_ADMIN_LOGIN', '')
-            admin_login = str(admin_login).lower() in ('1', 'true', 'yes')
-            try:
-                from django.contrib.auth.models import Group
-                is_admin_fe = self.user.groups.filter(name='AdminFrontend').exists()
-            except Exception:
-                is_admin_fe = False
-
-            if admin_login:
-                # Admin login path requires user to be in AdminFrontend group
-                if not is_admin_fe:
-                    raise AuthenticationFailed('invalid username and password')
-            else:
-                # Non-admin login path: if user is AdminFrontend, disallow normal login
-                if is_admin_fe:
-                    raise AuthenticationFailed('invalid username and password')
+            # Determine roles server-side after login; do not rely on client headers
             
             # Generate device ID if not provided
             device_id = request.META.get('HTTP_X_DEVICE_ID', '')
