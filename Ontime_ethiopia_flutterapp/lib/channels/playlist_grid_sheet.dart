@@ -402,7 +402,7 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
         final thumb = _thumbFromMap(pl);
         final id = pl['id']?.toString() ?? '';
         int? videoCount;
-        final dynamic c1 = pl['videos_count'] ?? pl['video_count'];
+        final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
         if (c1 is int) {
           videoCount = c1;
         } else if (_videosByPlaylist.containsKey(id)) {
@@ -575,7 +575,7 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
       if (fetched >= cap) break;
       final id = pl['id']?.toString() ?? '';
       if (id.isEmpty) continue;
-      final dynamic c1 = pl['videos_count'] ?? pl['video_count'];
+      final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
       if (c1 is int && c1 >= 0) {
         fetched += 1;
         continue;
@@ -630,7 +630,7 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
         fetched += 1;
         continue;
       }
-      final dynamic c1 = pl['videos_count'] ?? pl['video_count'];
+      final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
       if (c1 is int && c1 >= 0) {
         fetched += 1;
         continue;
