@@ -1,9 +1,10 @@
 from django.utils.deprecation import MiddlewareMixin
-from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.http import JsonResponse
 from user_sessions.models import Session as RefreshSession
 from .models import UserSession as LegacySession
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,25 @@ class TokenSessionBindingMiddleware(MiddlewareMixin):
             if not token_user_id or not session_id:
                 # Token missing required claims - let auth middleware handle
                 return None
+            
+            # Enforce binding between access token and refresh-cookie session (if cookie present)
+            try:
+                refresh_cookie_name = getattr(settings, 'REFRESH_COOKIE_NAME', 'refresh_token')
+                refresh_cookie_value = request.COOKIES.get(refresh_cookie_name)
+                if refresh_cookie_value:
+                    rt = RefreshToken(refresh_cookie_value)
+                    refresh_sid = rt.get('session_id')
+                    if refresh_sid and str(refresh_sid) != str(session_id):
+                        logger.warning(
+                            f"[TokenSessionBinding] Access/refresh session mismatch: access.session_id={session_id} refresh.session_id={refresh_sid}"
+                        )
+                        return JsonResponse({
+                            'error': 'Session cookie mismatch',
+                            'code': 'SESSION_COOKIE_MISMATCH'
+                        }, status=401)
+            except Exception:
+                # If cookie is absent or cannot be parsed, continue with existing checks
+                pass
             
             # Verify session exists and belongs to the token's user
             try:
