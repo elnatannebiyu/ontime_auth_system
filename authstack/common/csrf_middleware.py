@@ -7,6 +7,8 @@ on all state-changing endpoints (POST, PUT, PATCH, DELETE).
 from django.middleware.csrf import CsrfViewMiddleware
 import logging
 from django.utils.crypto import get_random_string
+from typing import Optional
+from rest_framework_simplejwt.tokens import AccessToken
 
 
 class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
@@ -17,22 +19,42 @@ class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
     Each user session gets a unique CSRF token that cannot be reused across accounts.
     """
     
+    def _resolve_user_id(self, request) -> Optional[str]:
+        try:
+            if hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+                uid = getattr(request.user, 'id', None)
+                if uid is not None:
+                    return str(uid)
+        except Exception:
+            pass
+        # Fallback: derive from JWT Authorization header so API clients using Bearer auth
+        # can receive a CSRF token on authenticated GETs before DRF auth runs
+        try:
+            auth = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth.startswith('Bearer '):
+                raw = auth.split(' ', 1)[1]
+                at = AccessToken(raw)
+                uid = at.get('user_id')
+                if uid is not None:
+                    return str(uid)
+        except Exception:
+            pass
+        return None
+
     def process_view(self, request, callback, callback_args, callback_kwargs):
         """
-        Override to bind CSRF token to authenticated user session.
+        Override to bind CSRF token to authenticated user (session or Bearer) so
+        the cookie is issued on authenticated GETs before POSTs.
         """
-        # For authenticated requests, ensure CSRF token is bound to user
-        if hasattr(request, 'user') and request.user.is_authenticated:
+        uid = self._resolve_user_id(request)
+        if uid is not None:
             # Get or create session-specific CSRF token
-            session_key = f'csrf_token_{request.user.id}'
-            
-            # If user doesn't have a session-bound CSRF token, generate one
+            session_key = f'csrf_token_{uid}'
             if not request.session.get(session_key):
                 request.session[session_key] = get_random_string(32)
-            
-            # Override the CSRF token with the session-bound one
+            # Ensure downstream sees this as the CSRF cookie value
             request.META['CSRF_COOKIE'] = request.session[session_key]
-        
+
         # Call parent implementation for standard CSRF validation
         return super().process_view(request, callback, callback_args, callback_kwargs)
     
@@ -59,8 +81,9 @@ class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
         """
         Ensure CSRF cookie is set with session-bound token for authenticated users.
         """
-        if hasattr(request, 'user') and request.user.is_authenticated:
-            session_key = f'csrf_token_{request.user.id}'
+        uid = self._resolve_user_id(request)
+        if uid is not None:
+            session_key = f'csrf_token_{uid}'
             csrf_token = request.session.get(session_key)
             if csrf_token:
                 # Set the CSRF cookie with the session-bound token
@@ -77,7 +100,7 @@ class SessionBoundCSRFMiddleware(CsrfViewMiddleware):
                     logger = logging.getLogger(__name__)
                     logger.info(
                         "CSRF set-cookie: user_id=%s path=%s token_len=%s",
-                        getattr(getattr(request, 'user', None), 'id', None),
+                        uid,
                         getattr(request, 'path', ''),
                         len(csrf_token) if csrf_token else 0,
                     )
