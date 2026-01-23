@@ -13,7 +13,8 @@ const String kDefaultTenant = String.fromEnvironment(
 /// Prefer HTTPS + domain in real production.
 const String kDefaultApiBase = String.fromEnvironment(
   'API_BASE',
-  defaultValue: 'http://10.0.2.2:8000',
+  // Use production API over HTTPS by default. Override via --dart-define if needed.
+  defaultValue: 'https://api.aitechnologiesplc.com',
 );
 
 /// Toggle verbose request header logging. Keep false in production.

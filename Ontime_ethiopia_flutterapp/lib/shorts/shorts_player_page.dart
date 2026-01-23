@@ -8,6 +8,7 @@ import '../api_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class ShortsPlayerPage extends StatefulWidget {
   final List<Map<String, dynamic>>
@@ -36,6 +37,10 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   bool _muted = false; // default sound ON
   // Track items that failed to initialize (e.g., offline/network error)
   final Map<int, bool> _initFailed = {};
+  // Track active user seeks per index to show a spinner until seek settles
+  final Map<int, bool> _seeking = {};
+  // Remember play state before seek so we can resume appropriately
+  final Map<int, bool> _resumeAfterSeek = {};
   bool _effectiveOffline = false;
   static String get _mediaBase {
     if (Platform.isAndroid) return 'http://10.0.2.2:8080';
@@ -82,20 +87,48 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   String _normalizeHls(String url) {
     if (url.isEmpty) return url;
     try {
-      // Relative path -> prefix
-      if (!url.startsWith('http')) {
-        url = '$_mediaBase$url';
-      }
-      final u = Uri.parse(url);
-      // Determine desired host from ApiClient base
       final api = Uri.parse(kApiBase);
-      final apiHost = api.host.isNotEmpty ? api.host : u.host;
-      final isLoopback = u.host == '127.0.0.1' || u.host == 'localhost';
-      if (isLoopback) {
-        final port = u.hasPort ? u.port : 8080;
-        final normalized = u.replace(host: apiHost, port: port);
+      final scheme = api.scheme.isNotEmpty ? api.scheme : 'https';
+      final host = api.host.isNotEmpty ? api.host : 'api.aitechnologiesplc.com';
+      final port = api.hasPort ? api.port : null;
+
+      // Relative path -> build absolute using API base (keeps https if configured)
+      if (!url.startsWith('http')) {
+        final path = url.startsWith('/') ? url : '/$url';
+        final normalized =
+            Uri(scheme: scheme, host: host, port: port, path: path);
         return normalized.toString();
       }
+
+      final u = Uri.parse(url);
+
+      // Upgrade loopback/emulator hosts to API host
+      final isLoopback = (u.host == '127.0.0.1' ||
+          u.host == 'localhost' ||
+          u.host == '10.0.2.2');
+      if (isLoopback) {
+        final normalized = Uri(
+          scheme: scheme,
+          host: host,
+          path: u.path,
+          query: u.query.isEmpty ? null : u.query,
+          fragment: u.fragment.isEmpty ? null : u.fragment,
+        );
+        return normalized.toString();
+      }
+
+      // If API base is https and URL is http to same host, upgrade scheme
+      if (api.scheme == 'https' && u.scheme == 'http' && u.host == host) {
+        final normalized = Uri(
+          scheme: 'https',
+          host: host,
+          path: u.path,
+          query: u.query.isEmpty ? null : u.query,
+          fragment: u.fragment.isEmpty ? null : u.fragment,
+        );
+        return normalized.toString();
+      }
+
       return url;
     } catch (_) {
       return url;
@@ -105,6 +138,10 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   @override
   void initState() {
     super.initState();
+    // Keep screen awake on Shorts page
+    try {
+      WakelockPlus.enable();
+    } catch (_) {}
     _effectiveOffline = widget.isOffline;
     // One-time connectivity check to avoid race where parent still thinks we're online
     Connectivity().checkConnectivity().then((results) {
@@ -153,6 +190,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
       url = _normalizeHls(absFromItem);
     } else if (rel.isNotEmpty) {
       url = _normalizeHls(rel);
+    }
+    if (url.endsWith('/master.m3u8')) {
+      url = url.replaceFirst('/master.m3u8', '/480p/index.m3u8');
     }
     if (url.isEmpty) {
       // No HLS available for this short – mark as failed and show placeholder
@@ -384,6 +424,8 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
               : GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
+                    // Ignore taps while user is actively seeking to avoid accidental pauses
+                    if (_seeking[i] == true) return;
                     if (!vc.value.isInitialized) return;
                     if (vc.value.isPlaying) {
                       vc.pause();
@@ -459,6 +501,33 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
             ),
           ),
         ),
+        // Buffering spinner overlay (shows during rebuffer or active seek)
+        if (vc != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: true,
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: vc,
+                builder: (_, value, __) {
+                  final isSeeking = _seeking[i] == true;
+                  // Show spinner during buffering or while seeking regardless of isPlaying state.
+                  final show =
+                      value.isInitialized && (value.isBuffering || isSeeking);
+                  return AnimatedOpacity(
+                    opacity: show ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
         // Center play icon when paused
         if (vc != null)
           Positioned.fill(
@@ -467,7 +536,12 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
               child: ValueListenableBuilder<VideoPlayerValue>(
                 valueListenable: vc,
                 builder: (_, value, __) {
-                  final show = value.isInitialized && !value.isPlaying;
+                  final isSeeking = _seeking[i] == true;
+                  // Hide play icon while seeking or buffering; show only when fully paused and stable
+                  final show = value.isInitialized &&
+                      !value.isPlaying &&
+                      !isSeeking &&
+                      !value.isBuffering;
                   return AnimatedOpacity(
                     opacity: show ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 150),
@@ -520,6 +594,23 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                             onChanged: (v) {
                               final ms = v.round();
                               vc.seekTo(Duration(milliseconds: ms));
+                            },
+                            onChangeStart: (_) {
+                              final wasPlaying = vc.value.isPlaying;
+                              setState(() {
+                                _seeking[i] = true;
+                                _resumeAfterSeek[i] = wasPlaying;
+                              });
+                            },
+                            onChangeEnd: (_) {
+                              final shouldResume = _resumeAfterSeek[i] == true;
+                              setState(() {
+                                _seeking[i] = false;
+                                _resumeAfterSeek[i] = false;
+                              });
+                              if (shouldResume) {
+                                vc.play();
+                              }
                             },
                           ),
                           Row(

@@ -1,6 +1,7 @@
 // ignore_for_file: unused_field
 
 import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -74,6 +75,7 @@ class _HomePageState extends State<HomePage> {
   late final ValueNotifier<String?> _showsCategorySelector;
   bool _navigatingShow = false;
   bool _openingShorts = false;
+  late final String _launchSeed;
   bool _openingChannelSheet = false;
 
   // Lightweight language toggle (session only)
@@ -88,6 +90,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _launchSeed =
+        '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
     _load();
     // Ask for notification permission gracefully after first frame.
     // Temporarily disabled on iOS while Firebase/FCM are not configured.
@@ -304,6 +308,7 @@ class _HomePageState extends State<HomePage> {
           await client.get('/channels/shorts/ready/feed/', queryParameters: {
         'limit': '15',
         'recent_bias_count': '15',
+        'seed': _launchSeed,
       });
       final raw = res.data;
       final List<Map<String, dynamic>> shorts = raw is List
@@ -933,7 +938,8 @@ class _HomePageState extends State<HomePage> {
                         PosterRow(
                           // Map shorts into poster items (title + cover_image)
                           items: List<Map<String, dynamic>>.generate(
-                              _newShorts.length, (i) {
+                              _newShorts.length > 12 ? 12 : _newShorts.length,
+                              (i) {
                             final v = _newShorts[i];
                             return {
                               'title': (v['title'] ?? v['name'] ?? 'Short')

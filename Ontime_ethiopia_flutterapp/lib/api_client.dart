@@ -90,12 +90,9 @@ class ApiClient {
           headers: {
             'Accept': 'application/json',
           },
-          // Treat 426 (Upgrade Required) as a handled response so Dio won't throw
+          // Consider 401/403 and 426 as errors so onError interceptors can handle refresh/update
           validateStatus: (code) {
             if (code == null) return false;
-            if (code == 426) return true;
-            // Also accept 401/403 to allow interceptors to handle
-            if (code == 401 || code == 403) return true;
             return code >= 200 && code < 400;
           },
         )),
@@ -165,7 +162,9 @@ class ApiClient {
         String? csrfToken = await _getCsrfToken();
         if ((csrfToken == null || csrfToken.isEmpty) && !skipCsrfPrime) {
           try {
-            await dio.get('/me/',
+            // Prime CSRF cookie using a public GET endpoint so it works pre-login
+            await dio.get('/channels/shorts/ready/feed/',
+                queryParameters: {'limit': 1},
                 options: Options(extra: {'csrf_prime': true}));
           } catch (_) {}
           csrfToken = await _getCsrfToken();
@@ -197,61 +196,8 @@ class ApiClient {
       onResponse:
           (Response response, ResponseInterceptorHandler handler) async {
         final data = response.data;
-        // If the backend explicitly signals that the session has been revoked
-        // or the user account is inactive, force logout immediately. Note:
-        // validateStatus treats 401/403 as handled statuses, so these must be
-        // checked in onResponse, not only in onError.
-        if (data is Map) {
-          final code = data['code'];
-          final status = response.statusCode;
-          if (status != null && (status == 401 || status == 403)) {
-            // Explicit session revocation or inactive account
-            if (code == 'SESSION_REVOKED') {
-              _forceLogout();
-              return handler.next(response);
-            }
-            if (code == 'user_inactive') {
-              _forceLogout();
-              _notify(
-                  'Your account has been deactivated. Please contact support.');
-              return handler.next(response);
-            }
-            // If server says token is not valid, force logout immediately.
-            // This covers cases where we have no refresh cookie, or the
-            // endpoint isn't retried through the error interceptor path.
-            if (code == 'token_not_valid') {
-              _forceLogout();
-              return handler.next(response);
-            }
-            // Some backends include a messages array; check for token invalid hint
-            final messages = data['messages'];
-            if (messages is List) {
-              final msgStr = messages.join(' ').toString().toLowerCase();
-              if (msgStr.contains('token is invalid') ||
-                  msgStr.contains('not valid')) {
-                _forceLogout();
-                return handler.next(response);
-              }
-            }
-          }
-        }
-        // Case 1: HTTP 426 Upgrade Required (version enforcement middleware)
-        if (response.statusCode == 426) {
-          try {
-            final msg = (data is Map && data['message'] is String)
-                ? data['message'] as String
-                : 'Please update the app to continue.';
-            // Clear any existing credentials to prevent further use
-            _forceLogout();
-            final storeUrl = (data is Map && data['store_url'] is String)
-                ? data['store_url'] as String
-                : null;
-            final cb = _onUpdateRequired;
-            if (cb != null) cb(msg, storeUrl);
-          } catch (_) {}
-        } else if (data is Map && data['code'] == 'APP_UPDATE_REQUIRED') {
-          // Case 2: JSON payload explicitly signalling that this endpoint
-          // requires an app update (e.g., social login or other auth flows).
+        // If backend signals app update strictly via JSON code while still 2xx/3xx
+        if (data is Map && data['code'] == 'APP_UPDATE_REQUIRED') {
           try {
             final msg = (data['message'] is String)
                 ? data['message'] as String

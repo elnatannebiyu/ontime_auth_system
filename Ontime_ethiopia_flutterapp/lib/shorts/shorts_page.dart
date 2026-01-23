@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
@@ -36,6 +37,7 @@ class _ShortsPageState extends State<ShortsPage> {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   Set<String> _watchedShortIds = <String>{};
   bool _watchedLoaded = false;
+  late final String _launchSeed;
 
   LocalizationController get _lc =>
       widget.localizationController ?? LocalizationController();
@@ -44,6 +46,8 @@ class _ShortsPageState extends State<ShortsPage> {
   @override
   void initState() {
     super.initState();
+    _launchSeed =
+        '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
     _loadWatched();
     final initial = widget.initialItems;
     if (initial != null && initial.isNotEmpty) {
@@ -112,6 +116,7 @@ class _ShortsPageState extends State<ShortsPage> {
         // keeps behaviour explicit while relying on server-side safety caps.
         'limit': '1000',
         'recent_bias_count': '15',
+        'seed': _launchSeed,
       });
       final data = res.data;
       final List<Map<String, dynamic>> list = data is List
