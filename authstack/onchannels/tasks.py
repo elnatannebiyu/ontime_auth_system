@@ -15,10 +15,167 @@ from django.conf import settings
 import time
 
 from onchannels.models import ScheduledNotification, ShortJob, Video, Playlist
+from onchannels.models import Channel
 from user_sessions.models import Device
 from common.fcm_sender import send_to_token, send_to_topic
 
 logger = logging.getLogger("shorts.ingest")
+
+
+@shared_task(bind=True)
+def sync_youtube_all_channels(self, channel_pks: list[int]) -> dict:
+    from . import youtube_api
+    from datetime import datetime, timezone
+
+    playlists_created = 0
+    playlists_updated = 0
+    videos_created = 0
+    videos_updated = 0
+    processed_playlists = 0
+    with_dates = 0
+    missing_dates = 0
+    channels_processed = 0
+    channels_failed = 0
+
+    channels = list(Channel.objects.filter(pk__in=channel_pks).all())
+    for ch in channels:
+        try:
+            channels_processed += 1
+
+            cid = ch.youtube_channel_id
+            if not cid and ch.youtube_handle:
+                cid = youtube_api.resolve_channel_id(ch.youtube_handle)
+                if cid:
+                    ch.youtube_channel_id = cid
+                    ch.save(update_fields=["youtube_channel_id", "updated_at"])
+            if not cid:
+                continue
+
+            page = None
+            while True:
+                data = youtube_api.list_playlists(cid, page_token=page, max_results=50)
+                for it in data.get("items", []):
+                    pid = it.get("id")
+                    title = it.get("title")
+                    thumbs = it.get("thumbnails") or {}
+                    count = int(it.get("itemCount") or 0)
+
+                    yt_pub = it.get("publishedAt")
+                    yt_pub_dt = None
+                    if yt_pub:
+                        try:
+                            s = yt_pub.replace("Z", "+00:00")
+                            yt_pub_dt = datetime.fromisoformat(s)
+                            if yt_pub_dt.tzinfo is None:
+                                yt_pub_dt = yt_pub_dt.replace(tzinfo=timezone.utc)
+                        except Exception:
+                            try:
+                                yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            except Exception:
+                                yt_pub_dt = None
+
+                    if yt_pub_dt:
+                        with_dates += 1
+                    else:
+                        missing_dates += 1
+
+                    _, was_created = Playlist.objects.update_or_create(
+                        id=pid,
+                        defaults={
+                            "channel": ch,
+                            "title": title or "",
+                            "thumbnails": thumbs,
+                            "item_count": count,
+                            "yt_published_at": yt_pub_dt,
+                        },
+                    )
+                    processed_playlists += 1
+                    if was_created:
+                        playlists_created += 1
+                    else:
+                        playlists_updated += 1
+
+                page = data.get("nextPageToken")
+                if not page:
+                    break
+
+            playlists = list(ch.playlists.filter(is_active=True)) or list(ch.playlists.all())
+            for pl in playlists:
+                page = None
+                latest_item_dt = None
+                current_video_ids: set[str] = set()
+                while True:
+                    data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
+                    for it in data.get("items", []):
+                        vid = it.get("videoId")
+                        if vid:
+                            current_video_ids.add(vid)
+
+                        published_at = it.get("publishedAt")
+                        dt = None
+                        if published_at:
+                            try:
+                                dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                            except Exception:
+                                dt = None
+
+                        if dt and (latest_item_dt is None or dt > latest_item_dt):
+                            latest_item_dt = dt
+
+                        _, created = Video.objects.update_or_create(
+                            playlist=pl,
+                            video_id=vid,
+                            defaults={
+                                "channel": ch,
+                                "title": it.get("title") or "",
+                                "thumbnails": it.get("thumbnails") or {},
+                                "position": it.get("position"),
+                                "published_at": dt,
+                                "is_active": True,
+                            },
+                        )
+                        if created:
+                            videos_created += 1
+                        else:
+                            videos_updated += 1
+
+                    page = data.get("nextPageToken")
+                    if not page:
+                        break
+
+                if latest_item_dt:
+                    try:
+                        pl.yt_last_item_published_at = latest_item_dt
+                        pl.save(update_fields=["yt_last_item_published_at"])
+                    except Exception:
+                        pass
+
+                try:
+                    stale_qs = Video.objects.filter(playlist=pl)
+                    if current_video_ids:
+                        stale_qs = stale_qs.exclude(video_id__in=current_video_ids)
+                    stale_qs.update(is_active=False)
+                except Exception:
+                    pass
+
+        except Exception:
+            channels_failed += 1
+            continue
+
+    if missing_dates:
+        logging.getLogger(__name__).info("Sync all: %d playlist(s) missing publishedAt from YouTube API", missing_dates)
+
+    return {
+        "channels_processed": channels_processed,
+        "channels_failed": channels_failed,
+        "processed_playlists": processed_playlists,
+        "playlists_created": playlists_created,
+        "playlists_updated": playlists_updated,
+        "videos_created": videos_created,
+        "videos_updated": videos_updated,
+        "publishedAt_set": with_dates,
+        "publishedAt_missing": missing_dates,
+    }
 
 # Module-level helpers needed by multiple tasks
 def _parse_cap_env(name: str, default_bytes: int) -> int:

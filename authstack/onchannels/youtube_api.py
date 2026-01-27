@@ -2,9 +2,28 @@ import os
 import re
 from typing import Dict, Any, Optional
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from django.conf import settings
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
+_SESSION = requests.Session()
+_RETRY = Retry(
+    total=3,
+    connect=3,
+    read=3,
+    status=3,
+    backoff_factor=0.5,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=("GET",),
+    raise_on_status=False,
+)
+_SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
+
+
+def _get(url: str, *, params: dict) -> requests.Response:
+    return _SESSION.get(url, params=params, timeout=(5, 20))
 
 
 class YouTubeAPIError(Exception):
@@ -42,7 +61,7 @@ def resolve_channel_id(handle_or_url: str) -> Optional[str]:
             "maxResults": 1,
             "key": _api_key(),
         }
-        r = requests.get(f"{YOUTUBE_API_BASE}/search", params=params, timeout=15)
+        r = _get(f"{YOUTUBE_API_BASE}/search", params=params)
         if r.status_code != 200:
             raise YouTubeAPIError(f"YouTube search error: {r.status_code} {r.text}")
         data = r.json()
@@ -75,7 +94,7 @@ def get_playlist(playlist_id: str) -> Dict[str, Any]:
         "id": playlist_id,
         "key": _api_key(),
     }
-    r = requests.get(f"{YOUTUBE_API_BASE}/playlists", params=params, timeout=15)
+    r = _get(f"{YOUTUBE_API_BASE}/playlists", params=params)
     if r.status_code != 200:
         raise YouTubeAPIError(f"YouTube playlist fetch error: {r.status_code} {r.text}")
     data = r.json()
@@ -102,7 +121,7 @@ def list_playlists(channel_id: str, page_token: Optional[str] = None, max_result
     }
     if page_token:
         params["pageToken"] = page_token
-    r = requests.get(f"{YOUTUBE_API_BASE}/playlists", params=params, timeout=15)
+    r = _get(f"{YOUTUBE_API_BASE}/playlists", params=params)
     if r.status_code != 200:
         raise YouTubeAPIError(f"YouTube playlists error: {r.status_code} {r.text}")
     data = r.json()
@@ -132,7 +151,7 @@ def list_playlist_items(playlist_id: str, page_token: Optional[str] = None, max_
     }
     if page_token:
         params["pageToken"] = page_token
-    r = requests.get(f"{YOUTUBE_API_BASE}/playlistItems", params=params, timeout=15)
+    r = _get(f"{YOUTUBE_API_BASE}/playlistItems", params=params)
     if r.status_code != 200:
         raise YouTubeAPIError(f"YouTube playlistItems error: {r.status_code} {r.text}")
     data = r.json()
@@ -163,7 +182,7 @@ def get_video_privacy_status(video_id: str) -> Optional[str]:
         "id": video_id,
         "key": _api_key(),
     }
-    r = requests.get(f"{YOUTUBE_API_BASE}/videos", params=params, timeout=15)
+    r = _get(f"{YOUTUBE_API_BASE}/videos", params=params)
     if r.status_code != 200:
         raise YouTubeAPIError(f"YouTube videos status error: {r.status_code} {r.text}")
     data = r.json()

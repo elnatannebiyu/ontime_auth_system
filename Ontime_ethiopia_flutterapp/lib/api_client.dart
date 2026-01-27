@@ -162,15 +162,39 @@ class ApiClient {
         String? csrfToken = await _getCsrfToken();
         if ((csrfToken == null || csrfToken.isEmpty) && !skipCsrfPrime) {
           try {
-            // Prime CSRF cookie using a public GET endpoint so it works pre-login
-            await dio.get('/channels/shorts/ready/feed/',
-                queryParameters: {'limit': 1},
-                options: Options(extra: {'csrf_prime': true}));
+            // Prime CSRF cookie.
+            // NOTE: backend CSRF middleware issues the csrftoken cookie for authenticated
+            // requests (it binds token to user/session). So when we have an access token,
+            // we must prime using an authenticated GET.
+            if (_accessToken != null && _accessToken!.isNotEmpty) {
+              await dio.get('/me/',
+                  options: Options(extra: {'csrf_prime': true}));
+            } else {
+              // Best-effort for unauthenticated flows.
+              await dio.get('/channels/shorts/ready/feed/',
+                  queryParameters: {'limit': 1},
+                  options: Options(extra: {'csrf_prime': true}));
+            }
           } catch (_) {}
           csrfToken = await _getCsrfToken();
         }
         if (csrfToken != null && csrfToken.isNotEmpty) {
           options.headers['X-CSRFToken'] = csrfToken;
+
+          // Some mobile environments intermittently fail to attach cookies even with CookieManager.
+          // Our backend enforces double-submit CSRF (cookie + header). Ensure the csrftoken cookie
+          // is present by explicitly merging it into the Cookie header.
+          try {
+            final existingCookie = (options.headers['Cookie'] ?? '').toString();
+            final hasCsrf =
+                RegExp(r'(^|;\s*)csrftoken=').hasMatch(existingCookie);
+            if (!hasCsrf) {
+              final merged = existingCookie.trim().isEmpty
+                  ? 'csrftoken=$csrfToken'
+                  : '$existingCookie; csrftoken=$csrfToken';
+              options.headers['Cookie'] = merged;
+            }
+          } catch (_) {}
         }
         // CSRF Referer requirement: must be HTTPS and same origin
         options.headers['Referer'] = 'https://api.aitechnologiesplc.com';

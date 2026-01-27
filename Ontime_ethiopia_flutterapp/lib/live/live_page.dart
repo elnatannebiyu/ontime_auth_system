@@ -586,7 +586,9 @@ class _TvTabState extends State<_TvTab>
                     try {
                       await AudioController.instance.stop();
                     } catch (_) {}
+                    final target = '/live/overlay/$slug';
                     Navigator.of(context).push(PageRouteBuilder(
+                      settings: RouteSettings(name: target),
                       pageBuilder: (_, __, ___) =>
                           LivePlayerOverlayPage(slug: slug),
                       transitionDuration: const Duration(milliseconds: 280),

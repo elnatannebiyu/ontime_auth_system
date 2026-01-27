@@ -959,11 +959,61 @@ class _HomePageState extends State<HomePage> {
                             }
                             _openingShorts = true;
                             try {
+                              // Fetch a fuller shorts feed so player has more than the 12–15 teaser items
+                              final clicked = _newShorts.isNotEmpty &&
+                                      idx < _newShorts.length
+                                  ? _newShorts[idx]
+                                  : null;
+                              List<Map<String, dynamic>> fullList = _newShorts;
+                              int startIndex = idx;
+                              try {
+                                final res = await ApiClient().get(
+                                    '/channels/shorts/ready/feed/',
+                                    queryParameters: {
+                                      'limit': '200',
+                                      'recent_bias_count': '15',
+                                      'seed': _launchSeed,
+                                    });
+                                final data = res.data;
+                                final List<Map<String, dynamic>> list = data
+                                        is List
+                                    ? List<Map<String, dynamic>>.from(data.map(
+                                        (e) => Map<String, dynamic>.from(
+                                            e as Map)))
+                                    : (data is Map && data['results'] is List)
+                                        ? List<Map<String, dynamic>>.from(
+                                            (data['results'] as List).map((e) =>
+                                                Map<String, dynamic>.from(
+                                                    e as Map)))
+                                        : const [];
+                                if (list.isNotEmpty) {
+                                  fullList = list;
+                                  // Try to locate the clicked item in the full list by job_id
+                                  final clickedId = (clicked?['job_id'] ??
+                                          clicked?['id'] ??
+                                          clicked?['video_id'] ??
+                                          '')
+                                      .toString();
+                                  if (clickedId.isNotEmpty) {
+                                    final found = fullList.indexWhere((e) =>
+                                        (e['job_id'] ??
+                                                e['id'] ??
+                                                e['video_id'] ??
+                                                '')
+                                            .toString() ==
+                                        clickedId);
+                                    if (found >= 0) {
+                                      startIndex = found;
+                                    }
+                                  }
+                                }
+                              } catch (_) {}
+
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => ShortsPlayerPage(
-                                    videos: _newShorts,
-                                    initialIndex: idx,
+                                    videos: fullList,
+                                    initialIndex: startIndex,
                                     isOffline: _offline,
                                   ),
                                 ),

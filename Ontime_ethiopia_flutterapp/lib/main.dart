@@ -29,6 +29,9 @@ import 'core/version/version_gate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'settings/notification_inbox_page.dart';
+import 'channels/player/channel_mini_player.dart';
+import 'channels/player/channel_mini_player_manager.dart';
+import 'core/navigation/route_stack_observer.dart';
 
 // Global route observer to allow RouteAware widgets to pause/resume media
 final RouteObserver<ModalRoute<void>> appRouteObserver =
@@ -174,6 +177,14 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    try {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarColor: Colors.transparent,
+      ));
+    } catch (_) {}
     api = widget.api ?? AuthApi();
     tokenStore = widget.tokenStore ?? SecureTokenStore();
     tenantId = widget.tenantId ?? 'default';
@@ -308,17 +319,34 @@ class _MyAppState extends State<MyApp> {
           themeMode: themeController.themeMode,
           navigatorKey: appNavigatorKey,
           scaffoldMessengerKey: _smKey,
-          navigatorObservers: [appRouteObserver],
+          navigatorObservers: [appRouteObserver, appRouteStackObserver],
           builder: (context, child) {
             return Overlay(
               initialEntries: [
                 OverlayEntry(builder: (_) => child ?? const SizedBox.shrink()),
                 OverlayEntry(
-                  builder: (_) => const Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: GlobalMiniBar(),
+                  builder: (_) => ValueListenableBuilder<bool>(
+                    valueListenable:
+                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                    builder: (context, hide, __) {
+                      if (hide) return const SizedBox.shrink();
+                      return const ChannelMiniPlayer();
+                    },
+                  ),
+                ),
+                OverlayEntry(
+                  builder: (ctx) => ValueListenableBuilder<bool>(
+                    valueListenable:
+                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                    builder: (context, hide, __) {
+                      if (hide) return const SizedBox.shrink();
+                      return Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: MediaQuery.of(ctx).padding.bottom,
+                        child: const GlobalMiniBar(),
+                      );
+                    },
                   ),
                 ),
               ],

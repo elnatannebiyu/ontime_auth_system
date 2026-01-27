@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../channels/player/channel_mini_player_manager.dart';
 
 class ShortsPlayerPage extends StatefulWidget {
   final List<Map<String, dynamic>>
@@ -138,6 +139,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   @override
   void initState() {
     super.initState();
+    ChannelMiniPlayerManager.I.setSuppressed(true);
+    ChannelMiniPlayerManager.I.pause();
+    _effectiveOffline = widget.isOffline;
     // Keep screen awake on Shorts page
     try {
       WakelockPlus.enable();
@@ -159,15 +163,12 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
-    // Lock orientation to portrait while on Shorts
-    try {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    } catch (_) {}
     _index = widget.initialIndex.clamp(0, widget.videos.length - 1);
     _pageCtrl = PageController(initialPage: _index);
     // Always use our stored HLS (absolute_hls or hls_master_url)
     _ensureHlsController(_index);
     _ensureHlsController(_index + 1);
+    _trimControllersAround(_index);
     _prefetchReactions(_index);
   }
 
@@ -210,6 +211,19 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
       await ctrl.setLooping(true); // loop on finish
       await ctrl.setVolume(_muted ? 0.0 : 1.0);
       if (i == _index) ctrl.play();
+      // When current progresses past ~70%, ensure next is pre-initialized
+      ctrl.addListener(() {
+        if (!mounted) return;
+        if (i != _index) return;
+        final v = ctrl.value;
+        final durMs = v.duration.inMilliseconds;
+        if (durMs > 0) {
+          final posMs = v.position.inMilliseconds;
+          if (posMs >= (durMs * 0.2)) {
+            _ensureHlsController(i + 1);
+          }
+        }
+      });
       setState(() {
         _initFailed.remove(i);
       });
@@ -220,6 +234,20 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
           _initFailed[i] = true;
         });
       }
+    }
+  }
+
+  void _trimControllersAround(int center) {
+    final keep = {center - 1, center, center + 1};
+    final toRemove = _hlsControllers.keys
+        .where((k) => !keep.contains(k))
+        .toList(growable: false);
+    for (final k in toRemove) {
+      try {
+        _hlsControllers[k]?.dispose();
+      } catch (_) {}
+      _hlsControllers.remove(k);
+      _initFailed.remove(k);
     }
   }
 
@@ -237,10 +265,14 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
         DeviceOrientation.landscapeRight,
       ]);
     } catch (_) {}
+    ChannelMiniPlayerManager.I.setSuppressed(false);
     for (final v in _hlsControllers.values) {
       v.dispose();
     }
     _pageCtrl.dispose();
+    try {
+      WakelockPlus.disable();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -250,6 +282,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
     // Preload neighbors
     _ensureHlsController(i - 1);
     _ensureHlsController(i + 1);
+    _trimControllersAround(i);
     _prefetchReactions(i);
     // Pause others, play current
     _hlsControllers.forEach((k, v) {

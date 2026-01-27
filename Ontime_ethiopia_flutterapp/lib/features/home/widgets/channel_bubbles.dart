@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../api_client.dart';
+import '../../../channels/channel_ui_utils.dart';
 
 class ChannelBubbles extends StatelessWidget {
   // Each map should contain: { 'name': String, 'slug': String, 'thumbUrl': String? }
@@ -16,22 +16,6 @@ class ChannelBubbles extends StatelessWidget {
 
   // Cache the last non-empty data set for offline fallback within the session
   static List<Map<String, String>>? _lastNonEmpty;
-
-  Map<String, String>? _authHeadersFor(String url) {
-    // Only add headers for our backend origin
-    if (!url.startsWith(kApiBase)) return null;
-    final client = ApiClient();
-    final token = client.getAccessToken();
-    final tenant = client.tenant;
-    final headers = <String, String>{};
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    if (tenant != null && tenant.isNotEmpty) {
-      headers['X-Tenant-Id'] = tenant;
-    }
-    return headers.isEmpty ? null : headers;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +80,7 @@ class ChannelBubbles extends StatelessWidget {
                                   width: 52,
                                   height: 52,
                                   fit: BoxFit.cover,
-                                  httpHeaders: _authHeadersFor(thumb),
+                                  httpHeaders: authHeadersFor(thumb),
                                   placeholder: (_, __) => fallback,
                                   errorWidget: (_, __, ___) => fallback,
                                 ),

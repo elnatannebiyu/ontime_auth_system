@@ -99,6 +99,8 @@ class _SeriesSeasonsPageState extends State<SeriesSeasonsPage> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
+                              settings:
+                                  RouteSettings(name: '/series/season/$id'),
                               builder: (_) => SeriesEpisodesPage(
                                 api: widget.api,
                                 tenantId: widget.tenantId,

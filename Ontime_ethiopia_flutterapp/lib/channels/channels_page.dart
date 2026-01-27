@@ -9,8 +9,8 @@ import '../core/cache/channel_cache.dart';
 import '../core/cache/logo_probe_cache.dart';
 import '../core/widgets/offline_banner.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../features/series/mini_player/series_mini_player.dart';
 import 'playlist_grid_sheet.dart';
+import 'channel_ui_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ChannelsPage extends StatefulWidget {
@@ -50,7 +50,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
 
   Future<void> _probeLogo(String slug, String url) async {
     try {
-      final headers = _authHeadersFor(url);
+      final headers = authHeadersFor(url);
       final ok = await LogoProbeCache.instance
           .ensureAvailable(url, headers: headers ?? const {});
       if (!mounted) return;
@@ -148,58 +148,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
     await _loadChannels();
   }
 
-  // ---- Thumbnail helpers ----
-  String? _thumbFromMap(Map<String, dynamic> m) {
-    // Common flat fields
-    const keys = [
-      'thumbnail',
-      'thumbnail_url',
-      'thumb',
-      'thumb_url',
-      'image',
-      'image_url',
-      'logo',
-      'logo_url',
-      'poster',
-      'poster_url',
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    // Nested: m['thumbnails'] can be Map like YouTube ({medium: {url: ...}})
-    final t = m['thumbnails'];
-    if (t is Map) {
-      // try well-known sizes (prefer highest quality first)
-      for (final size in ['maxres', 'standard', 'high', 'medium', 'default']) {
-        final s = t[size];
-        if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
-          return s['url'] as String;
-        }
-      }
-      // or direct url
-      if (t['url'] is String && (t['url'] as String).isNotEmpty) {
-        return t['url'] as String;
-      }
-    }
-    return null;
-  }
-
-  Map<String, String>? _authHeadersFor(String url) {
-    // Only add headers for our backend origin
-    if (!url.startsWith(kApiBase)) return null;
-    final token = _client.getAccessToken();
-    final tenant = _client.tenant;
-    final headers = <String, String>{};
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    if (tenant != null && tenant.isNotEmpty) {
-      headers['X-Tenant-Id'] = tenant;
-    }
-    return headers.isEmpty ? null : headers;
-  }
-
   Widget _buildThumb(String? url, {double size = 40, BorderRadius? radius}) {
     radius ??= BorderRadius.circular(8);
     if (url == null || url.isEmpty) {
@@ -221,7 +169,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
         width: size,
         height: size,
         fit: BoxFit.cover,
-        httpHeaders: _authHeadersFor(url),
+        httpHeaders: authHeadersFor(url),
         placeholder: (_, __) => Container(
           width: size,
           height: size,
@@ -304,7 +252,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
         final ch = raw as Map<String, dynamic>;
         final slug = (ch['id_slug'] ?? '').toString();
         if (slug.isEmpty) continue;
-        final primary = _thumbFromMap(ch);
+        final primary = thumbFromMap(ch);
         if (primary != null && primary.isNotEmpty) continue;
         final logoUrl = '$kApiBase/api/channels/$slug/logo/';
         unawaited(_probeLogo(slug, logoUrl));
@@ -397,7 +345,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                     final slug =
                                         (ch['id_slug'] ?? '').toString();
                                     final title = _channelDisplayName(ch);
-                                    String? thumbUrlPrimary = _thumbFromMap(ch);
+                                    String? thumbUrlPrimary = thumbFromMap(ch);
                                     String? thumbUrl = thumbUrlPrimary;
                                     if (thumbUrl == null || thumbUrl.isEmpty) {
                                       final avail = _logoAvailable[slug];
@@ -420,6 +368,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                           showDragHandle: true,
                                           builder: (_) => PlaylistGridSheet(
                                             channelSlug: slug,
+                                            channel: ch,
                                           ),
                                         ).whenComplete(() {
                                           if (!mounted) {
@@ -497,12 +446,6 @@ class _ChannelsPageState extends State<ChannelsPage> {
                         }),
                       ),
             // Series mini player overlay
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SeriesMiniPlayer(),
-            ),
           ],
         ),
       ),

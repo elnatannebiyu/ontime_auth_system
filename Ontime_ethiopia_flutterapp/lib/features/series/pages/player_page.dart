@@ -7,6 +7,7 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../mini_player/mini_player_manager.dart';
 import '../mini_player/series_now_playing.dart';
 import '../../../auth/tenant_auth_client.dart';
+import '../../../channels/player/channel_mini_player_manager.dart';
 
 class PlayerPage extends StatefulWidget {
   final AuthApi api;
@@ -54,6 +55,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ChannelMiniPlayerManager.I.setSuppressed(true);
+    ChannelMiniPlayerManager.I.pause();
     _load();
   }
 
@@ -79,6 +82,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     try {
       MiniPlayerManager.I.clear();
     } catch (_) {}
+    ChannelMiniPlayerManager.I.setSuppressed(false);
     super.dispose();
   }
 

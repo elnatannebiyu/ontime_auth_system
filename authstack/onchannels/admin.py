@@ -451,135 +451,15 @@ class ChannelAdmin(admin.ModelAdmin):
 
     @admin.action(description="Sync YouTube (playlists + videos)")
     def sync_youtube_all(self, request, queryset):
-        from . import youtube_api
-        from datetime import datetime, timezone
-        playlists_created = 0
-        playlists_updated = 0
-        videos_created = 0
-        videos_updated = 0
-        processed = 0
-        with_dates = 0
-        missing_dates = 0
-        for ch in queryset:
-            try:
-                # 1) Ensure channel id
-                cid = ch.youtube_channel_id
-                if not cid and ch.youtube_handle:
-                    cid = youtube_api.resolve_channel_id(ch.youtube_handle)
-                    if cid:
-                        ch.youtube_channel_id = cid
-                        ch.save(update_fields=["youtube_channel_id", "updated_at"])
-                if not cid:
-                    self.message_user(request, f"{ch.id_slug}: missing youtube_channel_id and handle; skipped.", level="warning")
-                    continue
-                # 2) Sync playlists
-                page = None
-                while True:
-                    data = youtube_api.list_playlists(cid, page_token=page, max_results=50)
-                    for it in data.get("items", []):
-                        pid = it.get("id")
-                        title = it.get("title")
-                        thumbs = it.get("thumbnails") or {}
-                        count = int(it.get("itemCount") or 0)
-                        yt_pub = it.get("publishedAt")
-                        yt_pub_dt = None
-                        if yt_pub:
-                            try:
-                                s = yt_pub.replace("Z", "+00:00")
-                                yt_pub_dt = datetime.fromisoformat(s)
-                                if yt_pub_dt.tzinfo is None:
-                                    yt_pub_dt = yt_pub_dt.replace(tzinfo=timezone.utc)
-                            except Exception:
-                                try:
-                                    yt_pub_dt = datetime.strptime(yt_pub, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                                except Exception:
-                                    yt_pub_dt = None
-                        if yt_pub_dt:
-                            with_dates += 1
-                        else:
-                            missing_dates += 1
-                        obj, was_created = Playlist.objects.update_or_create(
-                            id=pid,
-                            defaults={
-                                "channel": ch,
-                                "title": title or "",
-                                "thumbnails": thumbs,
-                                "item_count": count,
-                                "yt_published_at": yt_pub_dt,
-                            },
-                        )
-                        processed += 1
-                        if was_created:
-                            playlists_created += 1
-                        else:
-                            playlists_updated += 1
-                    page = data.get("nextPageToken")
-                    if not page:
-                        break
-                # 3) Sync videos (active playlists if any, else all)
-                playlists = list(ch.playlists.filter(is_active=True)) or list(ch.playlists.all())
-                for pl in playlists:
-                    page = None
-                    latest_item_dt = None
-                    current_video_ids = set()
-                    while True:
-                        data = youtube_api.list_playlist_items(pl.id, page_token=page, max_results=50)
-                        for it in data.get("items", []):
-                            vid = it.get("videoId")
-                            if vid:
-                                current_video_ids.add(vid)
-                            published_at = it.get("publishedAt")
-                            dt = None
-                            if published_at:
-                                try:
-                                    dt = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                                except Exception:
-                                    dt = None
-                            if dt and (latest_item_dt is None or dt > latest_item_dt):
-                                latest_item_dt = dt
-                            obj, created = Video.objects.update_or_create(
-                                playlist=pl,
-                                video_id=vid,
-                                defaults={
-                                    "channel": ch,
-                                    "title": it.get("title") or "",
-                                    "thumbnails": it.get("thumbnails") or {},
-                                    "position": it.get("position"),
-                                    "published_at": dt,
-                                    "is_active": True,
-                                },
-                            )
-                            if created:
-                                videos_created += 1
-                            else:
-                                videos_updated += 1
-                        page = data.get("nextPageToken")
-                        if not page:
-                            break
-                    if latest_item_dt:
-                        try:
-                            pl.yt_last_item_published_at = latest_item_dt
-                            pl.save(update_fields=["yt_last_item_published_at"])
-                        except Exception:
-                            pass
+        from .tasks import sync_youtube_all_channels
 
-                    # Hide videos that are no longer present in the YouTube playlist
-                    try:
-                        stale_qs = Video.objects.filter(playlist=pl)
-                        if current_video_ids:
-                            stale_qs = stale_qs.exclude(video_id__in=current_video_ids)
-                        hidden = stale_qs.update(is_active=False)
-                    except Exception:
-                        hidden = 0
-            except Exception as exc:  # noqa: BLE001
-                self.message_user(request, f"{ch.id_slug}: sync failed: {exc}", level="warning")
-        if missing_dates:
-            logging.getLogger(__name__).info("Sync all: %d playlist(s) missing publishedAt from YouTube API", missing_dates)
-        self.message_user(
-            request,
-            f"Sync complete. playlists(processed={processed}, created={playlists_created}, updated={playlists_updated}, publishedAt set: {with_dates}, missing: {missing_dates}), "
-            f"videos(created={videos_created}, updated={videos_updated})",
-        )
+        ids = list(queryset.values_list("pk", flat=True))
+        if not ids:
+            self.message_user(request, "No channels selected.")
+            return
+
+        sync_youtube_all_channels.delay(ids)
+        self.message_user(request, f"Queued YouTube sync for {len(ids)} channel(s).")
 
 
 @admin.register(Playlist)

@@ -7,10 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api_client.dart';
 import '../core/cache/logo_probe_cache.dart';
 import 'tv_controller.dart';
+import '../channels/player/channel_mini_player_manager.dart';
+import '../channels/player/channel_now_playing.dart';
+import '../core/navigation/route_stack_observer.dart';
+import '../main.dart' show appNavigatorKey;
+import 'live_floating_mini_player.dart';
 
 class LivePlayerOverlayPage extends StatefulWidget {
   final String slug;
@@ -55,10 +61,42 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
   @override
   void initState() {
     super.initState();
+    // Option A: Live takes over.
+    // Only clear the Channels mini-player when we're taking over from a
+    // non-live (YouTube) session. If we're expanding from the unified Live
+    // mini-player, clear() would call the pause callback and pause Live.
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    final isLiveSession = now?.videoId.startsWith('live:') == true;
+    if (!isLiveSession) {
+      ChannelMiniPlayerManager.I.clear();
+    }
+
+    // Use the unified floating mini-player instead of GlobalMiniBar.
+    TvController.instance.setUseUnifiedMiniPlayer(true);
+    // Keep screen awake while in Live player
+    try {
+      WakelockPlus.enable();
+    } catch (_) {}
     WidgetsBinding.instance.addPostFrameCallback((_) {
       TvController.instance.setInFullPlayer(true);
     });
     _bootstrap();
+  }
+
+  Future<void> _retryPlayback() async {
+    if (!mounted) return;
+    setState(() {
+      _metaLoading = true;
+    });
+    try {
+      await _bootstrap();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _metaLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _enterFullscreen() async {
@@ -267,8 +305,77 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
     try {
       _qualityToastTimer?.cancel();
     } catch (_) {}
-    _exitFullscreen(restoreOnly: true);
+    // Ensure orientation/UI is restored even if we are popped while fullscreen.
+    try {
+      _fullscreen = false;
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } catch (_) {}
+    // When leaving the live overlay, we keep unified mini-player state as-is.
     super.dispose();
+  }
+
+  void _minimizeToUnifiedFloating() {
+    final tv = TvController.instance;
+    final slug = tv.slug ?? widget.slug;
+    final title = (tv.title ?? _titleText ?? 'Live TV').toString();
+    final target = '/live/overlay/$slug';
+
+    TvController.instance.setInFullPlayer(false);
+    TvController.instance.setUseUnifiedMiniPlayer(true);
+
+    ChannelMiniPlayerManager.I.setPauseCallback(() {
+      tv.pausePlayback();
+    });
+    ChannelMiniPlayerManager.I.floatingPlayer.value =
+        LiveFloatingMiniPlayer(controller: tv.controller);
+    ChannelMiniPlayerManager.I.setNowPlaying(
+      ChannelNowPlaying(
+        videoId: 'live:$slug',
+        title: title,
+        isPlaying: tv.isPlaying,
+        thumbnailUrl: null,
+        onTogglePlayPause: () {
+          if (tv.isPlaying) {
+            tv.pausePlayback();
+            ChannelMiniPlayerManager.I.update(isPlaying: false);
+          } else {
+            tv.resumePlayback();
+            ChannelMiniPlayerManager.I.update(isPlaying: true);
+          }
+        },
+        onExpand: () {
+          final nav = appNavigatorKey.currentState;
+          if (nav == null) return;
+          if (appRouteStackObserver.containsName(target)) {
+            nav.popUntil((route) => route.settings.name == target);
+            return;
+          }
+          nav.push(
+            PageRouteBuilder(
+              settings: RouteSettings(name: target),
+              pageBuilder: (_, __, ___) => LivePlayerOverlayPage(slug: slug),
+              transitionDuration: const Duration(milliseconds: 280),
+              reverseTransitionDuration: const Duration(milliseconds: 220),
+              transitionsBuilder: (_, animation, __, child) {
+                const begin = Offset(0.0, 1.0);
+                const end = Offset.zero;
+                final tween = Tween(begin: begin, end: end)
+                    .chain(CurveTween(curve: Curves.easeOutCubic));
+                return SlideTransition(
+                    position: animation.drive(tween), child: child);
+              },
+            ),
+          );
+        },
+      ),
+    );
+    ChannelMiniPlayerManager.I.setMinimized(true);
   }
 
   @override
@@ -327,12 +434,72 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                       VideoPlayer(c)
                                     else
                                       const ColoredBox(color: Colors.black12),
+                                    Positioned(
+                                      left: 12,
+                                      top: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'LIVE',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                     // Loading overlay (initializing/buffering)
                                     if (c == null ||
                                         !(c.value.isInitialized) ||
                                         (c.value.isBuffering))
                                       const Center(
                                           child: CircularProgressIndicator()),
+                                    if (TvController.instance.playbackError !=
+                                        null)
+                                      Positioned.fill(
+                                        child: ColoredBox(
+                                          color: Colors.black54,
+                                          child: Center(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(16.0),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Text(
+                                                    'Connection problem',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  const Text(
+                                                    'Please check your internet and try again.',
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                        color: Colors.white70),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  OutlinedButton(
+                                                    onPressed: _retryPlayback,
+                                                    child: const Text('Retry'),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     if (_switchingQuality)
                                       const Align(
                                           alignment: Alignment.topCenter,
@@ -371,6 +538,7 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                           if (shouldClose) {
                                             HapticFeedback.lightImpact();
                                             _dragDy = 0.0;
+                                            _minimizeToUnifiedFloating();
                                             Navigator.of(context).maybePop();
                                           } else {
                                             setState(() {
@@ -551,11 +719,75 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                         VideoPlayer(c)
                                       else
                                         const ColoredBox(color: Colors.black12),
+                                      Positioned(
+                                        left: 12,
+                                        top: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            'LIVE',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                       if (c == null ||
                                           !(c.value.isInitialized) ||
                                           (c.value.isBuffering))
                                         const Center(
                                             child: CircularProgressIndicator()),
+                                      if (TvController.instance.playbackError !=
+                                          null)
+                                        Positioned.fill(
+                                          child: ColoredBox(
+                                            color: Colors.black54,
+                                            child: Center(
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(16.0),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Text(
+                                                      'Connection problem',
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    const Text(
+                                                      'Please check your internet and try again.',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: TextStyle(
+                                                          color:
+                                                              Colors.white70),
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    OutlinedButton(
+                                                      onPressed: _retryPlayback,
+                                                      child:
+                                                          const Text('Retry'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       if (_switchingQuality)
                                         const Align(
                                             alignment: Alignment.topCenter,
@@ -595,6 +827,7 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                             if (shouldClose) {
                                               HapticFeedback.lightImpact();
                                               _dragDy = 0.0;
+                                              _minimizeToUnifiedFloating();
                                               Navigator.of(context).maybePop();
                                             } else {
                                               setState(() {

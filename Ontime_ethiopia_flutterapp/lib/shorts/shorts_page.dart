@@ -109,24 +109,58 @@ class _ShortsPageState extends State<ShortsPage> {
       // Ensure tenant is set on auth/api layer
       widget.api.setTenant(widget.tenantId);
       final client = ApiClient();
+      // First page
       final res =
           await client.get('/channels/shorts/ready/feed/', queryParameters: {
-        // Ask backend for a large cap so we effectively get all available shorts.
-        // Backend defaults to 100 if limit is omitted; using a high value here
-        // keeps behaviour explicit while relying on server-side safety caps.
-        'limit': '1000',
+        // Request a large page size; server may cap it
+        'limit': '100',
         'recent_bias_count': '15',
         'seed': _launchSeed,
       });
-      final data = res.data;
-      final List<Map<String, dynamic>> list = data is List
-          ? List<Map<String, dynamic>>.from(
-              data.map((e) => Map<String, dynamic>.from(e as Map)))
-          : (data is Map && data['results'] is List)
-              ? List<Map<String, dynamic>>.from((data['results'] as List)
-                  .map((e) => Map<String, dynamic>.from(e as Map)))
-              : const [];
-      setState(() => _items = list);
+      final acc = <Map<String, dynamic>>[];
+      String? nextUrl;
+      final first = res.data;
+      if (first is List) {
+        acc.addAll(first.map((e) => Map<String, dynamic>.from(e as Map)));
+        nextUrl = null; // non-paginated list
+      } else if (first is Map) {
+        final results = first['results'];
+        if (results is List) {
+          acc.addAll(results.map((e) => Map<String, dynamic>.from(e as Map)));
+        }
+        final n = first['next'];
+        if (n is String && n.isNotEmpty) {
+          nextUrl = n;
+        }
+      }
+      // Follow pagination if server returns next links
+      // Safety cap to avoid unbounded loops
+      int pageFollowed = 0;
+      while (nextUrl != null && nextUrl.isNotEmpty && pageFollowed < 20) {
+        try {
+          final uri = Uri.parse(nextUrl);
+          final nextRes = await client.dio.getUri(uri);
+          final data = nextRes.data;
+          if (data is Map) {
+            final results = data['results'];
+            if (results is List) {
+              acc.addAll(
+                  results.map((e) => Map<String, dynamic>.from(e as Map)));
+            }
+            final n = data['next'];
+            nextUrl = (n is String && n.isNotEmpty) ? n : null;
+          } else if (data is List) {
+            acc.addAll(data.map((e) => Map<String, dynamic>.from(e as Map)));
+            nextUrl = null;
+          } else {
+            nextUrl = null;
+          }
+        } catch (_) {
+          break;
+        }
+        pageFollowed += 1;
+      }
+      setState(() => _items = acc);
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.connectionError) {
         setState(() => _offline = true);

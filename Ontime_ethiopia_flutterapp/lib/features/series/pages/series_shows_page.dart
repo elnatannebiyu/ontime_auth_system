@@ -186,16 +186,17 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
       if (!mounted) return;
       if (seasons.length == 1) {
         final s = seasons.first;
-        final seasonId = s['id'] as int;
+        final id = s['id'] as int;
         final number = s['number']?.toString() ?? '';
         final rawTitle = (s['title'] as String?)?.trim() ?? '';
         final seasonTitle = rawTitle.isNotEmpty ? rawTitle : 'Season $number';
         await Navigator.of(context).push(
           MaterialPageRoute(
+            settings: RouteSettings(name: '/series/season/$id'),
             builder: (_) => SeriesEpisodesPage(
               api: widget.api,
               tenantId: widget.tenantId,
-              seasonId: seasonId,
+              seasonId: id,
               title: '$seasonTitle · $title',
             ),
           ),
@@ -203,6 +204,7 @@ class _SeriesShowsPageState extends State<SeriesShowsPage>
       } else {
         await Navigator.of(context).push(
           MaterialPageRoute(
+            settings: RouteSettings(name: '/series/show/$slug'),
             builder: (_) => SeriesSeasonsPage(
               api: widget.api,
               tenantId: widget.tenantId,
@@ -574,7 +576,9 @@ class _ShowsGrid extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, i) {
         final s = items[i];
-        final title = (s['title'] ?? '').toString();
+        final title =
+            ((s['display_title'] ?? s['name'] ?? s['title'] ?? '') as Object)
+                .toString();
         final cover = (s['cover_image'] ?? '').toString();
         final slug = (s['slug'] ?? '').toString();
         if (slug == 'show-1763740244802') {

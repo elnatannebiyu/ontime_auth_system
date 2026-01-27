@@ -1,25 +1,23 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../api_client.dart';
-import 'channel_service.dart';
-import '../core/localization/l10n.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
-class _VideoHit {
-  final String playlistId;
-  final String playlistTitle;
-  final Map<String, dynamic> video;
-  const _VideoHit({
-    required this.playlistId,
-    required this.playlistTitle,
-    required this.video,
-  });
-}
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import '../api_client.dart';
+import '../core/cache/channel_cache.dart';
+import '../core/localization/l10n.dart';
+import 'channel_playlist_cache.dart';
+import 'channel_service.dart';
+import 'channel_ui_utils.dart';
+import 'playlist_detail_page.dart';
 
 class PlaylistGridSheet extends StatefulWidget {
   final String channelSlug;
-  const PlaylistGridSheet({super.key, required this.channelSlug});
+  final Map<String, dynamic>? channel;
+
+  const PlaylistGridSheet({super.key, required this.channelSlug, this.channel});
 
   @override
   State<PlaylistGridSheet> createState() => _PlaylistGridSheetState();
@@ -27,73 +25,36 @@ class PlaylistGridSheet extends StatefulWidget {
 
 class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
   final ChannelsService _service = ChannelsService();
+  final LocalizationController _lc = LocalizationController();
+
   final ScrollController _scroll = ScrollController();
+  final TextEditingController _searchCtrl = TextEditingController();
+
   final List<Map<String, dynamic>> _playlists = [];
   bool _loading = true;
   bool _loadingMore = false;
-  String? _error;
-  int _page = 1;
   bool _hasNext = true;
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _query = '';
-  final Map<String, List<Map<String, dynamic>>> _videosByPlaylist = {};
-  final Set<String> _fetchingVideos = {};
-  final LocalizationController _lc = LocalizationController();
+  int _page = 1;
+
   bool _offline = false;
-  // In-memory caches to enable offline reopen and counts
-  static final Map<String, List<Map<String, dynamic>>> _cachedPlaylistsBySlug =
-      {};
-  static final Map<String, List<Map<String, dynamic>>> _cachedVideosByPlaylist =
-      {};
+  String? _error;
+
+  Map<String, dynamic>? _channel;
+  bool _loadingChannel = true;
+
+  Timer? _debounce;
+  String _query = '';
+
+  final _cachedPlaylistsBySlug = ChannelPlaylistCache.playlistsBySlug;
+  final _cachedChannelBySlug = ChannelPlaylistCache.channelBySlug;
 
   String _t(String key) => _lc.t(key);
-
-  Map<String, String>? _authHeadersFor(String url) {
-    if (!url.startsWith(kApiBase)) return null;
-    final client = ApiClient();
-    final token = client.getAccessToken();
-    final tenant = client.tenant;
-    final headers = <String, String>{};
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    if (tenant != null && tenant.isNotEmpty) headers['X-Tenant-Id'] = tenant;
-    return headers.isEmpty ? null : headers;
-  }
-
-  String? _thumbFromMap(Map<String, dynamic> m) {
-    const keys = [
-      'thumbnail',
-      'thumbnail_url',
-      'thumb',
-      'thumb_url',
-      'image',
-      'image_url',
-      'poster',
-      'poster_url'
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    final t = m['thumbnails'];
-    if (t is Map) {
-      for (final size in ['maxres', 'standard', 'high', 'medium', 'default']) {
-        final s = t[size];
-        if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
-          return s['url'] as String;
-        }
-      }
-      if (t['url'] is String && (t['url'] as String).isNotEmpty) {
-        return t['url'] as String;
-      }
-    }
-    return null;
-  }
 
   @override
   void initState() {
     super.initState();
+    _lc.load();
+    _primeChannel();
     _loadPage(1);
     _scroll.addListener(_onScroll);
   }
@@ -103,7 +64,78 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
     _searchCtrl.dispose();
+    try {
+      _debounce?.cancel();
+    } catch (_) {}
     super.dispose();
+  }
+
+  void _primeChannel() {
+    if (widget.channel != null) {
+      _channel = widget.channel;
+      _cachedChannelBySlug[widget.channelSlug] =
+          Map<String, dynamic>.from(widget.channel!);
+      _loadingChannel = false;
+      return;
+    }
+    final cached = _cachedChannelBySlug[widget.channelSlug];
+    if (cached != null) {
+      _channel = Map<String, dynamic>.from(cached);
+      _loadingChannel = false;
+      return;
+    }
+    _primeChannelFromDiskCache();
+  }
+
+  Future<void> _primeChannelFromDiskCache() async {
+    try {
+      final client = ApiClient();
+      final tenant = client.tenant;
+      if (tenant == null || tenant.isEmpty) {
+        await _loadChannel();
+        return;
+      }
+      final cachedList = await ChannelCache.load(tenant);
+      if (cachedList.isNotEmpty) {
+        final slug = widget.channelSlug;
+        for (final dynamic raw in cachedList) {
+          if (raw is Map<String, dynamic>) {
+            final s = (raw['id_slug'] ?? '').toString();
+            if (s == slug) {
+              if (!mounted) return;
+              setState(() {
+                _channel = Map<String, dynamic>.from(raw);
+                _loadingChannel = false;
+              });
+              _cachedChannelBySlug[slug] = Map<String, dynamic>.from(raw);
+              return;
+            }
+          }
+        }
+      }
+      await _loadChannel();
+    } catch (_) {
+      await _loadChannel();
+    }
+  }
+
+  Future<void> _loadChannel() async {
+    try {
+      final m = await _service.getChannel(widget.channelSlug);
+      if (!mounted) return;
+      setState(() {
+        _channel = m;
+        _loadingChannel = false;
+      });
+      if (m != null) {
+        _cachedChannelBySlug[widget.channelSlug] = Map<String, dynamic>.from(m);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingChannel = false;
+      });
+    }
   }
 
   void _onScroll() {
@@ -112,8 +144,6 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
     if (pos.pixels > pos.maxScrollExtent - 300) {
       _loadMore();
     }
-    // Also backfill counts for the newest items near the bottom
-    _ensureCountsForRecent(recentCount: 15);
   }
 
   Future<void> _loadPage(int page) async {
@@ -121,44 +151,29 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
       _loading = page == 1;
       _error = null;
     });
+
     try {
-      // Early offline detection to avoid unnecessary network calls/logs
       final conn = await Connectivity().checkConnectivity();
-      // ignore: unrelated_type_equality_checks
       final bool isOffline = conn == ConnectivityResult.none;
       if (isOffline) {
-        if (page == 1) {
-          final cached = _cachedPlaylistsBySlug[widget.channelSlug] ?? const [];
-          setState(() {
-            _offline = true;
-            _playlists
-              ..clear()
-              ..addAll(cached);
-            _loading = false;
-            _loadingMore = false;
-            _hasNext = false;
-            _error = cached.isEmpty ? _t('you_are_offline') : null;
-          });
-          // Restore cached video lists to surface counts
-          for (final pl in _playlists) {
-            final id = pl['id']?.toString() ?? '';
-            final cachedV = _cachedVideosByPlaylist[id];
-            if (id.isNotEmpty &&
-                cachedV != null &&
-                !_videosByPlaylist.containsKey(id)) {
-              _videosByPlaylist[id] = List<Map<String, dynamic>>.from(cachedV);
-            }
-          }
-        } else {
-          setState(() {
-            _offline = true;
-            _loadingMore = false;
-          });
-        }
+        final cached = _cachedPlaylistsBySlug[widget.channelSlug] ?? const [];
+        if (!mounted) return;
+        setState(() {
+          _offline = true;
+          _playlists
+            ..clear()
+            ..addAll(cached);
+          _loading = false;
+          _loadingMore = false;
+          _hasNext = false;
+          _error = cached.isEmpty ? _t('you_are_offline') : null;
+        });
         return;
       }
+
       final res = await _service.getPlaylists(widget.channelSlug, page: page);
       final results = List<Map<String, dynamic>>.from(res['results'] as List);
+      if (!mounted) return;
       setState(() {
         if (page == 1) {
           _playlists
@@ -173,44 +188,16 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
         _loadingMore = false;
         _offline = false;
       });
-      // Cache playlists for offline reopen
       _cachedPlaylistsBySlug[widget.channelSlug] =
           List<Map<String, dynamic>>.from(_playlists);
-      if (page == 1) {
-        _ensureCountsForVisible(
-            cap: _playlists.length < 15 ? _playlists.length : 15);
-      } else {
-        _ensureCountsForRecent(
-            recentCount: results.length < 15 ? 15 : results.length);
-      }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
         _loadingMore = false;
         _offline = true;
       });
-      // If we have cached playlists, show them instead of error-only view
-      final cached = _cachedPlaylistsBySlug[widget.channelSlug];
-      if (cached != null && cached.isNotEmpty) {
-        setState(() {
-          _playlists
-            ..clear()
-            ..addAll(cached);
-          _hasNext = false;
-          _error = null;
-        });
-        // Restore cached videos for counts
-        for (final pl in _playlists) {
-          final id = pl['id']?.toString() ?? '';
-          final cachedV = _cachedVideosByPlaylist[id];
-          if (id.isNotEmpty &&
-              cachedV != null &&
-              !_videosByPlaylist.containsKey(id)) {
-            _videosByPlaylist[id] = List<Map<String, dynamic>>.from(cachedV);
-          }
-        }
-      }
     }
   }
 
@@ -222,199 +209,186 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
     await _loadPage(_page + 1);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> visible = _query.isEmpty
-        ? _playlists
-        : _playlists
-            .where((p) =>
-                ((p['title'] ?? '') as String)
-                    .toLowerCase()
-                    .contains(_query.toLowerCase()) ||
-                (p['id']?.toString() ?? '').contains(_query))
-            .toList();
+  String _channelDisplayName() {
+    final ch = _channel;
+    if (ch == null) return '';
+    final String defLoc = (ch['default_locale'] ?? '').toString();
+    final String nameAm = (ch['name_am'] ?? '').toString();
+    final String nameEn = (ch['name_en'] ?? '').toString();
+    final String idSlug = (ch['id_slug'] ?? '').toString();
+    if (defLoc == 'am' && nameAm.isNotEmpty) return nameAm;
+    if (nameEn.isNotEmpty) return nameEn;
+    if (nameAm.isNotEmpty) return nameAm;
+    return idSlug;
+  }
 
-    // Prepare video search results
-    final List<_VideoHit> videoHits = _buildVideoHits(_query);
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.82,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(_t('playlists'),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
-                  ),
-                  IconButton(
-                    tooltip: _t('close'),
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: (v) {
-                  setState(() => _query = v.trim());
-                  // schedule limited video prefetch for search
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _ensureVideosForSearch();
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: _t('search_playlists'),
-                  prefixIcon: const Icon(Icons.search),
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            if (_offline)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.wifi_off, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _t('you_are_offline'),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_loading && _playlists.isEmpty)
-              Expanded(child: _buildSkeletonGrid())
-            else if (_error != null && _playlists.isEmpty)
-              Expanded(child: _buildInitialError())
-            else ...[
-              if (_query.isNotEmpty && videoHits.isNotEmpty)
-                SizedBox(
-                  height: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-                        child: Text(_t('videos'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                      ),
-                      Expanded(child: _buildVideoResults(videoHits)),
-                    ],
-                  ),
-                ),
-              if (_query.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 6),
-                  child: Column(
-                    children: [
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            _t('playlists'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (visible.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      _query.isNotEmpty ? _t('no_results') : _t('no_playlists'),
-                    ),
-                  ),
-                )
-              else
-                Expanded(child: _buildGrid(visible)),
-            ],
-            if (_loadingMore)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+  String _channelSubtitle() {
+    final ch = _channel;
+    if (ch == null) return '';
+    final String handle = (ch['handle'] ?? '').toString();
+    final String country = (ch['country'] ?? '').toString();
+    final String language = (ch['language'] ?? '').toString();
+    if (handle.isNotEmpty) return handle;
+    final parts = <String>[];
+    if (language.isNotEmpty) parts.add(language);
+    if (country.isNotEmpty) parts.add(country);
+    return parts.join(' • ');
+  }
+
+  Widget _buildHeaderRow() {
+    final displayName = _channelDisplayName();
+    final subtitle = _channelSubtitle();
+    final logoUrl =
+        (_channel != null ? (_channel!['logo_url'] ?? '').toString() : '');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        children: [
+          if (_loadingChannel)
+            const SizedBox(
+              width: 36,
+              height: 36,
+              child: Center(
                 child: SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2)),
               ),
-          ],
+            )
+          else if (logoUrl.isNotEmpty)
+            ClipOval(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CachedNetworkImage(
+                  imageUrl: logoUrl,
+                  fit: BoxFit.cover,
+                  httpHeaders: authHeadersFor(logoUrl),
+                ),
+              ),
+            )
+          else
+            const CircleAvatar(
+                radius: 18, child: Icon(Icons.live_tv, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  displayName.isNotEmpty
+                      ? displayName
+                      : (widget.channelSlug.isNotEmpty
+                          ? widget.channelSlug
+                          : _t('playlists')),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: _t('close'),
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) {
+          try {
+            _debounce?.cancel();
+          } catch (_) {}
+          _debounce = Timer(const Duration(milliseconds: 250), () {
+            if (!mounted) return;
+            setState(() => _query = v.trim());
+          });
+        },
+        decoration: InputDecoration(
+          hintText: _t('search_playlists'),
+          prefixIcon: const Icon(Icons.search),
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
   }
 
-  Widget _buildSkeletonGrid() {
+  Widget _buildBody(List<Map<String, dynamic>> visible) {
+    if (_loading && _playlists.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null && _playlists.isEmpty) {
+      final String msg = _offline
+          ? _t('you_are_offline')
+          : (kDebugMode
+              ? (_error ?? 'Unknown error')
+              : _t('something_went_wrong'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(msg, textAlign: TextAlign.center),
+        ),
+      );
+    }
+
+    if (visible.isEmpty) {
+      return Center(
+        child: Text(_query.isNotEmpty ? _t('no_results') : _t('no_playlists')),
+      );
+    }
+
     return GridView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        top: 0,
+        bottom: MediaQuery.of(context).padding.bottom,
+      ),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
         childAspectRatio: 0.68,
       ),
-      itemCount: 9,
-      itemBuilder: (_, __) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGrid(List<Map<String, dynamic>> list) {
-    return GridView.builder(
-      controller: _scroll,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.68,
-      ),
-      itemCount: list.length,
+      itemCount: visible.length,
       itemBuilder: (context, i) {
-        final pl = list[i];
+        final pl = visible[i];
         final title = (pl['title'] ?? '').toString();
-        final thumb = _thumbFromMap(pl);
+        final thumb = thumbFromMap(pl);
         final id = pl['id']?.toString() ?? '';
-        int? videoCount;
-        final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
-        if (c1 is int) {
-          videoCount = c1;
-        } else if (_videosByPlaylist.containsKey(id)) {
-          videoCount = _videosByPlaylist[id]!.length;
-        }
+        final dynamic countRaw =
+            pl['item_count'] ?? pl['videos_count'] ?? pl['video_count'];
+        final int? count = (countRaw is int)
+            ? countRaw
+            : int.tryParse(countRaw?.toString() ?? '');
         return GestureDetector(
           onTap: id.isEmpty
               ? null
               : () {
-                  Navigator.of(context).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
+                      settings: RouteSettings(name: '/playlist/$id'),
                       builder: (_) =>
                           PlaylistDetailPage(playlistId: id, title: title),
                     ),
@@ -427,35 +401,20 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Positioned.fill(
-                        child: thumb != null && thumb.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: thumb,
-                                fit: BoxFit.cover,
-                                httpHeaders: _authHeadersFor(thumb),
-                                placeholder: (_, __) =>
-                                    Container(color: Colors.black26),
-                                errorWidget: (_, __, ___) =>
-                                    Container(color: Colors.black26),
-                              )
-                            : Container(color: Colors.black26),
-                      ),
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(.25),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (videoCount != null)
+                      thumb != null && thumb.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: thumb,
+                              fit: BoxFit.cover,
+                              httpHeaders: authHeadersFor(thumb),
+                              placeholder: (_, __) =>
+                                  Container(color: Colors.black26),
+                              errorWidget: (_, __, ___) =>
+                                  Container(color: Colors.black26),
+                            )
+                          : Container(color: Colors.black26),
+                      if (count != null)
                         Positioned(
                           top: 6,
                           right: 6,
@@ -467,7 +426,7 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '$videoCount',
+                              '$count',
                               style: const TextStyle(
                                   fontSize: 11, color: Colors.white),
                             ),
@@ -491,460 +450,33 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
     );
   }
 
-  Widget _buildInitialError() {
-    final String message = _offline
-        ? _t('you_are_offline')
-        : (kDebugMode
-            ? (_error?.isNotEmpty == true ? _error! : 'Unknown error')
-            : _t('something_went_wrong'));
-    return Center(
+  @override
+  Widget build(BuildContext context) {
+    final visible = _query.isEmpty
+        ? _playlists
+        : _playlists.where((p) {
+            final t = (p['title'] ?? '').toString().toLowerCase();
+            return t.contains(_query.toLowerCase()) ||
+                (p['id']?.toString() ?? '').contains(_query);
+          }).toList();
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.82,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(message,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          ),
-          if (!kDebugMode)
-            ElevatedButton.icon(
-              onPressed: () => _loadPage(1),
-              icon: const Icon(Icons.refresh),
-              label: Text(_t('retry')),
+          _buildHeaderRow(),
+          _buildSearchField(),
+          Expanded(child: _buildBody(visible)),
+          if (_loadingMore)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
             ),
         ],
       ),
-    );
-  }
-
-  void _ensureVideosForSearch() {
-    if (_query.isEmpty || _offline) return;
-    // Prefetch first page of videos for up to 6 playlists to enable search
-    const int cap = 6;
-    int fetched = 0;
-    for (final pl in _playlists) {
-      if (fetched >= cap) break;
-      final id = pl['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      if (_videosByPlaylist.containsKey(id) || _fetchingVideos.contains(id)) {
-        continue;
-      }
-      // Use cached first to avoid network (and works offline)
-      final cachedV = _cachedVideosByPlaylist[id];
-      if (cachedV != null) {
-        setState(() {
-          _videosByPlaylist[id] = List<Map<String, dynamic>>.from(cachedV);
-        });
-        fetched += 1;
-        continue;
-      }
-      _fetchingVideos.add(id);
-      _service
-          .getPlaylistVideos(id, page: 1)
-          .then((res) {
-            final results =
-                List<Map<String, dynamic>>.from(res['results'] as List);
-            // Attach parent id for quick navigation
-            for (final m in results) {
-              m['playlist_id'] = id;
-            }
-            if (mounted) {
-              setState(() {
-                _videosByPlaylist[id] = results;
-              });
-            } else {
-              _videosByPlaylist[id] = results;
-            }
-            _cachedVideosByPlaylist[id] =
-                List<Map<String, dynamic>>.from(results);
-          })
-          .catchError((_) {})
-          .whenComplete(() {
-            _fetchingVideos.remove(id);
-          });
-      fetched += 1;
-    }
-  }
-
-  void _ensureCountsForVisible({int cap = 12}) {
-    if (_offline) return;
-    if (cap <= 0) return;
-    int fetched = 0;
-    for (final pl in _playlists) {
-      if (fetched >= cap) break;
-      final id = pl['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
-      if (c1 is int && c1 >= 0) {
-        fetched += 1;
-        continue;
-      }
-      if (_videosByPlaylist.containsKey(id) || _fetchingVideos.contains(id)) {
-        fetched += 1;
-        continue;
-      }
-      // Use cached video list if available
-      final cachedV = _cachedVideosByPlaylist[id];
-      if (cachedV != null) {
-        _videosByPlaylist[id] = List<Map<String, dynamic>>.from(cachedV);
-        fetched += 1;
-        continue;
-      }
-      _fetchingVideos.add(id);
-      _service
-          .getPlaylistVideos(id, page: 1)
-          .then((res) {
-            final results =
-                List<Map<String, dynamic>>.from(res['results'] as List);
-            for (final m in results) {
-              m['playlist_id'] = id;
-            }
-            if (mounted) {
-              setState(() {
-                _videosByPlaylist[id] = results;
-              });
-            } else {
-              _videosByPlaylist[id] = results;
-            }
-            _cachedVideosByPlaylist[id] =
-                List<Map<String, dynamic>>.from(results);
-          })
-          .catchError((_) {})
-          .whenComplete(() {
-            _fetchingVideos.remove(id);
-          });
-      fetched += 1;
-    }
-  }
-
-  void _ensureCountsForRecent({required int recentCount}) {
-    if (_offline) return;
-    if (recentCount <= 0) return;
-    int fetched = 0;
-    for (int i = _playlists.length - 1; i >= 0; i--) {
-      if (fetched >= recentCount) break;
-      final pl = _playlists[i];
-      final id = pl['id']?.toString() ?? '';
-      if (id.isEmpty) {
-        fetched += 1;
-        continue;
-      }
-      final dynamic c1 = pl['videos_count'] ?? pl['video_count'] ?? pl['item_count'];
-      if (c1 is int && c1 >= 0) {
-        fetched += 1;
-        continue;
-      }
-      if (_videosByPlaylist.containsKey(id) || _fetchingVideos.contains(id)) {
-        fetched += 1;
-        continue;
-      }
-      // Use cached video list if available
-      final cachedV = _cachedVideosByPlaylist[id];
-      if (cachedV != null) {
-        _videosByPlaylist[id] = List<Map<String, dynamic>>.from(cachedV);
-        fetched += 1;
-        continue;
-      }
-      _fetchingVideos.add(id);
-      _service
-          .getPlaylistVideos(id, page: 1)
-          .then((res) {
-            final results =
-                List<Map<String, dynamic>>.from(res['results'] as List);
-            for (final m in results) {
-              m['playlist_id'] = id;
-            }
-            if (mounted) {
-              setState(() {
-                _videosByPlaylist[id] = results;
-              });
-            } else {
-              _videosByPlaylist[id] = results;
-            }
-            _cachedVideosByPlaylist[id] =
-                List<Map<String, dynamic>>.from(results);
-          })
-          .catchError((_) {})
-          .whenComplete(() {
-            _fetchingVideos.remove(id);
-          });
-      fetched += 1;
-    }
-  }
-
-  List<_VideoHit> _buildVideoHits(String query) {
-    if (query.isEmpty) return const [];
-    final q = query.toLowerCase();
-    final List<_VideoHit> hits = [];
-    _videosByPlaylist.forEach((playlistId, videos) {
-      for (final v in videos) {
-        final title = (v['title'] ?? '').toString();
-        if (title.toLowerCase().contains(q) ||
-            (v['id']?.toString() ?? '').contains(query)) {
-          final pl = _playlists.firstWhere(
-              (p) => (p['id']?.toString() ?? '') == playlistId,
-              orElse: () => const {});
-          hits.add(_VideoHit(
-            playlistId: playlistId,
-            playlistTitle: (pl['title'] ?? '').toString(),
-            video: v,
-          ));
-        }
-      }
-    });
-    // Limit to avoid overlong list
-    if (hits.length > 12) return hits.sublist(0, 12);
-    return hits;
-  }
-
-  Widget _buildVideoResults(List<_VideoHit> hits) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      itemBuilder: (context, index) {
-        final h = hits[index];
-        final title = (h.video['title'] ?? '').toString();
-        final thumb = _thumbFromMap(h.video);
-        return GestureDetector(
-          onTap: () {
-            Navigator.of(context).pop();
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlaylistDetailPage(
-                  playlistId: h.playlistId,
-                  title: h.playlistTitle,
-                ),
-              ),
-            );
-          },
-          child: SizedBox(
-            width: 180,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: thumb != null && thumb.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: thumb,
-                            fit: BoxFit.cover,
-                            httpHeaders: _authHeadersFor(thumb),
-                          )
-                        : Container(color: Colors.black26),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  h.playlistTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(width: 12),
-      itemCount: hits.length,
-    );
-  }
-}
-
-class PlaylistDetailPage extends StatefulWidget {
-  final String playlistId;
-  final String title;
-  const PlaylistDetailPage(
-      {super.key, required this.playlistId, required this.title});
-
-  @override
-  State<PlaylistDetailPage> createState() => _PlaylistDetailPageState();
-}
-
-class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
-  final ChannelsService _service = ChannelsService();
-  final List<Map<String, dynamic>> _videos = [];
-  bool _loading = true;
-  String? _error;
-  int _page = 1;
-  bool _hasNext = true;
-  bool _loadingMore = false;
-  final ScrollController _scroll = ScrollController();
-
-  Map<String, String>? _authHeadersFor(String url) {
-    if (!url.startsWith(kApiBase)) return null;
-    final client = ApiClient();
-    final token = client.getAccessToken();
-    final tenant = client.tenant;
-    final headers = <String, String>{};
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    if (tenant != null && tenant.isNotEmpty) headers['X-Tenant-Id'] = tenant;
-    return headers.isEmpty ? null : headers;
-  }
-
-  String? _thumbFromMap(Map<String, dynamic> m) {
-    const keys = [
-      'thumbnail',
-      'thumbnail_url',
-      'thumb',
-      'thumb_url',
-      'image',
-      'image_url',
-      'poster',
-      'poster_url'
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    final t = m['thumbnails'];
-    if (t is Map) {
-      for (final size in ['maxres', 'standard', 'high', 'medium', 'default']) {
-        final s = t[size];
-        if (s is Map && s['url'] is String && (s['url'] as String).isNotEmpty) {
-          return s['url'] as String;
-        }
-      }
-      if (t['url'] is String && (t['url'] as String).isNotEmpty) {
-        return t['url'] as String;
-      }
-    }
-    return null;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPage(1);
-    _scroll.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scroll.removeListener(_onScroll);
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_hasNext || _loadingMore || !_scroll.hasClients) return;
-    final pos = _scroll.position;
-    if (pos.pixels > pos.maxScrollExtent - 300) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadPage(int page) async {
-    setState(() {
-      _loading = page == 1;
-      _error = null;
-    });
-    try {
-      final res =
-          await _service.getPlaylistVideos(widget.playlistId, page: page);
-      final results = List<Map<String, dynamic>>.from(res['results'] as List);
-      setState(() {
-        if (page == 1) {
-          _videos
-            ..clear()
-            ..addAll(results);
-        } else {
-          _videos.addAll(results);
-        }
-        _page = page;
-        _hasNext = res['next'] != null;
-        _loading = false;
-        _loadingMore = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Failed to load videos';
-        _loading = false;
-        _loadingMore = false;
-      });
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_loading || _loadingMore || !_hasNext) return;
-    setState(() {
-      _loadingMore = true;
-    });
-    await _loadPage(_page + 1);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-          title: Text(widget.title.isNotEmpty ? widget.title : 'Playlist')),
-      body: _loading && _videos.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child:
-                      Text(_error!, style: const TextStyle(color: Colors.red)))
-              : RefreshIndicator(
-                  onRefresh: () => _loadPage(1),
-                  child: ListView.separated(
-                    controller: _scroll,
-                    itemCount: _videos.length + (_loadingMore ? 1 : 0),
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      if (index >= _videos.length) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      }
-                      final v = _videos[index];
-                      final title = (v['title'] ?? '').toString();
-                      final thumb = _thumbFromMap(v);
-                      return ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 64,
-                            height: 40,
-                            child: thumb != null && thumb.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: thumb,
-                                    fit: BoxFit.cover,
-                                    httpHeaders: _authHeadersFor(thumb),
-                                  )
-                                : Container(color: Colors.black26),
-                          ),
-                        ),
-                        title: Text(title,
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                        trailing: const Icon(Icons.play_circle_outline),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content:
-                                    Text('Player integration coming soon')),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
     );
   }
 }

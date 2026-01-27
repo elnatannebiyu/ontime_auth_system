@@ -279,6 +279,8 @@ class LocalizationController extends ChangeNotifier {
           'Password must contain at least one special character',
       'passwords_do_not_match': 'Passwords do not match',
       'password_required_field': 'Password is required',
+      'enable_auto_rotate_fullscreen':
+          'Enable Auto‑Rotate in your phone settings for fullscreen playback.',
     };
     const am = {
       'home': 'መነሻ',
@@ -493,6 +495,8 @@ class LocalizationController extends ChangeNotifier {
       'password_needs_special': 'ፓስዎርድ ቢያንስ አንድ ልዩ ቁምፊ መያዝ አለበት',
       'passwords_do_not_match': 'ፓስዎርዶች አይዛመዱም',
       'password_required_field': 'ፓስዎርድ ያስፈልጋል',
+      'enable_auto_rotate_fullscreen':
+          'ሙሉ ማያ ለመመልከት በስልክዎ ቅንብሮች ውስጥ Auto‑Rotate አንቃ።',
     };
     const om = {
       'home': 'Mana',
