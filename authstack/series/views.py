@@ -97,8 +97,11 @@ class ShowViewSet(viewsets.ModelViewSet):
                     distinct=False,
                 )
             ).order_by("-recent_views", "-updated_at")
-        if self.request.query_params.get("new"):
+        elif self.request.query_params.get("new"):
             qs = qs.annotate(latest_time=Max("seasons__episodes__source_published_at")).order_by("-latest_time", "-updated_at")
+        elif "ordering" not in self.request.query_params:
+            # Default shows page ordering: newest first (overrides Show.Meta.ordering)
+            qs = qs.order_by("-created_at", "-updated_at")
         # Only active shows for non-admins
         if not (bool(getattr(self.request.user, 'is_superuser', False)) or self.request.user.has_perm("series.manage_content")):
             qs = qs.filter(is_active=True)
