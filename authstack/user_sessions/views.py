@@ -65,33 +65,8 @@ class RegisterDeviceView(APIView):
                 device.save()
                 created = True
 
-            # Resolve push_token conflicts: disable other users with same token
-            if push_token:
-                (Device.objects
-                 .filter(push_token=push_token)
-                 .exclude(pk=device.pk)
-                 .update(push_enabled=False, last_seen_at=timezone.now()))
-
         logger.info('[RegisterDevice] user=%s device_id=%s created=%s push_token_present=%s push_enabled=%s',
                     user.id, device_id, created, bool(push_token), device.push_enabled)
-
-        # STRICT MODE: ensure this physical device/token is not active for any other user
-        # Disable by device_id for other users
-        disabled_by_id = 0
-        if device_id:
-            disabled_by_id = (Device.objects
-                              .filter(device_id=device_id)
-                              .exclude(user=user)
-                              .update(push_enabled=False, last_seen_at=timezone.now()))
-        # Disable by push_token for other users (covers reinstall/new device_id cases)
-        disabled_by_token = 0
-        if push_token:
-            disabled_by_token = (Device.objects
-                                 .filter(push_token=push_token)
-                                 .exclude(user=user)
-                                 .update(push_enabled=False, last_seen_at=timezone.now()))
-
-        logger.info('[RegisterDevice] strict-disabled others: by_device_id=%s by_token=%s', disabled_by_id, disabled_by_token)
 
         return Response({
             'id': str(device.id),
