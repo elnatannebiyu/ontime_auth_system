@@ -773,7 +773,7 @@ class ScheduledNotificationAdmin(admin.ModelAdmin):
         'id', 'title', 'target_type', 'target_user', 'send_at', 'status', 'attempts', 'updated_at'
     )
     list_filter = ('status', 'target_type', 'send_at', 'updated_at')
-    search_fields = ('title', 'body', 'target_value')
+    search_fields = ('title', 'body', 'target_value', 'target_user__username', 'target_user__email', 'target_user__id')
     actions = ['send_now', 'retry_failed']
 
     @admin.action(description="Send selected now")

@@ -191,6 +191,8 @@ class Command(BaseCommand):
                     tenant=tenant_slug,
                     show=show,
                     is_active=True,
+                    user__isnull=False,
+                    user__is_active=True,
                 )
                 if reminders:
                     title = f"New episodes in {show.title}"
