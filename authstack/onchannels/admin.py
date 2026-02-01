@@ -831,7 +831,8 @@ class ScheduledNotificationAdmin(admin.ModelAdmin):
             .order_by("-last_send_at", "-last_updated_at")
         )
 
-        changelist_url = reverse("admin:onchannels_schedulednotification_changelist")
+        opts = self.model._meta
+        changelist_url = reverse(f"admin:{opts.app_label}_{opts.model_name}_changelist")
         for row in grouped:
             params = {}
             if row.get("target_user_id"):
