@@ -1,5 +1,9 @@
 from django.contrib import admin
 from django.utils import timezone
+from django.urls import path, reverse
+from django.db.models import Count, Max, Q
+from django.template.response import TemplateResponse
+from urllib.parse import urlencode
 
 from .models import ScheduledNotification
 from .models import UserNotification
@@ -775,6 +779,87 @@ class ScheduledNotificationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'target_type', 'send_at', 'updated_at')
     search_fields = ('title', 'body', 'target_value', 'target_user__username', 'target_user__email', 'target_user__id')
     actions = ['send_now', 'retry_failed']
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "summary/",
+                self.admin_site.admin_view(self.summary_view),
+                name="onchannels_schedulednotification_summary",
+            ),
+        ]
+        return custom + urls
+
+    def summary_view(self, request):
+        qs = ScheduledNotification.objects.select_related("target_user").all()
+
+        tenant = request.GET.get("tenant")
+        if tenant:
+            try:
+                qs = qs.filter(data__tenant=tenant)
+            except Exception:
+                pass
+
+        title_q = (request.GET.get("title") or "").strip()
+        if title_q:
+            qs = qs.filter(title__icontains=title_q)
+
+        status_q = (request.GET.get("status") or "").strip()
+        if status_q:
+            qs = qs.filter(status=status_q)
+
+        target_type_q = (request.GET.get("target_type") or "").strip()
+        if target_type_q:
+            qs = qs.filter(target_type=target_type_q)
+
+        grouped = list(
+            qs.values(
+                "target_user_id",
+                "target_user__username",
+                "target_user__email",
+                "title",
+            )
+            .annotate(
+                total=Count("id"),
+                pending=Count("id", filter=Q(status=ScheduledNotification.STATUS_PENDING)),
+                sent=Count("id", filter=Q(status=ScheduledNotification.STATUS_SENT)),
+                failed=Count("id", filter=Q(status=ScheduledNotification.STATUS_FAILED)),
+                last_send_at=Max("send_at"),
+                last_updated_at=Max("updated_at"),
+            )
+            .order_by("-last_send_at", "-last_updated_at")
+        )
+
+        changelist_url = reverse("admin:onchannels_schedulednotification_changelist")
+        for row in grouped:
+            params = {}
+            if row.get("target_user_id"):
+                params["target_user__id__exact"] = row["target_user_id"]
+            if row.get("title"):
+                params["title__exact"] = row["title"]
+            if status_q:
+                params["status__exact"] = status_q
+            if target_type_q:
+                params["target_type__exact"] = target_type_q
+            if tenant:
+                params["tenant"] = tenant
+            row["drilldown_url"] = f"{changelist_url}?{urlencode(params)}" if params else changelist_url
+
+        context = dict(
+            self.admin_site.each_context(request),
+            title="Scheduled Notifications Summary",
+            grouped=grouped,
+            filters={
+                "tenant": tenant or "",
+                "title": title_q,
+                "status": status_q,
+                "target_type": target_type_q,
+            },
+            status_choices=ScheduledNotification.STATUS_CHOICES,
+            target_type_choices=ScheduledNotification.TARGET_CHOICES,
+        )
+        return TemplateResponse(request, "admin/onchannels/schedulednotification/summary.html", context)
 
     @admin.action(description="Send selected now")
     def send_now(self, request, queryset):
