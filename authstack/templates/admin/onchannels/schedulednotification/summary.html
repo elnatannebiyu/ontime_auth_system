@@ -1,0 +1,85 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>{{ title }}</h1>
+
+  <div style="margin: 12px 0; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff;">
+    <form method="get">
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+        <div>
+          <label for="id_title">Title contains</label><br/>
+          <input id="id_title" type="text" name="title" value="{{ filters.title }}" style="min-width:260px" />
+        </div>
+        <div>
+          <label for="id_status">Status</label><br/>
+          <select id="id_status" name="status">
+            <option value="" {% if not filters.status %}selected{% endif %}>(any)</option>
+            {% for k, v in status_choices %}
+              <option value="{{ k }}" {% if filters.status == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="id_target_type">Target type</label><br/>
+          <select id="id_target_type" name="target_type">
+            <option value="" {% if not filters.target_type %}selected{% endif %}>(any)</option>
+            {% for k, v in target_type_choices %}
+              <option value="{{ k }}" {% if filters.target_type == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="id_tenant">Tenant (optional)</label><br/>
+          <input id="id_tenant" type="text" name="tenant" value="{{ filters.tenant }}" style="min-width:200px" />
+        </div>
+        <div>
+          <button type="submit" class="button">Filter</button>
+          <a class="button" href="?">Reset</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <table class="adminlist" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">User</th>
+        <th style="text-align:left;">Title</th>
+        <th>Total</th>
+        <th>Pending</th>
+        <th>Sent</th>
+        <th>Failed</th>
+        <th style="text-align:left;">Last send_at</th>
+        <th style="text-align:left;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if grouped %}
+        {% for row in grouped %}
+          <tr>
+            <td>
+              {% if row.target_user__username %}
+                {{ row.target_user__username }}
+              {% elif row.target_user__email %}
+                {{ row.target_user__email }}
+              {% else %}
+                user_id={{ row.target_user_id }}
+              {% endif %}
+            </td>
+            <td>{{ row.title }}</td>
+            <td style="text-align:center;">{{ row.total }}</td>
+            <td style="text-align:center;">{{ row.pending }}</td>
+            <td style="text-align:center;">{{ row.sent }}</td>
+            <td style="text-align:center;">{{ row.failed }}</td>
+            <td>{{ row.last_send_at|default:"—" }}</td>
+            <td><a href="{{ row.drilldown_url }}">View rows</a></td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="8">No results.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+{% endblock %}
