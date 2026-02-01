@@ -16,7 +16,7 @@ class ChannelMiniPlayer extends StatefulWidget {
 class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
   Offset _offset = const Offset(16, 100);
   bool _positionInitialized = false;
-  double _scale = 1.6;
+  final double _scale = 1.6;
   Size? _lastSize;
   double? _baseWidth;
   bool? _lastMinimized;
@@ -176,34 +176,28 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                         )),
               if (showLiveBadge)
                 Positioned(
-                  top: 38,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 0.5,
-                        ),
+                  left: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
                 ),
               if (isLiveSession)
-                Positioned(
-                  top: 6,
-                  left: 0,
-                  right: 0,
+                Positioned.fill(
                   child: Center(
                     child: Material(
                       color: Colors.black54,

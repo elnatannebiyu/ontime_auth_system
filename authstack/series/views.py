@@ -162,6 +162,31 @@ class ShowReminderViewSet(viewsets.ModelViewSet):
     serializer_class = ShowReminderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def create(self, request, *args, **kwargs):
+        tenant = self.tenant_slug()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        show = serializer.validated_data.get("show")
+        is_active = serializer.validated_data.get("is_active", True)
+
+        obj, created = ShowReminder.objects.get_or_create(
+            tenant=tenant,
+            user=request.user,
+            show=show,
+            defaults={"is_active": is_active},
+        )
+        if not created and obj.is_active != is_active:
+            obj.is_active = is_active
+            obj.save(update_fields=["is_active", "updated_at"])
+
+        out = self.get_serializer(obj)
+        headers = self.get_success_headers(out.data)
+        return Response(
+            out.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            headers=headers,
+        )
+
     def get_queryset(self):
         qs = super().get_queryset()
         tenant = self.tenant_slug()

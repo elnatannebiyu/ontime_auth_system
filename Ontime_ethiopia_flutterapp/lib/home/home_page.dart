@@ -11,6 +11,7 @@ import '../live/audio_controller.dart';
 import '../live/tv_controller.dart';
 import '../auth/tenant_auth_client.dart';
 import '../channels/channels_page.dart';
+import '../channels/player/channel_mini_player_manager.dart';
 import '../core/localization/l10n.dart';
 import '../features/home/widgets/hero_carousel.dart';
 import '../channels/playlist_grid_sheet.dart';
@@ -553,9 +554,17 @@ class _HomePageState extends State<HomePage> {
                           // keyboard open on other tabs.
                           FocusManager.instance.primaryFocus?.unfocus();
                           if (tc.index == 3) {
-                            // Shorts tab selected: stop radio and clear TV mini session
+                            // Shorts tab selected: pause and hide floating mini-player.
+                            ChannelMiniPlayerManager.I.setSuppressed(true);
+                            ChannelMiniPlayerManager.I.pause();
+                            ChannelMiniPlayerManager.I.update(isPlaying: false);
                             AudioController.instance.stop();
-                            TvController.instance.clear();
+                            try {
+                              TvController.instance.pausePlayback();
+                            } catch (_) {}
+                          } else if (tc.previousIndex == 3) {
+                            // Leaving Shorts tab: show mini-player again (still paused).
+                            ChannelMiniPlayerManager.I.setSuppressed(false);
                           }
                         });
                       }

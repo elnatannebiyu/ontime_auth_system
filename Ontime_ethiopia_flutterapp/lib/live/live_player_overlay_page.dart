@@ -434,28 +434,6 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                       VideoPlayer(c)
                                     else
                                       const ColoredBox(color: Colors.black12),
-                                    Positioned(
-                                      left: 12,
-                                      top: 12,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: const Text(
-                                          'LIVE',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 12,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
                                     // Loading overlay (initializing/buffering)
                                     if (c == null ||
                                         !(c.value.isInitialized) ||
@@ -630,24 +608,6 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                         },
                                       ),
                                     ),
-                                    Align(
-                                      alignment: Alignment.topCenter,
-                                      child: Container(
-                                        margin: const EdgeInsets.only(top: 8),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                            color: Colors.redAccent
-                                                .withOpacity(0.9),
-                                            borderRadius:
-                                                BorderRadius.circular(6)),
-                                        child: const Text('LIVE',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11)),
-                                      ),
-                                    ),
                                     Positioned(
                                       right: 8,
                                       bottom: 8,
@@ -719,28 +679,6 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                         VideoPlayer(c)
                                       else
                                         const ColoredBox(color: Colors.black12),
-                                      Positioned(
-                                        left: 12,
-                                        top: 12,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                          ),
-                                          child: const Text(
-                                            'LIVE',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
                                       if (c == null ||
                                           !(c.value.isInitialized) ||
                                           (c.value.isBuffering))
@@ -918,26 +856,6 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                                 } catch (_) {}
                                                 _kickControlsTimer();
                                               })),
-                                      Align(
-                                          alignment: Alignment.topCenter,
-                                          child: Container(
-                                              margin:
-                                                  const EdgeInsets.only(top: 8),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4),
-                                              decoration: BoxDecoration(
-                                                  color: Colors.redAccent
-                                                      .withOpacity(0.9),
-                                                  borderRadius:
-                                                      BorderRadius.circular(6)),
-                                              child: const Text('LIVE',
-                                                  style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 11)))),
                                       Positioned(
                                           right: 8,
                                           bottom: 8,

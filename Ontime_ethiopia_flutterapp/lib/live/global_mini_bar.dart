@@ -181,10 +181,11 @@ class _GlobalMiniBarState extends State<GlobalMiniBar>
                           },
                         ))
                             .whenComplete(() {
-                          if (mounted)
+                          if (mounted) {
                             setState(() {
                               _navigating = false;
                             });
+                          }
                         });
                       }
                     } else {
