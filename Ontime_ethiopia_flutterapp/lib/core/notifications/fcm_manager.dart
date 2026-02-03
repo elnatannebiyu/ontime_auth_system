@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../api_client.dart';
 import '../../auth/services/device_info_service.dart';
 import 'notification_inbox.dart';
@@ -42,44 +41,6 @@ class FcmManager {
     return prefs.getString(_kTokenKey);
   }
 
-  String? _extractUserKeyFromMe(Map<String, dynamic> me) {
-    try {
-      final candidates = [
-        me['id'],
-        me['user_id'],
-        me['pk'],
-        me['username'],
-        me['email'],
-      ];
-      for (final c in candidates) {
-        if (c == null) continue;
-        final s = c.toString().trim();
-        if (s.isNotEmpty) return s;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  String? _extractUserKeyFromAccessToken(String? accessToken) {
-    try {
-      if (accessToken == null || accessToken.isEmpty) return null;
-      final decoded = JwtDecoder.decode(accessToken);
-      final candidates = [
-        decoded['user_id'],
-        decoded['id'],
-        decoded['sub'],
-        decoded['username'],
-        decoded['email'],
-      ];
-      for (final c in candidates) {
-        if (c == null) continue;
-        final s = c.toString().trim();
-        if (s.isNotEmpty) return s;
-      }
-    } catch (_) {}
-    return null;
-  }
-
   Future<void> _registerDeviceWithBackend(String token) async {
     try {
       // Require an authenticated session before attempting backend registration
@@ -88,27 +49,15 @@ class FcmManager {
         return;
       }
       final pkg = await PackageInfo.fromPlatform();
-      final baseDeviceId = await DeviceInfoService.getDeviceId();
       final deviceName = await DeviceInfoService.getDeviceName();
       final deviceType =
           Platform.isIOS ? 'ios' : (Platform.isAndroid ? 'android' : 'web');
       final appVersion = pkg.version;
 
-      // Ensure each user account on the same physical device registers a unique
-      // device_id (backend enforces uniqueness). Prefer cached /me; fall back to
-      // decoding the JWT.
-      String? userKey;
-      try {
-        final cachedMe = ApiClient().getCachedMe();
-        if (cachedMe != null) {
-          userKey = _extractUserKeyFromMe(cachedMe);
-        }
-      } catch (_) {}
-      userKey ??= _extractUserKeyFromAccessToken(ApiClient().getAccessToken());
-
-      final deviceId = (userKey != null && userKey.isNotEmpty)
-          ? '$baseDeviceId:$userKey'
-          : baseDeviceId;
+      final deviceId = await DeviceInfoService.getScopedDeviceId(
+        cachedMe: ApiClient().getCachedMe(),
+        accessToken: ApiClient().getAccessToken(),
+      );
 
       await ApiClient().post('/user-sessions/register-device/', data: {
         'device_id': deviceId,

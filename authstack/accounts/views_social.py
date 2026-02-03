@@ -146,28 +146,22 @@ def social_login_view(request):
     device_obj = None
     try:
         if dev_id:
-            # Unique device_id across table; if owned by another user, fall back to unbound
-            existing = RefreshDevice.objects.filter(device_id=dev_id).first()
-            if existing and existing.user_id != user.id:
-                device_obj = None
-            else:
-                device_obj, _ = RefreshDevice.objects.get_or_create(
-                    device_id=dev_id,
-                    defaults={
-                        'user': user,
-                        'device_name': dev_name or 'Unknown',
-                        'device_type': device_type_norm,
-                    }
-                )
-                # If exists for same user, update name/type best-effort
-                if device_obj.user_id == user.id:
-                    update = False
-                    if dev_name and device_obj.device_name != dev_name:
-                        device_obj.device_name = dev_name; update = True
-                    if device_type_norm and device_obj.device_type != device_type_norm:
-                        device_obj.device_type = device_type_norm; update = True
-                    if update:
-                        device_obj.save()
+            # IMPORTANT: Do NOT create a new Device row during social login.
+            # On a new install, the client may send a pre-login device id that later
+            # changes to a user-scoped id (e.g. baseId:userKey) during push registration.
+            # Creating here can therefore cause duplicate devices for the same user.
+            # We only bind to an existing device if it already exists for this user.
+            device_obj = RefreshDevice.objects.filter(device_id=dev_id, user_id=user.id).first()
+            if device_obj is not None:
+                update = False
+                if dev_name and device_obj.device_name != dev_name:
+                    device_obj.device_name = dev_name
+                    update = True
+                if device_type_norm and device_obj.device_type != device_type_norm:
+                    device_obj.device_type = device_type_norm
+                    update = True
+                if update:
+                    device_obj.save()
     except Exception:
         device_obj = None
 

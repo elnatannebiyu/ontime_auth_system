@@ -2,12 +2,67 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class DeviceInfoService {
   static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
   static const _storage = FlutterSecureStorage();
   static const _kDeviceIdKey = 'device_id';
   static const _kDeviceNameKey = 'device_name';
+
+  static String? _extractUserKeyFromMe(Map<String, dynamic> me) {
+    try {
+      final candidates = [
+        me['id'],
+        me['user_id'],
+        me['pk'],
+        me['username'],
+        me['email'],
+      ];
+      for (final c in candidates) {
+        if (c == null) continue;
+        final s = c.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static String? _extractUserKeyFromAccessToken(String? accessToken) {
+    try {
+      if (accessToken == null || accessToken.isEmpty) return null;
+      final decoded = JwtDecoder.decode(accessToken);
+      final candidates = [
+        decoded['user_id'],
+        decoded['id'],
+        decoded['sub'],
+        decoded['username'],
+        decoded['email'],
+      ];
+      for (final c in candidates) {
+        if (c == null) continue;
+        final s = c.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<String> getScopedDeviceId({
+    Map<String, dynamic>? cachedMe,
+    String? accessToken,
+  }) async {
+    final baseId = (await getDeviceId()).trim();
+    if (baseId.isEmpty) return baseId;
+    if (baseId.contains(':')) return baseId;
+    String? userKey;
+    if (cachedMe != null) {
+      userKey = _extractUserKeyFromMe(cachedMe);
+    }
+    userKey ??= _extractUserKeyFromAccessToken(accessToken);
+    if (userKey == null || userKey.isEmpty) return baseId;
+    return '$baseId:$userKey';
+  }
 
   /// Get comprehensive device information
   static Future<Map<String, dynamic>> getDeviceInfo() async {

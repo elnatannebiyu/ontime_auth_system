@@ -203,6 +203,18 @@ class ApiClient {
       try {
         final std = await DeviceInfoService.getStandardDeviceHeaders();
         final extra = await DeviceInfoService.getDeviceHeaders();
+        final access = _accessToken;
+        if (access != null && access.isNotEmpty) {
+          try {
+            final scoped = await DeviceInfoService.getScopedDeviceId(
+              cachedMe: _lastMe,
+              accessToken: access,
+            );
+            if (scoped.isNotEmpty) {
+              std['X-Device-Id'] = scoped;
+            }
+          } catch (_) {}
+        }
         options.headers.addAll(std);
         options.headers.addAll(extra);
       } catch (_) {}
