@@ -14,6 +14,28 @@ from user_sessions.models import Session
 User = get_user_model()
 
 
+def _normalize_device_type(request) -> str:
+    """Normalize X-Device-Type to stable values: android | ios | web.
+
+    Backward compatibility:
+    - X-Device-Type=mobile is mapped via user-agent inference.
+    """
+    try:
+        raw = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
+    except Exception:
+        raw = ''
+    if raw in ('android', 'ios', 'web'):
+        return raw
+    if raw == 'mobile':
+        ua = (request.META.get('HTTP_USER_AGENT', '') or '').lower()
+        if 'android' in ua:
+            return 'android'
+        if 'iphone' in ua or 'ipad' in ua or 'ios' in ua:
+            return 'ios'
+        return 'android'
+    return 'web'
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def social_login_view(request):
@@ -119,8 +141,7 @@ def social_login_view(request):
     # Resolve device from headers
     dev_id = request.META.get('HTTP_X_DEVICE_ID') or ''
     dev_name = request.META.get('HTTP_X_DEVICE_NAME') or request.META.get('HTTP_USER_AGENT', '')[:255]
-    dev_type_hdr = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
-    device_type_norm = 'mobile' if dev_type_hdr == 'mobile' else 'web'
+    device_type_norm = _normalize_device_type(request)
     from user_sessions.models import Device as RefreshDevice
     device_obj = None
     try:
@@ -200,8 +221,8 @@ def social_login_view(request):
             from django.db.models import Q
             # Enforce on new refresh-session backend (user_sessions.Session)
             active = Session.objects.filter(user=user, revoked_at__isnull=True)
-            if device_type_norm == 'mobile':
-                active = active.filter(device__device_type='mobile')
+            if device_type_norm in ('android', 'ios'):
+                active = active.filter(device__device_type__in=['android', 'ios'])
             else:
                 active = active.filter(Q(device__isnull=True) | Q(device__device_type='web'))
             active = active.order_by('-last_used_at')

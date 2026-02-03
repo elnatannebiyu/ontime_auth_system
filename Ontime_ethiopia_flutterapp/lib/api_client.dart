@@ -205,8 +205,6 @@ class ApiClient {
         final extra = await DeviceInfoService.getDeviceHeaders();
         options.headers.addAll(std);
         options.headers.addAll(extra);
-        // Ensure mobile type for native app to get proper concurrency limits
-        options.headers['X-Device-Type'] = 'mobile';
       } catch (_) {}
       return handler.next(options);
     }));

@@ -44,6 +44,7 @@ def _infer_os_from_ua(ua: str) -> Tuple[str, str]:
     """
     if not ua:
         return "Unknown", ""
+
     ua_low = ua.lower()
 
     # Android
@@ -101,6 +102,30 @@ def _infer_os_from_ua(ua: str) -> Tuple[str, str]:
 
     # Fallback for other platforms
     return "Unknown", ""
+
+
+def _normalize_device_type(request, ua: str) -> str:
+    """Normalize client-provided device type to stable values.
+
+    We standardize to: android | ios | web.
+    Backward compatibility:
+    - older clients may send X-Device-Type=mobile; we infer android/ios from UA.
+    - if missing/unknown we fall back to web.
+    """
+    try:
+        raw = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
+    except Exception:
+        raw = ''
+    if raw in ('android', 'ios', 'web'):
+        return raw
+    if raw == 'mobile':
+        ua_low = (ua or '').lower()
+        if 'android' in ua_low:
+            return 'android'
+        if 'iphone' in ua_low or 'ipad' in ua_low or 'ios' in ua_low:
+            return 'ios'
+        return 'android'
+    return 'web'
 
 
 class TokenVersionMixin:
@@ -199,9 +224,8 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
                     os_version = inferred_ver
             client_ip = _get_client_ip(request)
 
-            # Normalize device type to one of: 'mobile' or 'web'
-            dev_type_raw = (request.META.get('HTTP_X_DEVICE_TYPE', '') or '').lower().strip()
-            device_type_norm = 'mobile' if dev_type_raw == 'mobile' else 'web'
+            # Normalize device type to one of: android | ios | web
+            device_type_norm = _normalize_device_type(request, ua)
 
             # Try to find existing session for this device and update it, or create new
             # Handle edge case where multiple sessions exist for same device_id

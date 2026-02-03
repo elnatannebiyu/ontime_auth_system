@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:695500579619:android:cc5d7b7c105efb2c646296",
+        "android_client_info": {
+          "package_name": "com.muler.on_time"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV22WZyzvpgIfvmrcEPY1lZabtfG6R590"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:695500579619:android:d86ed07559de5056646296",
         "android_client_info": {
           "package_name": "et.ontime.app"

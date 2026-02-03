@@ -1,4 +1,4 @@
-package com.example.ontime_ethiopia_flutterapp
+package com.muler.on_time
 
 import io.flutter.embedding.android.FlutterActivity
 

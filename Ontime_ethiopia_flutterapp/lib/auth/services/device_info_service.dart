@@ -8,7 +8,7 @@ class DeviceInfoService {
   static const _storage = FlutterSecureStorage();
   static const _kDeviceIdKey = 'device_id';
   static const _kDeviceNameKey = 'device_name';
-  
+
   /// Get comprehensive device information
   static Future<Map<String, dynamic>> getDeviceInfo() async {
     final packageInfo = await PackageInfo.fromPlatform();
@@ -19,7 +19,7 @@ class DeviceInfoService {
       'build_number': packageInfo.buildNumber,
       'platform': Platform.operatingSystem,
     };
-    
+
     try {
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
@@ -47,10 +47,10 @@ class DeviceInfoService {
       // Fallback if device info fails
       deviceData['device_info_error'] = e.toString();
     }
-    
+
     return deviceData;
   }
-  
+
   /// Get device fingerprint for session binding
   static Future<String> getDeviceFingerprint() async {
     try {
@@ -65,7 +65,7 @@ class DeviceInfoService {
       // Return a fallback fingerprint
       return 'unknown_device_${DateTime.now().millisecondsSinceEpoch}';
     }
-    
+
     return 'unknown_platform';
   }
 
@@ -83,9 +83,11 @@ class DeviceInfoService {
         generated = info.id; // Android ID (not hardware serial)
       } else if (Platform.isIOS) {
         final info = await _deviceInfo.iosInfo;
-        generated = info.identifierForVendor ?? 'ios_unknown_${DateTime.now().millisecondsSinceEpoch}';
+        generated = info.identifierForVendor ??
+            'ios_unknown_${DateTime.now().millisecondsSinceEpoch}';
       } else {
-        generated = 'device_${Platform.operatingSystem}_${DateTime.now().millisecondsSinceEpoch}';
+        generated =
+            'device_${Platform.operatingSystem}_${DateTime.now().millisecondsSinceEpoch}';
       }
     } catch (_) {
       generated = 'device_unknown_${DateTime.now().millisecondsSinceEpoch}';
@@ -115,13 +117,17 @@ class DeviceInfoService {
     return name;
   }
 
-  /// Returns a simple device type string: mobile/tablet/desktop where applicable; fallback to platform.
+  /// Returns a stable device type string used across the whole system.
+  ///
+  /// IMPORTANT: keep this aligned with backend expectations and DB values.
+  /// We intentionally use platform identifiers here (android/ios/web) rather
+  /// than generic buckets like "mobile" to avoid duplicate device/session rows.
   static Future<String> getDeviceType() async {
     try {
-      if (Platform.isAndroid) return 'mobile';
-      if (Platform.isIOS) return 'mobile';
+      if (Platform.isAndroid) return 'android';
+      if (Platform.isIOS) return 'ios';
     } catch (_) {}
-    return Platform.operatingSystem; // web/desktop platforms if any
+    return 'web';
   }
 
   /// Human-readable OS name (e.g., Android, iOS)
@@ -162,12 +168,12 @@ class DeviceInfoService {
       'X-OS-Version': osVersion,
     };
   }
-  
+
   /// Get platform-specific headers for API requests
   static Future<Map<String, String>> getDeviceHeaders() async {
     final deviceInfo = await getDeviceInfo();
     final fingerprint = await getDeviceFingerprint();
-    
+
     return {
       'X-Device-Platform': Platform.operatingSystem,
       'X-Device-Fingerprint': fingerprint,
