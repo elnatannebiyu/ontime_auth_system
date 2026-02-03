@@ -6,6 +6,7 @@ from rest_framework import status
 from django.utils import timezone
 from django.db import transaction
 from .models import Device
+from .models import Session
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class RegisterDeviceView(APIView):
         app_version = (data.get('app_version') or '').strip()
         device_name = (data.get('device_name') or '').strip()
         device_model = (data.get('device_model') or '').strip()
+        session_id = (request.headers.get('X-Session-Id') or data.get('session_id') or '').strip()
 
         if not device_id or not device_type:
             logger.info('[RegisterDevice] user=%s missing device_id/device_type device_id=%r device_type=%r', user.id, device_id, device_type)
@@ -64,6 +66,18 @@ class RegisterDeviceView(APIView):
                 device.last_seen_at = timezone.now()
                 device.save()
                 created = True
+
+            # Option B: bind the refresh Session to this Device if session_id was provided.
+            if session_id:
+                try:
+                    sess = Session.objects.select_for_update().get(id=session_id, user=user)
+                    if sess.device_id != device.id:
+                        sess.device = device
+                        sess.save(update_fields=['device'])
+                except Session.DoesNotExist:
+                    pass
+                except Exception:
+                    pass
 
         logger.info('[RegisterDevice] user=%s device_id=%s created=%s push_token_present=%s push_enabled=%s',
                     user.id, device_id, created, bool(push_token), device.push_enabled)

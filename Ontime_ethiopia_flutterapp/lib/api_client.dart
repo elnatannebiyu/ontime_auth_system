@@ -206,6 +206,14 @@ class ApiClient {
         final access = _accessToken;
         if (access != null && access.isNotEmpty) {
           try {
+            // Provide session id so backend can bind device registration to the correct refresh-session.
+            try {
+              final decoded = JwtDecoder.decode(access);
+              final sid = decoded['session_id']?.toString().trim();
+              if (sid != null && sid.isNotEmpty) {
+                options.headers['X-Session-Id'] = sid;
+              }
+            } catch (_) {}
             final scoped = await DeviceInfoService.getScopedDeviceId(
               cachedMe: _lastMe,
               accessToken: access,
