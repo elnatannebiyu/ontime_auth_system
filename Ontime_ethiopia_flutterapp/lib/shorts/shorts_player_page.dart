@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element_parameter, unused_element, prefer_interpolation_to_compose_strings, deprecated_member_use
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
@@ -44,9 +45,25 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   final Map<int, bool> _resumeAfterSeek = {};
   bool _effectiveOffline = false;
   static String get _mediaBase {
-    if (Platform.isAndroid) return 'http://10.0.2.2:8080';
-    if (Platform.isIOS || Platform.isMacOS) return 'http://127.0.0.1:8080';
-    return 'http://127.0.0.1:8080';
+    if (kDebugMode) {
+      if (Platform.isAndroid) return 'http://10.0.2.2:8080';
+      if (Platform.isIOS || Platform.isMacOS) return 'http://127.0.0.1:8080';
+      return 'http://127.0.0.1:8080';
+    }
+    // In release, avoid hardcoded loopback/emulator cleartext endpoints.
+    // Prefer backend-provided absolute media URLs; if we must build one,
+    // derive from the configured API base host/scheme.
+    try {
+      final api = Uri.parse(kApiBase);
+      final normalized = Uri(
+        scheme: api.scheme.isNotEmpty ? api.scheme : 'https',
+        host: api.host,
+        port: api.hasPort ? api.port : null,
+      );
+      return normalized.toString();
+    } catch (_) {
+      return kApiBase;
+    }
   }
 
   // Try to extract a reasonable thumbnail/preview URL from a shorts item
@@ -747,7 +764,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                 final nav = Navigator.maybeOf(context);
                 bool popped = false;
                 if (nav != null && nav.canPop()) {
-                  debugPrint('[Shorts] Back: popping current route');
+                  if (kDebugMode) {
+                    debugPrint('[Shorts] Back: popping current route');
+                  }
                   nav.pop();
                   popped = true;
                 }
@@ -760,15 +779,19 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
                     if (prev < 0 || prev >= tc.length || prev == cur) {
                       target = 0; // fallback to For You
                     }
-                    debugPrint(
-                        '[Shorts] Back: no route to pop, switching tab to index ' +
-                            target.toString());
+                    if (kDebugMode) {
+                      debugPrint(
+                          '[Shorts] Back: no route to pop, switching tab to index ' +
+                              target.toString());
+                    }
                     try {
                       tc.animateTo(target);
                     } catch (_) {}
                   } else {
-                    debugPrint(
-                        '[Shorts] Back: no route to pop and no TabController');
+                    if (kDebugMode) {
+                      debugPrint(
+                          '[Shorts] Back: no route to pop and no TabController');
+                    }
                   }
                 }
               },

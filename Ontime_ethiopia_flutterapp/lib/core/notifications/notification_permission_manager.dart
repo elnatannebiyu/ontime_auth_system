@@ -18,24 +18,27 @@ class NotificationPermissionManager {
 
   bool _askedThisSession = false;
 
-  Future<void> ensurePermissionFlow(BuildContext context) async {
+  Future<bool> requestPermissionFlow(BuildContext context) async {
     // Only relevant on mobile
-    if (!(Platform.isAndroid || Platform.isIOS)) return;
+    if (!(Platform.isAndroid || Platform.isIOS)) return false;
 
     // Android < 13: permission is not required
     if (Platform.isAndroid) {
       // On Android 13+ we need POST_NOTIFICATIONS runtime permission
       final androidInfo = await Permission.notification.status;
-      if (androidInfo.isGranted) return;
+      if (androidInfo.isGranted) return true;
     }
 
     // Avoid nagging repeatedly in one session
-    if (_askedThisSession) return;
+    if (_askedThisSession) {
+      final st = await Permission.notification.status;
+      return st.isGranted;
+    }
 
     _askedThisSession = true;
 
     final shouldAsk = await _showPrePrompt(context);
-    if (!shouldAsk) return;
+    if (!shouldAsk) return false;
 
     // Request system permission
     final status = await Permission.notification.request();
@@ -47,12 +50,12 @@ class NotificationPermissionManager {
         title: 'Notifications enabled',
         body: 'We\'ll keep you informed about important updates.',
       );
-      return;
+      return true;
     }
 
     if (status.isPermanentlyDenied) {
       await _showGoToSettings(context);
-      return;
+      return false;
     }
 
     // Denied but not permanent: show a soft nudge (non-blocking)
@@ -64,6 +67,7 @@ class NotificationPermissionManager {
         duration: Duration(seconds: 4),
       ),
     );
+    return false;
   }
 
   Future<bool> _showPrePrompt(BuildContext context) async {

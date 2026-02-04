@@ -1,0 +1,414 @@
+SIGNER CERTIFICATE
+
+Binary is signed
+v1 signature: False
+v2 signature: True
+v3 signature: False
+v4 signature: False
+X.509 Subject: CN=Android Debug, O=Android, C=US
+Signature Algorithm: rsassa_pkcs1v15
+Valid From: 2024-02-18 20:44:27+00:00
+Valid To: 2054-02-10 20:44:27+00:00
+Issuer: CN=Android Debug, O=Android, C=US
+Serial Number: 0x1
+Hash Algorithm: sha256
+md5: 6f1a6045fcbb245a17e0a781799b27c2
+sha1: edca754cd80de6942c3deaf83c274da7f0d1c5b6
+sha256: 3261efe721e8db2c7eede395c792321e56ebf71c6646372fcaf0641fc8012843
+sha512: 6f88a4353e39dfe9f016a4350b511cfc50e78679c754301896a442ea6c8c39ea9418c77f1f284105c5a32006494ccc33aca5de194c0778ffb2892768428d96e9
+PublicKey Algorithm: rsa
+Bit Size: 2048
+Fingerprint: f83ada209c81b293af06ca344aa0b21432efadf3113549977429a594648f8625
+Found 1 unique certificates
+
+APPLICATION PERMISSIONS
+
+Search:
+PERMISSION	STATUS	INFO 	DESCRIPTION	CODE MAPPINGS
+android.permission.ACCESS_NETWORK_STATE 	normal 	view network status 	Allows an application to view the status of all networks. 	
+android.permission.INTERNET 	normal 	full Internet access 	Allows an application to create network sockets. 	
+android.permission.POST_NOTIFICATIONS 	dangerous 	allows an app to post notifications. 	Allows an app to post notifications 	
+A1/z.java
+C3/j.java
+com/dexterous/flutterlocalnotifications/FlutterLocalNotificationsPlugin.java
+x/C1168N.java
+y2/d.java
+android.permission.USE_BIOMETRIC 	normal 	allows use of device-supported biometric modalities. 	Allows an app to use device supported biometric modalities. 	
+android.permission.USE_FINGERPRINT 	normal 	allow use of fingerprint 	This constant was deprecated in API level 28. Applications should request USE_BIOMETRIC instead. 	
+android.permission.VIBRATE 	normal 	control vibrator 	Allows the application to control the vibrator. 	
+android.permission.WAKE_LOCK 	normal 	prevent phone from sleeping 	Allows an application to prevent the phone from going to sleep. 	
+com.google.android.c2dm.permission.RECEIVE 	normal 	recieve push notifications 	Allows an application to receive push notifications from cloud. 	
+com.muler.on_time.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION 	unknown 	Unknown permission 	Unknown permission from android reference 	
+Showing 1 to 9 of 9 entries
+
+    Previous
+    1
+    Next
+
+ANDROID API
+Search:
+API	FILES
+Android Notifications 	
+Base64 Decode 	
+Base64 Encode 	
+Content Provider 	
+Crypto 	
+Dynamic Class and Dexloading 	
+Get Installed Applications 	
+Get Running App Processes 	
+Get SIM Provider Details 	
+Get System Service 	
+Showing 1 to 10 of 29 entries
+
+    Previous
+    1
+    2
+    3
+    Next
+
+BROWSABLE ACTIVITIES
+Search:
+ACTIVITY	INTENT
+No data available in table
+Showing 0 to 0 of 0 entries
+
+    Previous
+    Next
+
+NETWORK SECURITY
+HIGH
+1
+WARNING
+0
+INFO
+0
+SECURE
+0
+Search:
+NO	SCOPE	SEVERITY	DESCRIPTION
+1 	192.168.100.58
+10.0.2.2
+localhost
+127.0.0.1
+	high 	Domain config is insecurely configured to permit clear text traffic to these domains in scope.
+Showing 1 to 1 of 1 entries
+
+    Previous
+    1
+    Next
+
+CERTIFICATE ANALYSIS
+HIGH
+1
+WARNING
+0
+INFO
+1
+Search:
+TITLE	SEVERITY	DESCRIPTION
+Application signed with debug certificate 	high 	Application signed with a debug certificate. Production application must not be shipped with a debug certificate.
+Signed Application 	info 	Application is signed with a code signing certificate
+Showing 1 to 2 of 2 entries
+
+    Previous
+    1
+    Next
+
+MANIFEST ANALYSIS
+HIGH
+1
+WARNING
+5
+INFO
+0
+SUPPRESSED
+0
+Search:
+NO	ISSUE	SEVERITY	DESCRIPTION	OPTIONS
+1 	App can be installed on a vulnerable unpatched Android version 7.0, [minSdk=24] 	high 	This application can be installed on an older version of android that has multiple unfixed vulnerabilities. These devices won't receive reasonable security updates from Google. Support an Android version => 10, API 29 to receive reasonable security updates. 	
+2 	App has a Network Security Configuration[android:networkSecurityConfig=@xml/network_security_config] 	info 	The Network Security Configuration feature lets apps customize their network security settings in a safe, declarative configuration file without modifying app code. These settings can be configured for specific domains and for a specific app. 	
+3 	Application Data can be Backed up [android:allowBackup] flag is missing. 	warning 	The flag [android:allowBackup] should be set to false. By default it is set to true and allows anyone to backup your application data via adb. It allows users who have enabled USB debugging to copy application data off of the device. 	
+4 	Broadcast Receiver (io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver) is Protected by a permission, but the protection level of the permission should be checked. <strong>Permission: </strong>com.google.android.c2dm.permission.SEND [android:exported=true] 	warning 	A Broadcast Receiver is found to be shared with other apps on the device therefore leaving it accessible to any other application on the device. It is protected by a permission which is not defined in the analysed application. As a result, the protection level of the permission should be checked where it is defined. If it is set to normal or dangerous, a malicious application can request and obtain the permission and interact with the component. If it is set to signature, only applications signed with the same certificate can obtain the permission. 	
+5 	Service (com.google.android.gms.auth.api.signin.RevocationBoundService) is Protected by a permission, but the protection level of the permission should be checked. <strong>Permission: </strong>com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION [android:exported=true] 	warning 	A Service is found to be shared with other apps on the device therefore leaving it accessible to any other application on the device. It is protected by a permission which is not defined in the analysed application. As a result, the protection level of the permission should be checked where it is defined. If it is set to normal or dangerous, a malicious application can request and obtain the permission and interact with the component. If it is set to signature, only applications signed with the same certificate can obtain the permission. 	
+6 	Broadcast Receiver (com.google.firebase.iid.FirebaseInstanceIdReceiver) is Protected by a permission, but the protection level of the permission should be checked. <strong>Permission: </strong>com.google.android.c2dm.permission.SEND [android:exported=true] 	warning 	A Broadcast Receiver is found to be shared with other apps on the device therefore leaving it accessible to any other application on the device. It is protected by a permission which is not defined in the analysed application. As a result, the protection level of the permission should be checked where it is defined. If it is set to normal or dangerous, a malicious application can request and obtain the permission and interact with the component. If it is set to signature, only applications signed with the same certificate can obtain the permission. 	
+7 	Broadcast Receiver (androidx.profileinstaller.ProfileInstallReceiver) is Protected by a permission, but the protection level of the permission should be checked. <strong>Permission: </strong>android.permission.DUMP [android:exported=true] 	warning 	A Broadcast Receiver is found to be shared with other apps on the device therefore leaving it accessible to any other application on the device. It is protected by a permission which is not defined in the analysed application. As a result, the protection level of the permission should be checked where it is defined. If it is set to normal or dangerous, a malicious application can request and obtain the permission and interact with the component. If it is set to signature, only applications signed with the same certificate can obtain the permission. 	
+Showing 1 to 7 of 7 entries
+
+    Previous
+    1
+    Next
+
+CODE ANALYSIS
+HIGH
+1
+WARNING
+7
+INFO
+2
+SECURE
+0
+SUPPRESSED
+0
+Search:
+NO	ISSUE	SEVERITY	STANDARDS	FILES	OPTIONS
+1 	The App logs information. Sensitive information should never be logged. 	info 	CWE: CWE-532: Insertion of Sensitive Information into Log File
+OWASP MASVS: MSTG-STORAGE-3 		
+2 	The App uses an insecure Random Number Generator. 	warning 	CWE: CWE-330: Use of Insufficiently Random Values
+OWASP Top 10: M5: Insufficient Cryptography
+OWASP MASVS: MSTG-CRYPTO-6 		
+3 	App creates temp file. Sensitive information should never be written into a temp file. 	warning 	CWE: CWE-276: Incorrect Default Permissions
+OWASP Top 10: M2: Insecure Data Storage
+OWASP MASVS: MSTG-STORAGE-2 	O3/b.java
+	
+4 	App uses SQLite Database and execute raw SQL query. Untrusted user input in raw SQL queries can cause SQL Injection. Also sensitive information should be encrypted and written to the database. 	warning 	CWE: CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')
+OWASP Top 10: M7: Client Code Quality 		
+5 	This App copies data to clipboard. Sensitive data should not be copied to clipboard as other applications can access it. 	info 	
+OWASP MASVS: MSTG-STORAGE-10 	io/flutter/plugin/editing/d.java
+v2/i.java
+	
+6 	MD5 is a weak hash known to have hash collisions. 	warning 	CWE: CWE-327: Use of a Broken or Risky Cryptographic Algorithm
+OWASP Top 10: M5: Insufficient Cryptography
+OWASP MASVS: MSTG-CRYPTO-4 	x2/n.java
+	
+7 	Files may contain hardcoded sensitive information like usernames, passwords, keys etc. 	warning 	CWE: CWE-312: Cleartext Storage of Sensitive Information
+OWASP Top 10: M9: Reverse Engineering
+OWASP MASVS: MSTG-STORAGE-14 		
+8 	SHA-1 is a weak hash known to have hash collisions. 	warning 	CWE: CWE-327: Use of a Broken or Risky Cryptographic Algorithm
+OWASP Top 10: M5: Insufficient Cryptography
+OWASP MASVS: MSTG-CRYPTO-4 		
+9 	App can read/write to External Storage. Any App can read data written to External Storage. 	warning 	CWE: CWE-276: Incorrect Default Permissions
+OWASP Top 10: M2: Insecure Data Storage
+OWASP MASVS: MSTG-STORAGE-2 	L4/d.java
+y/f.java
+	
+10 	The App uses the encryption mode CBC with PKCS5/PKCS7 padding. This configuration is vulnerable to padding oracle attacks. 	high 	CWE: CWE-649: Reliance on Obfuscation or Encryption of Security-Relevant Inputs without Integrity Checking
+OWASP Top 10: M5: Insufficient Cryptography
+OWASP MASVS: MSTG-CRYPTO-3 	B0/a.java
+h4/g.java
+	
+Showing 1 to 10 of 10 entries
+
+    Previous
+    1
+    Next
+
+SHARED LIBRARY BINARY ANALYSIS
+Search:
+NO	SHARED OBJECT	NX	PIE	STACK CANARY	RELRO	RPATH	RUNPATH	FORTIFY	SYMBOLS STRIPPED
+1 	arm64-v8a/libflutter.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	True
+info
+This binary has a stack canary value added to the stack so that it will be overwritten by a stack buffer that overflows the return address. This allows detection of overflows by verifying the integrity of the canary before function return. 	Not Applicable
+info
+RELRO checks are not applicable for Flutter/Dart binaries 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	True
+info
+The binary has the following fortified functions: ['__vsnprintf_chk', '__read_chk', '__memcpy_chk', '__strcpy_chk', '__strlen_chk', '__memmove_chk'] 	True
+info
+Symbols are stripped.
+2 	arm64-v8a/libapp.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	True
+info
+This binary has a stack canary value added to the stack so that it will be overwritten by a stack buffer that overflows the return address. This allows detection of overflows by verifying the integrity of the canary before function return. 	Not Applicable
+info
+RELRO checks are not applicable for Flutter/Dart binaries 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	False
+info
+The binary does not have any fortified functions. Fortified functions provides buffer overflow checks against glibc's commons insecure functions like strcpy, gets etc. Use the compiler option -D_FORTIFY_SOURCE=2 to fortify functions. This check is not applicable for Dart/Flutter libraries. 	True
+info
+Symbols are stripped.
+3 	arm64-v8a/libdatastore_shared_counter.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	False
+high
+This binary does not have a stack canary value added to the stack. Stack canaries are used to detect and prevent exploits from overwriting return address. Use the option -fstack-protector-all to enable stack canaries. Not applicable for Dart/Flutter libraries unless Dart FFI is used. 	Full RELRO
+info
+This shared object has full RELRO enabled. RELRO ensures that the GOT cannot be overwritten in vulnerable ELF binaries. In Full RELRO, the entire GOT (.got and .got.plt both) is marked as read-only. 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	False
+warning
+The binary does not have any fortified functions. Fortified functions provides buffer overflow checks against glibc's commons insecure functions like strcpy, gets etc. Use the compiler option -D_FORTIFY_SOURCE=2 to fortify functions. This check is not applicable for Dart/Flutter libraries. 	True
+info
+Symbols are stripped.
+4 	arm64-v8a/libflutter.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	True
+info
+This binary has a stack canary value added to the stack so that it will be overwritten by a stack buffer that overflows the return address. This allows detection of overflows by verifying the integrity of the canary before function return. 	Not Applicable
+info
+RELRO checks are not applicable for Flutter/Dart binaries 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	True
+info
+The binary has the following fortified functions: ['__vsnprintf_chk', '__read_chk', '__memcpy_chk', '__strcpy_chk', '__strlen_chk', '__memmove_chk'] 	True
+info
+Symbols are stripped.
+5 	arm64-v8a/libapp.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	True
+info
+This binary has a stack canary value added to the stack so that it will be overwritten by a stack buffer that overflows the return address. This allows detection of overflows by verifying the integrity of the canary before function return. 	Not Applicable
+info
+RELRO checks are not applicable for Flutter/Dart binaries 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	False
+info
+The binary does not have any fortified functions. Fortified functions provides buffer overflow checks against glibc's commons insecure functions like strcpy, gets etc. Use the compiler option -D_FORTIFY_SOURCE=2 to fortify functions. This check is not applicable for Dart/Flutter libraries. 	True
+info
+Symbols are stripped.
+6 	arm64-v8a/libdatastore_shared_counter.so
+	True
+info
+The binary has NX bit set. This marks a memory page non-executable making attacker injected shellcode non-executable. 	Dynamic Shared Object (DSO)
+info
+The shared object is build with -fPIC flag which enables Position independent code. This makes Return Oriented Programming (ROP) attacks much more difficult to execute reliably. 	False
+high
+This binary does not have a stack canary value added to the stack. Stack canaries are used to detect and prevent exploits from overwriting return address. Use the option -fstack-protector-all to enable stack canaries. Not applicable for Dart/Flutter libraries unless Dart FFI is used. 	Full RELRO
+info
+This shared object has full RELRO enabled. RELRO ensures that the GOT cannot be overwritten in vulnerable ELF binaries. In Full RELRO, the entire GOT (.got and .got.plt both) is marked as read-only. 	None
+info
+The binary does not have run-time search path or RPATH set. 	None
+info
+The binary does not have RUNPATH set. 	False
+warning
+The binary does not have any fortified functions. Fortified functions provides buffer overflow checks against glibc's commons insecure functions like strcpy, gets etc. Use the compiler option -D_FORTIFY_SOURCE=2 to fortify functions. This check is not applicable for Dart/Flutter libraries. 	True
+info
+Symbols are stripped.
+Showing 1 to 6 of 6 entries
+
+    Previous
+    1
+    Next
+
+NIAP ANALYSIS v1.3
+Search:
+NO	IDENTIFIER	REQUIREMENT	FEATURE	DESCRIPTION
+No data available in table
+Showing 0 to 0 of 0 entries
+
+    Previous
+    Next
+
+FILE ANALYSIS
+Search:
+NO	ISSUE	FILES
+No data available in table
+Showing 0 to 0 of 0 entries
+
+    Previous
+    Next
+
+FIREBASE DATABASE ANALYSIS
+Search:
+TITLE	SEVERITY	DESCRIPTION
+Firebase Remote Config disabled 	secure 	Firebase Remote Config is disabled for https://firebaseremoteconfig.googleapis.com/v1/projects/695500579619/namespaces/firebase:fetch?key=AIzaSyCV22WZyzvpgIfvmrcEPY1lZabtfG6R590. This is indicated by the response: {'state': 'NO_TEMPLATE'}
+Showing 1 to 1 of 1 entries
+
+    Previous
+    1
+    Next
+
+MALWARE LOOKUP
+VirusTotal Report
+Triage Report
+MetaDefender Report
+Hybrid Analysis Report
+
+APKiD ANALYSIS
+Search:
+DEX	DETECTIONS
+classes.dex 	
+Search:
+FINDINGS	DETAILS
+Anti-VM Code 	Build.FINGERPRINT check
+Build.MODEL check
+Build.MANUFACTURER check
+Build.PRODUCT check
+Build.HARDWARE check
+Build.BOARD check
+SIM operator check
+Compiler 	r8
+Showing 1 to 2 of 2 entries
+
+    Previous
+    1
+    Next
+
+classes2.dex 	
+Search:
+FINDINGS	DETAILS
+Compiler 	r8
+Showing 1 to 1 of 1 entries
+
+    Previous
+    1
+    Next
+
+Showing 1 to 2 of 2 entries
+
+    Previous
+    1
+    Next
+
+BEHAVIOUR ANALYSIS
+Search:
+RULE ID	BEHAVIOUR	LABEL	FILES
+00001 	Initialize bitmap object and compress data (e.g. JPEG) into bitmap object 	camera 	com/pichillilorenzo/flutter_inappwebview_android/webview/in_app_webview/InAppWebViewChromeClient.java
+j3/C0647f.java
+00003 	Put the compressed bitmap data into JSON object 	camera 	com/pichillilorenzo/flutter_inappwebview_android/webview/in_app_webview/InAppWebView.java
+00004 	Get filename and put it to JSON object 	file collection 	O3/b.java
+00013 	Read file and put it into a stream 	file 	
+00014 	Read file into a stream and put it into a JSON object 	file 	O3/b.java
+00022 	Open a file from given absolute path of the file 	file 	
+00023 	Start another application from current application 	reflection control 	A1/z.java
+00024 	Write file after Base64 decoding 	reflection file 	O3/b.java
+00028 	Read file from assets directory 	file 	t0/C0996b.java
+00030 	Connect to the remote server through the given URL 	network 	com/pichillilorenzo/flutter_inappwebview_android/Util.java
+t0/C1009o.java
+Showing 1 to 10 of 35 entries
+
+    Previous
+    1
+    2
+    3
+    4
+    Next
+
+ABUSED PERMISSIONS
+Top Malware Permissions 4/25
+android.permission.INTERNET, android.permission.VIBRATE, android.permission.ACCESS_NETWORK_STATE, android.permission.WAKE_LOCK
+Other Common Permissions 1/44
+com.google.android.c2dm.permission.RECEIVE
+
+Malware Permissions are the top permissions that are widely abused by known malware.
+Other Common Permissions are permissions that are commonly abused by known malware.
+all of it

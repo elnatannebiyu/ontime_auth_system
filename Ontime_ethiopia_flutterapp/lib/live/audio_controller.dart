@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_final_fields
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
@@ -33,13 +34,17 @@ class AudioController extends ChangeNotifier {
     // If switching stations, stop previous session reporting
     final prevSlug = _currentSlug;
     if (prevSlug != null && prevSlug != slug) {
-      debugPrint('[AudioController] switching station: $prevSlug -> $slug');
+      if (kDebugMode) {
+        debugPrint('[AudioController] switching station: $prevSlug -> $slug');
+      }
       await _sendStop(prevSlug);
       _cancelHeartbeat();
     }
     _currentSlug = slug;
     // fetch radio detail to get stream_url
-    debugPrint('[AudioController] fetching radio detail for $slug');
+    if (kDebugMode) {
+      debugPrint('[AudioController] fetching radio detail for $slug');
+    }
     final res = await ApiClient().get('/live/radio/$slug/');
     final m = Map<String, dynamic>.from(res.data as Map);
     final primary =
@@ -55,7 +60,9 @@ class AudioController extends ChangeNotifier {
       _currentUrl = u;
       try {
         final t0 = DateTime.now();
-        debugPrint('[AudioController] setAudioSource -> $u');
+        if (kDebugMode) {
+          debugPrint('[AudioController] setAudioSource -> $u');
+        }
         final hdrs = <String, String>{
           // On iOS, AVPlayer cannot parse ICY metadata in-band; disable it
           'Icy-MetaData': Platform.isIOS ? '0' : '1',
@@ -74,19 +81,25 @@ class AudioController extends ChangeNotifier {
         }
         final src = AudioSource.uri(Uri.parse(u), headers: hdrs);
         await _player.setAudioSource(src).timeout(const Duration(seconds: 8));
-        debugPrint(
-            '[AudioController] setAudioSource OK in ${DateTime.now().difference(t0).inMilliseconds}ms');
+        if (kDebugMode) {
+          debugPrint(
+              '[AudioController] setAudioSource OK in ${DateTime.now().difference(t0).inMilliseconds}ms');
+        }
         // Make the MiniAudioBar appear as soon as we have a valid source
         notifyListeners();
       } on TimeoutException {
-        debugPrint('[AudioController] setAudioSource TIMEOUT');
+        if (kDebugMode) {
+          debugPrint('[AudioController] setAudioSource TIMEOUT');
+        }
         rethrow;
       }
       // Start playback and consider it successful as soon as the player reports
       // playing/ready/buffering. Some streams output audio but the Future may
       // not resolve quickly; avoid false negatives.
       final t1 = DateTime.now();
-      debugPrint('[AudioController] play()');
+      if (kDebugMode) {
+        debugPrint('[AudioController] play()');
+      }
       await _player.play();
       var ok = false;
       for (int i = 0; i < 14; i++) {
@@ -101,10 +114,14 @@ class AudioController extends ChangeNotifier {
         await Future.delayed(const Duration(milliseconds: 500));
       }
       if (ok || _player.playing) {
-        debugPrint(
-            '[AudioController] play() OK in ${DateTime.now().difference(t1).inMilliseconds}ms');
+        if (kDebugMode) {
+          debugPrint(
+              '[AudioController] play() OK in ${DateTime.now().difference(t1).inMilliseconds}ms');
+        }
       } else {
-        debugPrint('[AudioController] play() TIMEOUT');
+        if (kDebugMode) {
+          debugPrint('[AudioController] play() TIMEOUT');
+        }
         throw TimeoutException('play did not start in time');
       }
     }
@@ -161,8 +178,10 @@ class AudioController extends ChangeNotifier {
     for (var i = 0; i < candidates.length; i++) {
       final u = candidates[i];
       try {
-        debugPrint(
-            '[AudioController] attempt ${i + 1}/${candidates.length}: $u');
+        if (kDebugMode) {
+          debugPrint(
+              '[AudioController] attempt ${i + 1}/${candidates.length}: $u');
+        }
         await setAndPlay(u);
         lastErr = null;
         break;
@@ -171,14 +190,18 @@ class AudioController extends ChangeNotifier {
         try {
           await _player.stop();
         } catch (_) {}
-        debugPrint('[AudioController] attempt ${i + 1} TIMEOUT');
+        if (kDebugMode) {
+          debugPrint('[AudioController] attempt ${i + 1} TIMEOUT');
+        }
       } catch (e) {
         // Other errors: proceed to next
         lastErr = Exception(e.toString());
         try {
           await _player.stop();
         } catch (_) {}
-        debugPrint('[AudioController] attempt ${i + 1} failed: $e');
+        if (kDebugMode) {
+          debugPrint('[AudioController] attempt ${i + 1} failed: $e');
+        }
       }
     }
     if (lastErr != null) {
@@ -208,7 +231,9 @@ class AudioController extends ChangeNotifier {
 
   Future<void> pause() async {
     await _player.pause();
-    debugPrint('[AudioController] pause()');
+    if (kDebugMode) {
+      debugPrint('[AudioController] pause()');
+    }
     notifyListeners();
   }
 
@@ -218,7 +243,9 @@ class AudioController extends ChangeNotifier {
 
   Future<void> play() async {
     await _player.play();
-    debugPrint('[AudioController] resume play()');
+    if (kDebugMode) {
+      debugPrint('[AudioController] resume play()');
+    }
     notifyListeners();
   }
 
@@ -251,7 +278,7 @@ class AudioController extends ChangeNotifier {
 
   // --- Listen tracking helpers ---
   static String _genSessionId() {
-    final r = Random();
+    final r = Random.secure();
     final t = DateTime.now().millisecondsSinceEpoch;
     final a = r.nextInt(1 << 32);
     final b = r.nextInt(1 << 32);
@@ -260,8 +287,10 @@ class AudioController extends ChangeNotifier {
 
   Future<void> _sendStart(String slug) async {
     try {
-      debugPrint(
-          '[AudioController] listen START -> $slug session=$_listenSessionId');
+      if (kDebugMode) {
+        debugPrint(
+            '[AudioController] listen START -> $slug session=$_listenSessionId');
+      }
       await ApiClient().post('/live/radio/$slug/listen/start/', data: {
         'session_id': _listenSessionId,
       });
@@ -270,8 +299,10 @@ class AudioController extends ChangeNotifier {
 
   Future<void> _sendHeartbeat(String slug) async {
     try {
-      debugPrint(
-          '[AudioController] listen HEARTBEAT -> $slug session=$_listenSessionId');
+      if (kDebugMode) {
+        debugPrint(
+            '[AudioController] listen HEARTBEAT -> $slug session=$_listenSessionId');
+      }
       await ApiClient().post('/live/radio/$slug/listen/heartbeat/', data: {
         'session_id': _listenSessionId,
       });
@@ -280,8 +311,10 @@ class AudioController extends ChangeNotifier {
 
   Future<void> _sendStop(String slug) async {
     try {
-      debugPrint(
-          '[AudioController] listen STOP -> $slug session=$_listenSessionId');
+      if (kDebugMode) {
+        debugPrint(
+            '[AudioController] listen STOP -> $slug session=$_listenSessionId');
+      }
       await ApiClient().post('/live/radio/$slug/listen/stop/', data: {
         'session_id': _listenSessionId,
       });
@@ -308,16 +341,24 @@ class AudioController extends ChangeNotifier {
   void _attachPlayerLogging() {
     _detachPlayerLogging();
     _psSub = _player.playerStateStream.listen((s) {
-      debugPrint(
-          '[AudioController] state: playing=${s.playing} processing=${s.processingState}');
+      if (kDebugMode) {
+        debugPrint(
+            '[AudioController] state: playing=${s.playing} processing=${s.processingState}');
+      }
     }, onError: (e) {
-      debugPrint('[AudioController] playerStateStream error: $e');
+      if (kDebugMode) {
+        debugPrint('[AudioController] playerStateStream error: $e');
+      }
     });
     _evSub = _player.playbackEventStream.listen((e) {
-      debugPrint(
-          '[AudioController] event: buf=${e.bufferedPosition} dur=${e.duration}');
+      if (kDebugMode) {
+        debugPrint(
+            '[AudioController] event: buf=${e.bufferedPosition} dur=${e.duration}');
+      }
     }, onError: (e) {
-      debugPrint('[AudioController] playbackEventStream error: $e');
+      if (kDebugMode) {
+        debugPrint('[AudioController] playbackEventStream error: $e');
+      }
     });
   }
 

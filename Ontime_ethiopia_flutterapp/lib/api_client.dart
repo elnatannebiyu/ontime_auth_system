@@ -23,33 +23,66 @@ const String _envLanBase =
 const String _envAndroidMode =
     String.fromEnvironment('ANDROID_NET_MODE', defaultValue: 'auto');
 
+String _requireHttpsBase(String base) {
+  final trimmed = base.trim();
+  if (trimmed.isEmpty) return trimmed;
+  if (trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('http://')) {
+    throw StateError('Insecure API base is not allowed: $trimmed');
+  }
+  throw StateError('Invalid API base (must start with https://): $trimmed');
+}
+
 String _resolveApiBase() {
   // If explicit LAN provided, use it universally
   if (_envLanBase.isNotEmpty) {
-    return _envLanBase;
+    return _requireHttpsBase(_envLanBase);
   }
   // If a default API base is provided via config.dart, prefer that
   if (kDefaultApiBase.isNotEmpty) {
-    return kDefaultApiBase;
+    return _requireHttpsBase(kDefaultApiBase);
   }
-  if (Platform.isAndroid) {
-    switch (_envAndroidMode) {
-      case 'emulator':
-        return 'http://10.0.2.2:8000';
-      case 'device_local':
-        // Server running in Termux on the same phone
-        return 'http://127.0.0.1:8000';
-      case 'auto':
-      default:
-        // Default to Android emulator host mapping
-        return 'http://10.0.2.2:8000';
+
+  // Release builds should never contain or fall back to cleartext dev URLs.
+  // In debug builds, allow convenient local development defaults.
+  assert(() {
+    if (Platform.isAndroid) {
+      switch (_envAndroidMode) {
+        case 'emulator':
+          return true;
+        case 'device_local':
+          return true;
+        case 'auto':
+        default:
+          return true;
+      }
     }
-  }
-  if (Platform.isIOS || Platform.isMacOS) {
+    return true;
+  }());
+
+  if (kDebugMode) {
+    if (Platform.isAndroid) {
+      switch (_envAndroidMode) {
+        case 'emulator':
+          return 'http://10.0.2.2:8000';
+        case 'device_local':
+          // Server running in Termux on the same phone
+          return 'http://127.0.0.1:8000';
+        case 'auto':
+        default:
+          // Default to Android emulator host mapping
+          return 'http://10.0.2.2:8000';
+      }
+    }
+    if (Platform.isIOS || Platform.isMacOS) {
+      return 'http://localhost:8000';
+    }
+    // Fallback for other platforms
     return 'http://localhost:8000';
   }
-  // Fallback for other platforms
-  return 'http://localhost:8000';
+
+  throw StateError(
+      'API base URL is not configured. Set kDefaultApiBase (https://...) or pass --dart-define=LAN_API_BASE=https://...');
 }
 
 String kApiBase = _resolveApiBase();
@@ -61,6 +94,7 @@ class ApiClient {
   bool _initialized = false;
   String? _accessToken; // in-memory; persisted securely for restore
   String? _tenantSlug; // e.g., "default", sent via X-Tenant-Id
+  CancelToken _globalCancelToken = CancelToken();
   void Function()? _onForceLogout; // optional app-level handler
   void Function(String message)?
       _onNotify; // optional UI notifier (e.g., snackbar)
@@ -130,6 +164,10 @@ class ApiClient {
     // Attach Authorization, tenant, device headers, and CSRF token
     dio.interceptors.add(InterceptorsWrapper(onRequest:
         (RequestOptions options, RequestInterceptorHandler handler) async {
+      final ignoreGlobalCancel = options.extra['ignoreGlobalCancel'] == true;
+      if (!ignoreGlobalCancel && options.cancelToken == null) {
+        options.cancelToken = _globalCancelToken;
+      }
       // Lazy init ensures persisted cookies and stored access token are loaded
       if (!_initialized) {
         await ensureInitialized();
@@ -155,7 +193,11 @@ class ApiClient {
         options.headers['X-Tenant-Id'] = _tenantSlug;
       }
 
-      final skipCsrfPrime = options.extra['csrf_prime'] == true;
+      final lowerPath = options.path.toLowerCase();
+      final skipCsrfPrime = options.extra['csrf_prime'] == true ||
+          options.extra['skip_csrf_prime'] == true ||
+          lowerPath.contains('/logout') ||
+          lowerPath.contains('/user-sessions/unregister-device');
       // AUDIT FIX #5: Include CSRF token for state-changing requests
       final method = options.method.toUpperCase();
       if (['POST', 'PUT', 'PATCH', 'DELETE'].contains(method)) {
@@ -304,6 +346,25 @@ class ApiClient {
     _tenantSlug = tenantSlug;
   }
 
+  Future<void> hardResetForLogout() async {
+    try {
+      _globalCancelToken.cancel('logout');
+    } catch (_) {}
+    _globalCancelToken = CancelToken();
+    _lastMe = null;
+    _lastMeAt = null;
+    _refreshing = null;
+    _refreshBackoffUntil = null;
+    _lastRefreshAttemptAt = null;
+    try {
+      await cookieJar.deleteAll();
+    } catch (_) {}
+    try {
+      await _secure.delete(key: 'last_me');
+      await _secure.delete(key: 'last_me_at');
+    } catch (_) {}
+  }
+
   // Initialize default tenant from config, if not set elsewhere
   void ensureDefaultTenant() {
     if ((_tenantSlug == null || _tenantSlug!.isEmpty) &&
@@ -316,8 +377,9 @@ class ApiClient {
   void setBaseUrl(String base) {
     if (base.isEmpty) return;
     if (!base.startsWith('http')) return;
-    dio.options.baseUrl = base.endsWith('/api') ? base : "$base/api";
-    kApiBase = base; // keep global in sync for diagnostics
+    final safe = _requireHttpsBase(base);
+    dio.options.baseUrl = safe.endsWith('/api') ? safe : "$safe/api";
+    kApiBase = safe; // keep global in sync for diagnostics
   }
 
   String? get tenant => _tenantSlug;
@@ -364,7 +426,10 @@ class ApiClient {
   }
 
   void _forceLogout() async {
-    debugPrint('[ApiClient] Forcing logout: clearing access token and cookies');
+    if (kDebugMode) {
+      debugPrint(
+          '[ApiClient] Forcing logout: clearing access token and cookies');
+    }
     _accessToken = null;
     _lastMe = null;
     _lastMeAt = null;
@@ -376,11 +441,15 @@ class ApiClient {
     } catch (_) {}
     final cb = _onForceLogout;
     if (cb != null) {
-      debugPrint(
-          '[ApiClient] Invoking force-logout callback (navigation to /login)');
+      if (kDebugMode) {
+        debugPrint(
+            '[ApiClient] Invoking force-logout callback (navigation to /login)');
+      }
       cb();
     } else {
-      debugPrint('[ApiClient] No force-logout callback registered');
+      if (kDebugMode) {
+        debugPrint('[ApiClient] No force-logout callback registered');
+      }
     }
   }
 
@@ -498,8 +567,10 @@ class ApiClient {
             .where((c) => c.name.toLowerCase() == 'refresh_token')
             .toList();
         if (_accessToken == null && refreshCookies.isEmpty) {
-          debugPrint(
-              '[ApiClient] No access token and no refresh cookie. Forcing logout.');
+          if (kDebugMode) {
+            debugPrint(
+                '[ApiClient] No access token and no refresh cookie. Forcing logout.');
+          }
           _forceLogout();
           throw DioException(
               requestOptions: RequestOptions(path: '/token/refresh/'),
@@ -516,8 +587,10 @@ class ApiClient {
             return be.compareTo(ae); // descending, most recent first
           });
           final winner = refreshCookies.first;
-          debugPrint(
-              '[ApiClient] Deduced multiple refresh_token cookies -> keeping one with path=${winner.path ?? '/'} domain=${winner.domain ?? '<default>'} expires=${winner.expires?.toIso8601String() ?? '<session>'}');
+          if (kDebugMode) {
+            debugPrint(
+                '[ApiClient] Deduced multiple refresh_token cookies -> keeping one with path=${winner.path ?? '/'} domain=${winner.domain ?? '<default>'} expires=${winner.expires?.toIso8601String() ?? '<session>'}');
+          }
           // CookieJar doesn't delete by name; clear cookies for this URI then re-add the winner
           await cookieJar.delete(refreshUri);
           await cookieJar.saveFromResponse(refreshUri, [winner]);
@@ -549,16 +622,20 @@ class ApiClient {
               requestOptions: res.requestOptions,
               message: 'No access token in refresh');
         }
-        debugPrint(
-            '[ApiClient] Refresh succeeded; setting new access token (len=${newAccess.length})');
+        if (kDebugMode) {
+          debugPrint(
+              '[ApiClient] Refresh succeeded; setting new access token (len=${newAccess.length})');
+        }
         setAccessToken(newAccess);
         // After a successful refresh, set a short cooldown to avoid clustered preflights
         _refreshBackoffUntil = DateTime.now().add(_postRefreshCooldown);
       } on DioException catch (e) {
         // If the refresh endpoint itself returned 401 due to invalid session/refresh
         if (e.response?.statusCode == 401) {
-          debugPrint(
-              '[ApiClient] Refresh 401 in preflight _refreshAccess(); triggering force logout');
+          if (kDebugMode) {
+            debugPrint(
+                '[ApiClient] Refresh 401 in preflight _refreshAccess(); triggering force logout');
+          }
           final data = e.response?.data;
           final detail = (data is Map && data['detail'] is String)
               ? data['detail'] as String
@@ -573,7 +650,9 @@ class ApiClient {
         }
         // If server rate limited (429), back off for a few minutes to avoid hammering
         if (e.response?.statusCode == 429) {
-          debugPrint('[ApiClient] Refresh 429 received; applying backoff');
+          if (kDebugMode) {
+            debugPrint('[ApiClient] Refresh 429 received; applying backoff');
+          }
           _refreshBackoffUntil = DateTime.now().add(const Duration(minutes: 5));
         }
         rethrow;
@@ -705,8 +784,10 @@ class _TokenRefreshInterceptor extends Interceptor {
               e.error is SocketException) {
             // no-op: avoid SnackBar
           } else if (e.response?.statusCode == 401) {
-            debugPrint(
-                '[ApiClient] Interceptor: refresh failed with 401; forcing logout');
+            if (kDebugMode) {
+              debugPrint(
+                  '[ApiClient] Interceptor: refresh failed with 401; forcing logout');
+            }
             // Any 401 from refresh means we cannot recover here. Force logout to break loops.
             if (!pathLower.contains('/logout/')) {
               client._forceLogout();

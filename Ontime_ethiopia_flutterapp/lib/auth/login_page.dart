@@ -15,7 +15,6 @@ import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
 import '../config.dart';
 import 'services/simple_session_manager.dart';
-import '../core/notifications/notification_permission_manager.dart';
 import '../core/notifications/fcm_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/notifications/notification_inbox.dart';
@@ -189,11 +188,6 @@ class _LoginPageState extends State<LoginPage> {
       await _maybeShowFirstLoginAnnouncement();
 
       if (!Platform.isIOS) {
-        if (mounted) {
-          try {
-            await NotificationPermissionManager().ensurePermissionFlow(context);
-          } catch (_) {}
-        }
         try {
           await FcmManager().ensureRegisteredWithBackend();
         } catch (_) {}
@@ -425,9 +419,7 @@ class _LoginPageState extends State<LoginPage> {
                                           await _maybeShowFirstLoginAnnouncement();
                                           if (!Platform.isIOS) {
                                             if (mounted) {
-                                              await NotificationPermissionManager()
-                                                  .ensurePermissionFlow(
-                                                      context);
+                                              // Notification permission is requested only when user enables reminders.
                                             }
                                             await FcmManager()
                                                 .ensureRegisteredWithBackend();

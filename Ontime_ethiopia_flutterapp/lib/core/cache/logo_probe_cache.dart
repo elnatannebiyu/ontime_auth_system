@@ -6,6 +6,10 @@ class LogoProbeCache {
 
   final Map<String, _LogoProbeResult> _cache = {};
 
+  void clear() {
+    _cache.clear();
+  }
+
   /// Returns true if the logo URL appears reachable.
   /// Uses a time-based cache so successful probes are not repeated every time.
   Future<bool> ensureAvailable(

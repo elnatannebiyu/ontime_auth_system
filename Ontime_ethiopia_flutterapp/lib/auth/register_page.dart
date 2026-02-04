@@ -10,7 +10,6 @@ import '../core/widgets/version_badge.dart';
 import '../core/services/social_auth.dart';
 import '../core/utils/phone_input_formatter.dart';
 import '../core/theme/theme_controller.dart';
-import '../core/notifications/notification_permission_manager.dart';
 
 class RegisterPage extends StatefulWidget {
   final AuthApi api;
@@ -74,9 +73,6 @@ class _RegisterPageState extends State<RegisterPage> {
         final me = await widget.api.me();
         // Seed short-lived cache to prevent immediate re-fetch on Home
         ApiClient().setLastMe(me);
-        if (mounted) {
-          await NotificationPermissionManager().ensurePermissionFlow(context);
-        }
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
       } on DioException catch (e) {
@@ -212,10 +208,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   await widget.tokenStore
                       .setTokens(tokens.access, tokens.refresh);
                   await widget.api.me();
-                  if (mounted) {
-                    await NotificationPermissionManager()
-                        .ensurePermissionFlow(context);
-                  }
                   if (!mounted) return;
                   Navigator.of(context)
                       .pushNamedAndRemoveUntil('/home', (_) => false);

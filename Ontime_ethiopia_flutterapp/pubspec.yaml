@@ -41,7 +41,7 @@ dependencies:
   cookie_jar: ^4.0.8
   url_launcher: ^6.3.0
   dio_cookie_manager: ^3.1.1
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.0.0
   path_provider: ^2.1.5
   jwt_decoder: ^2.0.1
   collection: ^1.19.1
@@ -50,16 +50,16 @@ dependencies:
   device_info_plus: ^12.2.0
   provider: ^6.1.1
   youtube_player_flutter: ^9.0.3
-  google_sign_in: ^6.3.0
+  google_sign_in: ^7.2.0
   permission_handler: ^12.0.1
-  flutter_local_notifications: ^19.5.0
+  flutter_local_notifications: ^20.0.0
   firebase_core: ^4.2.0
   firebase_messaging: ^16.0.3
   video_player: ^2.9.2
-  just_audio: ^0.9.39
-  audio_session: ^0.1.21
+  just_audio: ^0.10.5
+  audio_session: ^0.2.2
   cached_network_image: ^3.3.1
-  connectivity_plus: ^6.1.0
+  connectivity_plus: ^7.0.0
   wakelock_plus: ^1.2.6
 
 dev_dependencies:

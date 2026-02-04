@@ -5,7 +5,8 @@ class MiniPlayerManager {
   MiniPlayerManager._();
   static final MiniPlayerManager I = MiniPlayerManager._();
 
-  final ValueNotifier<SeriesNowPlaying?> nowPlaying = ValueNotifier<SeriesNowPlaying?>(null);
+  final ValueNotifier<SeriesNowPlaying?> nowPlaying =
+      ValueNotifier<SeriesNowPlaying?>(null);
 
   void setNowPlaying(SeriesNowPlaying snp) {
     nowPlaying.value = snp;
@@ -36,6 +37,16 @@ class MiniPlayerManager {
   void clear() {
     nowPlaying.value = null;
   }
+
+  void forceStopAndClear() {
+    final current = nowPlaying.value;
+    if (current != null) {
+      try {
+        if (current.isPlaying && current.onTogglePlayPause != null) {
+          current.onTogglePlayPause!();
+        }
+      } catch (_) {}
+    }
+    nowPlaying.value = null;
+  }
 }
-
-

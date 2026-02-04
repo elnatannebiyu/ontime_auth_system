@@ -3,12 +3,24 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:flutter/services.dart';
 
 class DeviceInfoService {
   static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+  static const MethodChannel _platform = MethodChannel('ontime/device');
   static const _storage = FlutterSecureStorage();
   static const _kDeviceIdKey = 'device_id';
   static const _kDeviceNameKey = 'device_name';
+
+  static Future<String?> _getAndroidIdViaChannel() async {
+    try {
+      final v = await _platform.invokeMethod<String>('getAndroidId');
+      final s = (v ?? '').trim();
+      return s.isEmpty ? null : s;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static String? _extractUserKeyFromMe(Map<String, dynamic> me) {
     try {
@@ -78,13 +90,14 @@ class DeviceInfoService {
     try {
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
+        final stableId = await getDeviceId();
         deviceData.addAll({
           'device_model': androidInfo.model,
           'device_brand': androidInfo.brand,
           'device_manufacturer': androidInfo.manufacturer,
           'android_version': androidInfo.version.release,
           'android_sdk': androidInfo.version.sdkInt,
-          'device_id': androidInfo.id,
+          'device_id': stableId,
           'is_physical_device': androidInfo.isPhysicalDevice,
         });
       } else if (Platform.isIOS) {
@@ -111,7 +124,8 @@ class DeviceInfoService {
     try {
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
-        return '${androidInfo.brand}_${androidInfo.model}_${androidInfo.id}';
+        final stableId = await getDeviceId();
+        return '${androidInfo.brand}_${androidInfo.model}_$stableId';
       } else if (Platform.isIOS) {
         final iosInfo = await _deviceInfo.iosInfo;
         return '${iosInfo.model}_${iosInfo.identifierForVendor ?? "unknown"}';
@@ -134,8 +148,13 @@ class DeviceInfoService {
     String generated;
     try {
       if (Platform.isAndroid) {
-        final info = await _deviceInfo.androidInfo;
-        generated = info.id; // Android ID (not hardware serial)
+        // Use Settings.Secure.ANDROID_ID via native channel. Stable across reinstalls
+        // for the same signing key (unless factory reset).
+        generated = (await _getAndroidIdViaChannel()) ?? '';
+        if (generated.isEmpty) {
+          final info = await _deviceInfo.androidInfo;
+          generated = info.id;
+        }
       } else if (Platform.isIOS) {
         final info = await _deviceInfo.iosInfo;
         generated = info.identifierForVendor ??

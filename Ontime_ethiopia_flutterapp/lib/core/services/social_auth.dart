@@ -28,49 +28,43 @@ class SocialAuthService {
   final String? serverClientId; // Required on Android to obtain idToken
   SocialAuthService({this.serverClientId});
 
-  GoogleSignIn _buildGoogle()
-    => GoogleSignIn(
-      // On Android, provide the Web client ID via serverClientId to obtain an idToken
-      serverClientId: Platform.isAndroid
-          ? (serverClientId?.isNotEmpty == true
-              ? serverClientId
-              : (_envGoogleWebClientId.isNotEmpty ? _envGoogleWebClientId : null))
-          : null,
-      // On iOS, pass the iOS clientId
-      clientId: Platform.isIOS
-          ? (_envGoogleIosClientId.isNotEmpty ? _envGoogleIosClientId : null)
-          : null,
-      scopes: const <String>[
-        'email',
-        'openid',
-        'profile',
-      ],
+  Future<void> _ensureGoogleInitialized() async {
+    final String? serverId = Platform.isAndroid
+        ? (serverClientId?.isNotEmpty == true
+            ? serverClientId
+            : (_envGoogleWebClientId.isNotEmpty ? _envGoogleWebClientId : null))
+        : null;
+    final String? clientId = Platform.isIOS
+        ? (_envGoogleIosClientId.isNotEmpty ? _envGoogleIosClientId : null)
+        : null;
+
+    // google_sign_in v7 uses a singleton instance that must be initialized.
+    await GoogleSignIn.instance.initialize(
+      clientId: clientId,
+      serverClientId: serverId,
     );
+  }
 
   /// Sign out from the app session for GoogleSignIn so the account chooser is shown next time.
   Future<void> signOutGoogle() async {
-    final gs = _buildGoogle();
     try {
-      await gs.signOut();
-      // Disconnect revokes granted scopes from this app; optional but helps reset state
-      await gs.disconnect();
+      await _ensureGoogleInitialized();
+      await GoogleSignIn.instance.signOut();
     } catch (_) {}
   }
 
   Future<SocialAuthResult> signInWithGoogle({bool signOutFirst = false}) async {
-    final googleSignIn = _buildGoogle();
     if (signOutFirst) {
       try {
-        await googleSignIn.signOut();
-        await googleSignIn.disconnect();
+        await signOutGoogle();
       } catch (_) {}
     }
 
-    final account = await googleSignIn.signIn();
-    if (account == null) {
-      throw Exception('Google sign-in aborted');
-    }
-    final auth = await account.authentication;
+    await _ensureGoogleInitialized();
+
+    // v7: authenticate triggers interactive sign-in.
+    final account = await GoogleSignIn.instance.authenticate();
+    final auth = account.authentication;
     final idToken = auth.idToken; // This is what backend verifies
     if (idToken == null || idToken.isEmpty) {
       // Some devices may require re-auth prompts
@@ -79,7 +73,7 @@ class SocialAuthService {
     return SocialAuthResult(
       provider: 'google',
       idToken: idToken,
-      accessToken: auth.accessToken,
+      accessToken: null,
       email: account.email,
       displayName: account.displayName,
     );

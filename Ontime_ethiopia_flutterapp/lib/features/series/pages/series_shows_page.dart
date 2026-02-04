@@ -11,6 +11,7 @@ import 'series_seasons_page.dart';
 import 'series_episodes_page.dart';
 import '../../../core/widgets/offline_banner.dart';
 import '../../../core/localization/l10n.dart';
+import '../../../core/notifications/notification_permission_manager.dart';
 
 class SeriesShowsPage extends StatefulWidget {
   final AuthApi api;
@@ -444,6 +445,11 @@ class _ShowCardState extends State<_ShowCard> {
     });
     try {
       if (!_isOn) {
+        final ok = await NotificationPermissionManager()
+            .requestPermissionFlow(context);
+        if (!ok) {
+          return;
+        }
         final res = await widget.service.createReminder(widget.slug);
         final id = res['id'];
         final active = res['is_active'] == true;
@@ -581,10 +587,6 @@ class _ShowsGrid extends StatelessWidget {
                 .toString();
         final cover = (s['cover_image'] ?? '').toString();
         final slug = (s['slug'] ?? '').toString();
-        if (slug == 'show-1763740244802') {
-          debugPrint(
-              '[ShowsPage] Sheqela slug=$slug title="$title" cover_image=$cover');
-        }
         return _ShowCard(
           title: title,
           imageUrl: cover,

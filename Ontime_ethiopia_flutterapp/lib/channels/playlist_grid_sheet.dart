@@ -153,8 +153,8 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
     });
 
     try {
-      final conn = await Connectivity().checkConnectivity();
-      final bool isOffline = conn == ConnectivityResult.none;
+      final connResults = await Connectivity().checkConnectivity();
+      final bool isOffline = connResults.contains(ConnectivityResult.none);
       if (isOffline) {
         final cached = _cachedPlaylistsBySlug[widget.channelSlug] ?? const [];
         if (!mounted) return;

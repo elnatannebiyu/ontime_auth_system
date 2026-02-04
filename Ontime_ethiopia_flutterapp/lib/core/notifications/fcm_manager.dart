@@ -79,7 +79,7 @@ class FcmManager {
       android: androidInit,
       iOS: iosInit,
     );
-    await _localNotifs.initialize(initSettings);
+    await _localNotifs.initialize(settings: initSettings);
 
     // Ensure Android channel exists for 8.0+
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -113,10 +113,10 @@ class FcmManager {
       iOS: iosDetails,
     );
     await _localNotifs.show(
-      0,
-      title,
-      body,
-      details,
+      id: 0,
+      title: title,
+      body: body,
+      notificationDetails: details,
       payload: payload,
     );
   }

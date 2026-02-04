@@ -30,7 +30,6 @@ import '../api_client.dart';
 import '../core/cache/channel_cache.dart';
 import '../core/cache/home_trending_cache.dart';
 import '../live/live_page.dart';
-import '../core/notifications/notification_permission_manager.dart';
 import '../core/notifications/fcm_manager.dart';
 import '../shorts/shorts_page.dart';
 import '../shorts/shorts_player_page.dart';
@@ -92,15 +91,8 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _launchSeed =
-        '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+        '${DateTime.now().millisecondsSinceEpoch}-${math.Random.secure().nextInt(1 << 32)}';
     _load();
-    // Ask for notification permission gracefully after first frame.
-    // Temporarily disabled on iOS while Firebase/FCM are not configured.
-    if (!Platform.isIOS) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        NotificationPermissionManager().ensurePermissionFlow(context);
-      });
-    }
     _series = SeriesService(api: widget.api, tenantId: widget.tenantId);
     _loadHeroRandom();
     _loadTrendingNew();
@@ -173,12 +165,14 @@ class _HomePageState extends State<HomePage> {
       // Always fetch the latest profile so flags like email_verified are
       // immediately reflected after changes (e.g., verification link).
       final me = await widget.api.me();
+      if (!mounted) return;
       setState(() {
         _me = me;
       });
       // Load channel preview for bubbles (non-blocking for rest of UI)
       unawaited(_loadChannelBubbles());
     } catch (e) {
+      if (!mounted) return;
       if (e is DioException && e.type == DioExceptionType.connectionError) {
         setState(() {
           _offline = true;
@@ -189,9 +183,11 @@ class _HomePageState extends State<HomePage> {
         });
       }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -1018,6 +1014,7 @@ class _HomePageState extends State<HomePage> {
                                 }
                               } catch (_) {}
 
+                              if (!context.mounted) return;
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => ShortsPlayerPage(

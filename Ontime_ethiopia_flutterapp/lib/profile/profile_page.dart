@@ -26,6 +26,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _api = AuthApi();
   // Removed unused SecureTokenStore; logout is centralized in SimpleSessionManager
   bool _loading = true;
+  bool _loggingOut = false;
   String? _error;
   Map<String, dynamic>? _me;
   bool _offline = false;
@@ -132,6 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
         'purpose': 'change_password',
       });
 
+      if (!mounted) return;
       final otpController = TextEditingController();
       final gotOtp = await showDialog<bool>(
             context: context,
@@ -179,13 +181,14 @@ class _ProfilePageState extends State<ProfilePage> {
       final detail = (resp.data is Map && resp.data['detail'] is String)
           ? resp.data['detail'] as String
           : _t('password_status_enabled');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(detail)),
-      );
-
+      final nav = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
       await SimpleSessionManager().logout();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(detail)),
+      );
+      nav.pushNamedAndRemoveUntil('/login', (_) => false);
     } on DioException catch (e) {
       if (!mounted) return;
       String errorMsg = 'Failed to change password';
@@ -332,6 +335,7 @@ class _ProfilePageState extends State<ProfilePage> {
         'purpose': 'enable_password',
       });
       // Step 2: ask for OTP
+      if (!mounted) return;
       final otpController = TextEditingController();
       final gotOtp = await showDialog<bool>(
             context: context,
@@ -380,9 +384,10 @@ class _ProfilePageState extends State<ProfilePage> {
       );
 
       // Logout will clean up cookies and navigate
+      final nav = Navigator.of(context);
       await SimpleSessionManager().logout();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      nav.pushNamedAndRemoveUntil('/login', (_) => false);
     } on DioException catch (e) {
       if (!mounted) return;
 
@@ -689,11 +694,43 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
+    if (!mounted) return;
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    setState(() {
+      _loggingOut = true;
+      _error = null;
+    });
+    showGeneralDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      barrierLabel: 'Logging out',
+      barrierColor: Colors.black45,
+      transitionDuration: Duration.zero,
+      pageBuilder: (ctx, a1, a2) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
     try {
       // Route through the session manager so it also signs out of Google
       // and clears local tokens consistently across the app.
       await SimpleSessionManager().logout();
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        if (rootNav.canPop()) {
+          rootNav.pop();
+        }
+        setState(() {
+          _loggingOut = false;
+        });
+      }
+    }
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
@@ -760,301 +797,325 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: BrandTitle(section: _t('profile')),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_offline || _error != null)
-                    OfflineBanner(
-                      title: _offline
-                          ? _t('you_are_offline')
-                          : _t('profile_load_error'),
-                      subtitle: _offline
-                          ? _t('some_actions_offline')
-                          : (_error ?? ''),
-                      onRetry: _load,
-                    ),
-                  Card(
-                    child: Padding(
+    return WillPopScope(
+      onWillPop: () async => !_loggingOut,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: !_loggingOut,
+          leading: _loggingOut ? const SizedBox.shrink() : null,
+          title: BrandTitle(section: _t('profile')),
+        ),
+        body: Stack(
+          children: [
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
                       padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                child: Text(
-                                  _initial(),
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_offline || _error != null)
+                          OfflineBanner(
+                            title: _offline
+                                ? _t('you_are_offline')
+                                : _t('profile_load_error'),
+                            subtitle: _offline
+                                ? _t('some_actions_offline')
+                                : (_error ?? ''),
+                            onRetry: _load,
+                          ),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Text(
-                                      (_me?['first_name'] ?? '')
-                                              .toString()
-                                              .trim()
-                                              .isNotEmpty
-                                          ? '${(_me?['first_name'] ?? '').toString().trim()} ${(_me?['last_name'] ?? '').toString().trim()}'
-                                          : (_me?['email'] ?? '—').toString(),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _me?['email']?.toString() ?? '—',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          _isEmailVerified
-                                              ? Icons.verified
-                                              : Icons.error_outline,
-                                          size: 16,
-                                          color: _isEmailVerified
-                                              ? Colors.green
-                                              : Colors.redAccent,
+                                    CircleAvatar(
+                                      radius: 24,
+                                      child: Text(
+                                        _initial(),
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            _isEmailVerified
-                                                ? _t('email_verified_banner')
-                                                : _t(
-                                                    'email_not_verified_banner'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            (_me?['first_name'] ?? '')
+                                                    .toString()
+                                                    .trim()
+                                                    .isNotEmpty
+                                                ? '${(_me?['first_name'] ?? '').toString().trim()} ${(_me?['last_name'] ?? '').toString().trim()}'
+                                                : (_me?['email'] ?? '—')
+                                                    .toString(),
                                             style: Theme.of(context)
                                                 .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: _isEmailVerified
-                                                      ? Colors.green
-                                                      : Colors.redAccent,
-                                                ),
+                                                .titleMedium,
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                        if (!_isEmailVerified)
-                                          TextButton(
-                                            onPressed: (_loading ||
-                                                    _verifying ||
-                                                    _verificationCooldown > 0)
-                                                ? null
-                                                : _requestEmailVerification,
-                                            child: Text(
-                                              _verificationSent
-                                                  ? _verificationCooldown > 0
-                                                      ? '${_t('resend_email')} (${_verificationCooldown}s)'
-                                                      : _t('resend_email')
-                                                  : _verificationCooldown > 0
-                                                      ? '${_t('verify_now')} (${_verificationCooldown}s)'
-                                                      : _t('verify_now'),
-                                            ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _me?['email']?.toString() ?? '—',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                      ],
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                _isEmailVerified
+                                                    ? Icons.verified
+                                                    : Icons.error_outline,
+                                                size: 16,
+                                                color: _isEmailVerified
+                                                    ? Colors.green
+                                                    : Colors.redAccent,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  _isEmailVerified
+                                                      ? _t(
+                                                          'email_verified_banner')
+                                                      : _t(
+                                                          'email_not_verified_banner'),
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: _isEmailVerified
+                                                            ? Colors.green
+                                                            : Colors.redAccent,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (!_isEmailVerified)
+                                                TextButton(
+                                                  onPressed: (_loading ||
+                                                          _verifying ||
+                                                          _verificationCooldown >
+                                                              0)
+                                                      ? null
+                                                      : _requestEmailVerification,
+                                                  child: Text(
+                                                    _verificationSent
+                                                        ? _verificationCooldown >
+                                                                0
+                                                            ? '${_t('resend_email')} (${_verificationCooldown}s)'
+                                                            : _t('resend_email')
+                                                        : _verificationCooldown >
+                                                                0
+                                                            ? '${_t('verify_now')} (${_verificationCooldown}s)'
+                                                            : _t('verify_now'),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _t('profile_details'),
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  setState(() {
-                                    if (_editing) {
-                                      // Cancel: revert values and lock fields
-                                      _firstName.text = _originalFirstName;
-                                      _lastName.text = _originalLastName;
-                                      _dirty = false;
-                                      _editing = false;
-                                    } else {
-                                      _editing = true;
-                                      _firstNameFocus.requestFocus();
-                                    }
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 2),
-                                  child: Text(
-                                    _editing ? _t('cancel') : _t('edit'),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _t('profile_details'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(4),
+                                      onTap: () {
+                                        setState(() {
+                                          if (_editing) {
+                                            // Cancel: revert values and lock fields
+                                            _firstName.text =
+                                                _originalFirstName;
+                                            _lastName.text = _originalLastName;
+                                            _dirty = false;
+                                            _editing = false;
+                                          } else {
+                                            _editing = true;
+                                            _firstNameFocus.requestFocus();
+                                          }
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 2),
+                                        child: Text(
+                                          _editing ? _t('cancel') : _t('edit'),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _firstName,
+                                  focusNode: _firstNameFocus,
+                                  readOnly: !_editing,
+                                  decoration: InputDecoration(
+                                    labelText: _t('first_name'),
+                                    border: const OutlineInputBorder(),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _firstName,
-                            focusNode: _firstNameFocus,
-                            readOnly: !_editing,
-                            decoration: InputDecoration(
-                              labelText: _t('first_name'),
-                              border: const OutlineInputBorder(),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _lastName,
+                                  readOnly: !_editing,
+                                  decoration: InputDecoration(
+                                    labelText: _t('last_name'),
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                if (_editing && _dirty) ...[
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 44,
+                                    child: FilledButton(
+                                      onPressed: _loading ? null : _save,
+                                      child: Text(_t('save_changes')),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.logout),
+                                    onPressed: _loggingOut ? null : _logout,
+                                    label: Text(_t('sign_out')),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _lastName,
-                            readOnly: !_editing,
-                            decoration: InputDecoration(
-                              labelText: _t('last_name'),
-                              border: const OutlineInputBorder(),
+                        ),
+                        const SizedBox(height: 16),
+                        // Password & Security
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _t('security'),
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  !_isEmailVerified
+                                      ? _t(
+                                          'password_manage_requires_verified_email')
+                                      : _hasPassword
+                                          ? _t('password_status_enabled')
+                                          : _t('password_status_not_set'),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: OutlinedButton(
+                                    onPressed: _loading || !_isEmailVerified
+                                        ? null
+                                        : (_hasPassword
+                                            ? _disablePassword
+                                            : _enablePassword),
+                                    child: Text(_hasPassword
+                                        ? _t('disable_password')
+                                        : _t('enable_password')),
+                                  ),
+                                ),
+                                if (_hasPassword) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 44,
+                                    child: OutlinedButton(
+                                      onPressed: _loading || !_isEmailVerified
+                                          ? null
+                                          : _changePassword,
+                                      child: Text(_t('change_password')),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          if (_editing && _dirty) ...[
-                            SizedBox(
-                              width: double.infinity,
-                              height: 44,
-                              child: FilledButton(
-                                onPressed: _loading ? null : _save,
-                                child: Text(_t('save_changes')),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          SizedBox(
-                            width: double.infinity,
-                            height: 44,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.logout),
-                              onPressed: _logout,
-                              label: Text(_t('sign_out')),
+                        ),
+                        const SizedBox(height: 16),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _t('danger_zone'),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(color: Colors.red),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _t('delete_account_body'),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(
+                                        Icons.delete_forever_outlined),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
+                                    ),
+                                    onPressed: _confirmDeleteAccount,
+                                    label: Text(_t('delete_account')),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Password & Security
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _t('security'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            !_isEmailVerified
-                                ? _t('password_manage_requires_verified_email')
-                                : _hasPassword
-                                    ? _t('password_status_enabled')
-                                    : _t('password_status_not_set'),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 44,
-                            child: OutlinedButton(
-                              onPressed: _loading || !_isEmailVerified
-                                  ? null
-                                  : (_hasPassword
-                                      ? _disablePassword
-                                      : _enablePassword),
-                              child: Text(_hasPassword
-                                  ? _t('disable_password')
-                                  : _t('enable_password')),
-                            ),
-                          ),
-                          if (_hasPassword) ...[
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 44,
-                              child: OutlinedButton(
-                                onPressed: _loading || !_isEmailVerified
-                                    ? null
-                                    : _changePassword,
-                                child: Text(_t('change_password')),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _t('danger_zone'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: Colors.red),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _t('delete_account_body'),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 44,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.delete_forever_outlined),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                              ),
-                              onPressed: _confirmDeleteAccount,
-                              label: Text(_t('delete_account')),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ],
+        ),
+      ),
     );
   }
 }

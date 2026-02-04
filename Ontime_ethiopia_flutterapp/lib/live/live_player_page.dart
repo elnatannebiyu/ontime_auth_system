@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -78,8 +79,10 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
         final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
         final m = Map<String, dynamic>.from(res.data as Map);
         // Debug: dump full live object for this slug
-        debugPrint('*** Live meta (reuse) for slug=${widget.slug}:\n'
-            '${const JsonEncoder.withIndent('  ').convert(m)}');
+        if (kDebugMode) {
+          debugPrint('*** Live meta (reuse) for slug=${widget.slug}:\n'
+              '${const JsonEncoder.withIndent('  ').convert(m)}');
+        }
         _viewSessionId = (m['session_id'] ?? '').toString().isNotEmpty
             ? m['session_id'].toString()
             : _viewSessionId ?? _genSessionId();
@@ -112,8 +115,10 @@ class _LivePlayerPageState extends State<LivePlayerPage> {
       final res = await ApiClient().get('/live/by-channel/${widget.slug}/');
       final m = Map<String, dynamic>.from(res.data as Map);
       // Debug: dump full live object for this slug
-      debugPrint('*** Live meta (cold) for slug=${widget.slug}:\n'
-          '${const JsonEncoder.withIndent('  ').convert(m)}');
+      if (kDebugMode) {
+        debugPrint('*** Live meta (cold) for slug=${widget.slug}:\n'
+            '${const JsonEncoder.withIndent('  ').convert(m)}');
+      }
       _viewSessionId = (m['session_id'] ?? '').toString().isNotEmpty
           ? m['session_id'].toString()
           : _genSessionId();

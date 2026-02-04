@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../api_client.dart';
-import '../../core/notifications/fcm_manager.dart';
 import '../tenant_auth_client.dart';
 import '../secure_token_store.dart';
-import '../../core/services/social_auth.dart';
-import '../../config.dart';
+import '../../core/cache/logo_probe_cache.dart';
+import '../../channels/player/channel_mini_player_manager.dart';
+import '../../features/series/mini_player/mini_player_manager.dart';
 import '../../live/tv_controller.dart';
 import '../../live/audio_controller.dart';
+import '../../core/notifications/fcm_manager.dart';
+import '../../core/services/social_auth.dart';
+import '../../config.dart';
 
 /// Simple session manager that works with existing auth infrastructure
 class SimpleSessionManager {
@@ -116,16 +120,45 @@ class SimpleSessionManager {
 
   /// Logout
   Future<void> logout() async {
+    _stopRefreshTimer();
+    await _apiClient.hardResetForLogout();
     try {
       // First disable push for this user+device while Authorization is valid
       try {
-        await _apiClient.post('/user-sessions/unregister-device/');
+        await _apiClient.post(
+          '/user-sessions/unregister-device/',
+          options: Options(extra: {'skip_csrf_prime': true}),
+        );
       } catch (_) {}
       // Then logout server-side
-      await _apiClient.post('/logout/');
+      await _apiClient.post(
+        '/logout/',
+        options: Options(extra: {'skip_csrf_prime': true}),
+      );
     } catch (e) {
       // Continue with logout even if API call fails
     } finally {
+      // Force close the unified mini-player overlay and clear any retained controllers
+      try {
+        ChannelMiniPlayerManager.I.clear();
+        TvController.instance.setUseUnifiedMiniPlayer(false);
+      } catch (_) {}
+      // Force close Series mini player (episodes) as well
+      try {
+        MiniPlayerManager.I.forceStopAndClear();
+      } catch (_) {}
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final keys = prefs.getKeys().toList(growable: false);
+        for (final k in keys) {
+          if (k.startsWith('cache.')) {
+            await prefs.remove(k);
+          }
+        }
+      } catch (_) {}
+      try {
+        LogoProbeCache.instance.clear();
+      } catch (_) {}
       // Also sign out of Google so the account chooser appears next time
       try {
         await SocialAuthService(serverClientId: kGoogleWebClientId)

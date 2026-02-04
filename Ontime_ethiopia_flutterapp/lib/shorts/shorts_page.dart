@@ -47,7 +47,7 @@ class _ShortsPageState extends State<ShortsPage> {
   void initState() {
     super.initState();
     _launchSeed =
-        '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+        '${DateTime.now().millisecondsSinceEpoch}-${math.Random.secure().nextInt(1 << 32)}';
     _loadWatched();
     final initial = widget.initialItems;
     if (initial != null && initial.isNotEmpty) {

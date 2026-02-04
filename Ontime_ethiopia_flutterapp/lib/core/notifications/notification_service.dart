@@ -5,21 +5,26 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _fln = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _fln =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   static const String androidChannelId = 'updates';
   static const String androidChannelName = 'Updates & Alerts';
-  static const String androidChannelDesc = 'Service updates, releases, important notices';
+  static const String androidChannelDesc =
+      'Service updates, releases, important notices';
 
   Future<void> initialize() async {
     if (_initialized) return;
-    const AndroidInitializationSettings androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings androidInit =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosInit = DarwinInitializationSettings();
-    const InitializationSettings initSettings = InitializationSettings(android: androidInit, iOS: iosInit);
-    await _fln.initialize(initSettings);
+    const InitializationSettings initSettings =
+        InitializationSettings(android: androidInit, iOS: iosInit);
+    await _fln.initialize(settings: initSettings);
     // Create Android channel once
-    final androidPlugin = _fln.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _fln.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
     if (androidPlugin != null) {
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         androidChannelId,
@@ -38,7 +43,8 @@ class NotificationService {
     int id = 0,
   }) async {
     await initialize();
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
       androidChannelId,
       androidChannelName,
       channelDescription: androidChannelDesc,
@@ -46,7 +52,13 @@ class NotificationService {
       priority: Priority.high,
     );
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails();
-    const NotificationDetails details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-    await _fln.show(id, title, body, details);
+    const NotificationDetails details =
+        NotificationDetails(android: androidDetails, iOS: iosDetails);
+    await _fln.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
   }
 }

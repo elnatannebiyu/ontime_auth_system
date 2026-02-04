@@ -12,7 +12,9 @@ class SeriesService {
     try {
       return await api.seriesShows();
     } catch (e) {
-      debugPrint('[SeriesService] getShows error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getShows error: $e');
+      }
       rethrow;
     }
   }
@@ -22,7 +24,9 @@ class SeriesService {
     try {
       return await api.seriesHeroRandom(limit: limit);
     } catch (e) {
-      debugPrint('[SeriesService] getHeroRandomShows error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getHeroRandomShows error: $e');
+      }
       rethrow;
     }
   }
@@ -32,7 +36,9 @@ class SeriesService {
     try {
       return await api.seriesShows(queryParameters: {'trending': 1});
     } catch (e) {
-      debugPrint('[SeriesService] getTrendingShows error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getTrendingShows error: $e');
+      }
       rethrow;
     }
   }
@@ -42,7 +48,9 @@ class SeriesService {
     try {
       return await api.seriesShows(queryParameters: {'new': 1});
     } catch (e) {
-      debugPrint('[SeriesService] getNewReleases error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getNewReleases error: $e');
+      }
       rethrow;
     }
   }
@@ -52,7 +60,9 @@ class SeriesService {
     try {
       return await api.seriesCategories();
     } catch (e) {
-      debugPrint('[SeriesService] getCategories error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getCategories error: $e');
+      }
       rethrow;
     }
   }
@@ -62,7 +72,9 @@ class SeriesService {
     try {
       return await api.seriesShows(queryParameters: {'category': slug});
     } catch (e) {
-      debugPrint('[SeriesService] getShowsByCategory error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getShowsByCategory error: $e');
+      }
       rethrow;
     }
   }
@@ -72,7 +84,9 @@ class SeriesService {
     try {
       return await api.seriesSeasonsForShow(showSlug);
     } catch (e) {
-      debugPrint('[SeriesService] getSeasons error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getSeasons error: $e');
+      }
       rethrow;
     }
   }
@@ -82,7 +96,9 @@ class SeriesService {
     try {
       return await api.seriesEpisodesForSeason(seasonId);
     } catch (e) {
-      debugPrint('[SeriesService] getEpisodes error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getEpisodes error: $e');
+      }
       rethrow;
     }
   }
@@ -92,7 +108,9 @@ class SeriesService {
     try {
       return await api.seriesEpisodePlay(episodeId);
     } catch (e) {
-      debugPrint('[SeriesService] getPlay error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getPlay error: $e');
+      }
       rethrow;
     }
   }
@@ -103,7 +121,9 @@ class SeriesService {
     try {
       return await api.seriesReminderStatus(showSlug);
     } catch (e) {
-      debugPrint('[SeriesService] getReminderStatus error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] getReminderStatus error: $e');
+      }
       rethrow;
     }
   }
@@ -113,7 +133,9 @@ class SeriesService {
     try {
       return await api.seriesCreateReminder(showSlug);
     } catch (e) {
-      debugPrint('[SeriesService] createReminder error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] createReminder error: $e');
+      }
       rethrow;
     }
   }
@@ -123,7 +145,9 @@ class SeriesService {
     try {
       await api.seriesDeleteReminder(id);
     } catch (e) {
-      debugPrint('[SeriesService] deleteReminder error: $e');
+      if (kDebugMode) {
+        debugPrint('[SeriesService] deleteReminder error: $e');
+      }
       rethrow;
     }
   }
