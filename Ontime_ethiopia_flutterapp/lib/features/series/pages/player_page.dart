@@ -8,6 +8,8 @@ import '../mini_player/mini_player_manager.dart';
 import '../mini_player/series_now_playing.dart';
 import '../../../auth/tenant_auth_client.dart';
 import '../../../channels/player/channel_mini_player_manager.dart';
+import '../../../main.dart';
+import '../../../core/navigation/route_stack_observer.dart';
 
 class PlayerPage extends StatefulWidget {
   final AuthApi api;
@@ -42,6 +44,30 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   DateTime? _lastToggleAt; // min interval guard
   String? _videoId; // for stability mode rebuilds
   final bool _useNativeControls = true;
+
+  void _expandFromMini() {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+    final target = '/series/player/${widget.episodeId}';
+    try {
+      if (appRouteStackObserver.containsName(target)) {
+        nav.popUntil((route) => route.settings.name == target);
+        return;
+      }
+    } catch (_) {}
+    nav.push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: target),
+        builder: (_) => PlayerPage(
+          api: widget.api,
+          tenantId: widget.tenantId,
+          episodeId: widget.episodeId,
+          title: widget.title,
+          thumbnailUrl: widget.thumbnailUrl,
+        ),
+      ),
+    );
+  }
 
   String _fmt(Duration d) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -78,9 +104,6 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     } catch (_) {}
     try {
       _rotateDebounce?.cancel();
-    } catch (_) {}
-    try {
-      MiniPlayerManager.I.clear();
     } catch (_) {}
     ChannelMiniPlayerManager.I.setSuppressed(false);
     super.dispose();
@@ -191,7 +214,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                   }
                 } catch (_) {}
               },
-              onExpand: () {},
+              onExpand: _expandFromMini,
             ),
           );
         } else {
@@ -199,6 +222,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             position: pos,
             duration: dur,
             isPlaying: playing,
+            onExpand: _expandFromMini,
             onTogglePlayPause: () {
               try {
                 if (nc.value.isPlaying) {
@@ -293,7 +317,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                     }
                   } catch (_) {}
                 },
-                onExpand: () {},
+                onExpand: _expandFromMini,
               ),
             );
           } else {
@@ -301,6 +325,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               position: pos,
               duration: dur,
               isPlaying: playing,
+              onExpand: _expandFromMini,
               onTogglePlayPause: () {
                 try {
                   if (c.value.isPlaying) {

@@ -130,11 +130,20 @@ class AudioController extends ChangeNotifier {
     List<String> candidates0() {
       String norm(String s) => s.trim();
       final cands = <String>[];
-      // Always try backend proxy first; it normalizes headers/Range and avoids client quirks
-      final baseApi =
-          kApiBase; // e.g., http://localhost:8000 or http://192.168.x.x:8000
-      final t = ApiClient().tenant ?? 'ontime';
-      cands.add('$baseApi/api/live/radio/$slug/stream/?tenant=$t');
+      // Try backend proxy first only when it's safe and usable.
+      // - If the API base is http/localhost, Android may block it (cleartext).
+      // - If we don't have a token, the proxy endpoint returns 401.
+      final baseApi = kApiBase;
+      final token = ApiClient().getAccessToken();
+      final tenant = ApiClient().tenant ?? 'ontime';
+      final uri = Uri.tryParse(baseApi);
+      final host = (uri?.host ?? '').toLowerCase();
+      final isLocalHost = host == '127.0.0.1' || host == 'localhost';
+      final isHttps = (uri?.scheme.toLowerCase() ?? '') == 'https';
+      final hasToken = (token ?? '').isNotEmpty;
+      if (isHttps && !isLocalHost && hasToken) {
+        cands.add('$baseApi/api/live/radio/$slug/stream/?tenant=$tenant');
+      }
       if (primary.isNotEmpty) cands.add(norm(primary));
       if (backup.isNotEmpty && backup != primary) cands.add(norm(backup));
       // For roots or missing mountpoints, try common aliases (avoid exploding attempts for token hosts)

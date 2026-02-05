@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'channel_now_playing.dart';
+import '../../features/series/mini_player/mini_player_manager.dart';
 
 class ChannelMiniPlayerManager {
   ChannelMiniPlayerManager._();
@@ -20,6 +21,10 @@ class ChannelMiniPlayerManager {
   VoidCallback? _pausePlayback;
 
   void setNowPlaying(ChannelNowPlaying now) {
+    try {
+      // Ensure only one floating player is active globally.
+      MiniPlayerManager.I.clear();
+    } catch (_) {}
     nowPlaying.value = now;
     if (kDebugMode) {
       debugPrint('[ChannelMiniPlayerManager] setNowPlaying ${now.videoId}');
@@ -92,6 +97,7 @@ class ChannelMiniPlayerManager {
     autoPlayNext.value = autoPlayNext.value;
     if (kDebugMode) {
       debugPrint('[ChannelMiniPlayerManager] clear');
+      debugPrintStack(label: '[ChannelMiniPlayerManager] clear stack');
     }
   }
 }

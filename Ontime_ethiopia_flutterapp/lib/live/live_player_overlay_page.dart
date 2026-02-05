@@ -61,14 +61,52 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
   @override
   void initState() {
     super.initState();
+    // While the live overlay route is visible, suppress the floating mini-player.
+    // The mini-player should only appear when we explicitly minimize/back.
+    ChannelMiniPlayerManager.I.setSuppressed(true);
+    // Ensure the TV controller knows what slug we're playing immediately so
+    // back/minimize works even if the user exits while the controller is still
+    // initializing (controller can be null temporarily during init).
+    TvController.instance.setCurrent(
+      slug: widget.slug,
+      title: 'Live TV',
+      sessionId: null,
+      playbackUrl: null,
+    );
+
     // Option A: Live takes over.
     // Only clear the Channels mini-player when we're taking over from a
     // non-live (YouTube) session. If we're expanding from the unified Live
     // mini-player, clear() would call the pause callback and pause Live.
     final now = ChannelMiniPlayerManager.I.nowPlaying.value;
     final isLiveSession = now?.videoId.startsWith('live:') == true;
-    if (!isLiveSession) {
+    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
+    // IMPORTANT: Avoid clearing while minimized. During back/minimize flows, or
+    // during brief initialization races, clearing would immediately hide the
+    // floating player the user expects to see.
+    if (now != null && !isLiveSession && !minimized) {
       ChannelMiniPlayerManager.I.clear();
+    }
+
+    // Only re-wire the unified mini-player when we are currently minimized.
+    // Otherwise, full-screen navigation should not mutate mini-player state.
+    if (minimized) {
+      final tv = TvController.instance;
+      ChannelMiniPlayerManager.I.setPauseCallback(() {
+        tv.pausePlayback();
+      });
+      ChannelMiniPlayerManager.I.floatingPlayer.value =
+          const LiveFloatingMiniPlayer();
+      ChannelMiniPlayerManager.I.setNowPlaying(
+        ChannelNowPlaying(
+          videoId: 'live:${widget.slug}',
+          title: tv.title ?? 'Live TV',
+          isPlaying: tv.isPlaying,
+          thumbnailUrl: null,
+          onTogglePlayPause: null,
+          onExpand: null,
+        ),
+      );
     }
 
     // Use the unified floating mini-player instead of GlobalMiniBar.
@@ -317,6 +355,14 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
       ]);
     } catch (_) {}
     // When leaving the live overlay, we keep unified mini-player state as-is.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        ChannelMiniPlayerManager.I.setSuppressed(false);
+      } catch (_) {}
+      try {
+        TvController.instance.setInFullPlayer(false);
+      } catch (_) {}
+    });
     super.dispose();
   }
 
@@ -333,7 +379,7 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
       tv.pausePlayback();
     });
     ChannelMiniPlayerManager.I.floatingPlayer.value =
-        LiveFloatingMiniPlayer(controller: tv.controller);
+        const LiveFloatingMiniPlayer();
     ChannelMiniPlayerManager.I.setNowPlaying(
       ChannelNowPlaying(
         videoId: 'live:$slug',
@@ -376,22 +422,33 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
       ),
     );
     ChannelMiniPlayerManager.I.setMinimized(true);
+    ChannelMiniPlayerManager.I.setSuppressed(false);
+  }
+
+  Future<bool> _handlePop() async {
+    if (_fullscreen) {
+      await _exitFullscreen();
+      return false;
+    }
+    final tv = TvController.instance;
+    // Back should behave like swipe-down minimize.
+    // Even during initialization/buffering, TvController may temporarily set controller=null
+    // while swapping controllers; we still minimize so the user keeps a visible session.
+    if ((tv.slug ?? widget.slug) == widget.slug) {
+      _minimizeToUnifiedFloating();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        TvController.instance.setInFullPlayer(false);
+      });
+    }
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     final c = _c;
     return WillPopScope(
-      onWillPop: () async {
-        if (_fullscreen) {
-          await _exitFullscreen();
-          return false;
-        }
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          TvController.instance.setInFullPlayer(false);
-        });
-        return true;
-      },
+      onWillPop: _handlePop,
       child: Scaffold(
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -443,36 +500,44 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                     if (TvController.instance.playbackError !=
                                         null)
                                       Positioned.fill(
-                                        child: ColoredBox(
-                                          color: Colors.black54,
-                                          child: Center(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(16.0),
-                                              child: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  const Text(
-                                                    'Connection problem',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w700,
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: _retryPlayback,
+                                          child: ColoredBox(
+                                            color: Colors.black54,
+                                            child: Center(
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(16.0),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Text(
+                                                      'Connection problem',
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  const Text(
-                                                    'Please check your internet and try again.',
-                                                    textAlign: TextAlign.center,
-                                                    style: TextStyle(
-                                                        color: Colors.white70),
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  OutlinedButton(
-                                                    onPressed: _retryPlayback,
-                                                    child: const Text('Retry'),
-                                                  ),
-                                                ],
+                                                    const SizedBox(height: 8),
+                                                    const Text(
+                                                      'Tap to retry',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: TextStyle(
+                                                          color:
+                                                              Colors.white70),
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    OutlinedButton(
+                                                      onPressed: _retryPlayback,
+                                                      child:
+                                                          const Text('Retry'),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -573,8 +638,13 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                         tooltip: 'Back',
                                         icon: const Icon(Icons.arrow_back,
                                             color: Colors.white),
-                                        onPressed: () =>
-                                            Navigator.of(context).maybePop(),
+                                        onPressed: () async {
+                                          final ok = await _handlePop();
+                                          if (!ok) return;
+                                          if (context.mounted) {
+                                            Navigator.of(context).maybePop();
+                                          }
+                                        },
                                       ),
                                     ),
                                     if (_variantOptions.isNotEmpty)
@@ -687,40 +757,46 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
                                       if (TvController.instance.playbackError !=
                                           null)
                                         Positioned.fill(
-                                          child: ColoredBox(
-                                            color: Colors.black54,
-                                            child: Center(
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.all(16.0),
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Text(
-                                                      'Connection problem',
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w700,
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: _retryPlayback,
+                                            child: ColoredBox(
+                                              color: Colors.black54,
+                                              child: Center(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                      16.0),
+                                                  child: Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      const Text(
+                                                        'Connection problem',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
                                                       ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    const Text(
-                                                      'Please check your internet and try again.',
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: TextStyle(
-                                                          color:
-                                                              Colors.white70),
-                                                    ),
-                                                    const SizedBox(height: 12),
-                                                    OutlinedButton(
-                                                      onPressed: _retryPlayback,
-                                                      child:
-                                                          const Text('Retry'),
-                                                    ),
-                                                  ],
+                                                      const SizedBox(height: 8),
+                                                      const Text(
+                                                        'Tap to retry',
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        style: TextStyle(
+                                                            color:
+                                                                Colors.white70),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 12),
+                                                      OutlinedButton(
+                                                        onPressed:
+                                                            _retryPlayback,
+                                                        child:
+                                                            const Text('Retry'),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ),

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'channel_mini_player_manager.dart';
 import 'channel_now_playing.dart';
 import '../playlist_detail_page.dart';
 import '../../core/navigation/route_stack_observer.dart';
+import '../../live/live_floating_mini_player.dart';
 import '../../live/tv_controller.dart';
 
 class ChannelMiniPlayer extends StatefulWidget {
@@ -20,6 +24,9 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
   Size? _lastSize;
   double? _baseWidth;
   bool? _lastMinimized;
+  bool _dragging = false;
+  bool _showControls = true;
+  Timer? _controlsTimer;
   static const double _edgePadding = 8.0;
   static const double _topPadding = 80.0;
   static const double _rightPadding = 12.0;
@@ -30,6 +37,40 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
 
   double _bottomInset(BuildContext context) {
     return MediaQuery.of(context).padding.bottom;
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    // Avoid setState() during build/layout/paint phases.
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
+  }
+
+  void _scheduleHideControls() {
+    _controlsTimer?.cancel();
+    _controlsTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _safeSetState(() {
+          _showControls = false;
+        });
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controlsTimer?.cancel();
+    super.dispose();
   }
 
   Offset _anchorBottomRight(
@@ -65,6 +106,9 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
         ChannelMiniPlayerManager.I.isMinimized,
         ChannelMiniPlayerManager.I.nowPlaying,
         ChannelMiniPlayerManager.I.floatingPlayer,
+        // IMPORTANT: live mini-player loading/buffering state is driven by TvController.
+        // Without listening to it, the spinner can remain visible even after playback starts.
+        TvController.instance,
       ]),
       builder: (context, _) {
         final suppressed = ChannelMiniPlayerManager.I.isSuppressed.value;
@@ -87,9 +131,22 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
         final prevMin = _lastMinimized;
         _lastMinimized = minimized;
         if (prevMin != true && minimized) {
-          _offset = _anchorBottomRight(context, size, miniWidth, miniHeight);
+          // Entry animation: start slightly off-screen bottom-right, then
+          // animate into the anchored position.
+          final target =
+              _anchorBottomRight(context, size, miniWidth, miniHeight);
+          final start = Offset(size.width + 12, size.height + 12);
+          _offset = start;
           _positionInitialized = true;
           _lastSize = size;
+          _showControls = true;
+          _scheduleHideControls();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _safeSetState(() {
+              _offset = target;
+            });
+          });
         }
         if (_lastSize != size && _positionInitialized) {
           final dx = _safeClamp(
@@ -108,9 +165,12 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
           }
           _lastSize = size;
         }
-        return Positioned(
+        return AnimatedPositioned(
           left: _offset.dx,
           top: _offset.dy,
+          duration:
+              _dragging ? Duration.zero : const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
           child: AnimatedScale(
             scale: minimized ? 1.0 : 0.9,
             duration: const Duration(milliseconds: 220),
@@ -121,6 +181,11 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
               curve: Curves.easeOutCubic,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
+                onPanStart: (_) {
+                  _safeSetState(() {
+                    _dragging = true;
+                  });
+                },
                 onPanUpdate: (details) {
                   final dx = _safeClamp(_offset.dx + details.delta.dx,
                       _edgePadding, size.width - miniWidth - _edgePadding);
@@ -130,6 +195,11 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                       size.height - miniHeight - (bottom + _dragBottomPadding));
                   setState(() {
                     _offset = Offset(dx, dy);
+                  });
+                },
+                onPanEnd: (_) {
+                  _safeSetState(() {
+                    _dragging = false;
                   });
                 },
                 child: _miniPlayer(now, floatingPlayer, miniWidth, miniHeight),
@@ -148,8 +218,17 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
     double miniHeight,
   ) {
     final isLiveSession = now.videoId.startsWith('live:');
-    final livePlaying = isLiveSession ? TvController.instance.isPlaying : false;
+    final tv = TvController.instance;
+    final livePlaying = isLiveSession ? tv.isPlaying : false;
+    final liveLoading =
+        isLiveSession && (tv.isIniting || !tv.isInitialized || tv.isBuffering);
     final showLiveBadge = isLiveSession && livePlaying;
+    final canToggle =
+        isLiveSession ? !liveLoading : now.onTogglePlayPause != null;
+    final isPlayingEffective = isLiveSession ? livePlaying : (now.isPlaying);
+    final showLiveLoadingSpinner = _showControls &&
+        liveLoading &&
+        (floatingPlayer is! LiveFloatingMiniPlayer);
     return Material(
       color: const Color(0xFF1E1E1E),
       elevation: 8,
@@ -162,8 +241,11 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              floatingPlayer ??
-                  (now.thumbnailUrl != null && now.thumbnailUrl!.isNotEmpty
+              floatingPlayer != null
+                  ? IgnorePointer(
+                      child: floatingPlayer,
+                    )
+                  : (now.thumbnailUrl != null && now.thumbnailUrl!.isNotEmpty
                       ? Image.network(
                           now.thumbnailUrl!,
                           width: double.infinity,
@@ -196,7 +278,24 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                     ),
                   ),
                 ),
-              if (isLiveSession)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    _safeSetState(() {
+                      _showControls = !_showControls;
+                    });
+                    if (_showControls) {
+                      _scheduleHideControls();
+                    } else {
+                      _controlsTimer?.cancel();
+                    }
+                  },
+                ),
+              ),
+              // Center play/pause overlay (like YouTube). Kept separate from
+              // expand/close, and hidden while loading.
+              if (_showControls && canToggle)
                 Positioned.fill(
                   child: Center(
                     child: Material(
@@ -205,78 +304,104 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: () {
-                          if (livePlaying) {
-                            TvController.instance.pausePlayback();
-                            ChannelMiniPlayerManager.I.update(isPlaying: false);
+                          if (isLiveSession) {
+                            if (livePlaying) {
+                              tv.pausePlayback();
+                              ChannelMiniPlayerManager.I
+                                  .update(isPlaying: false);
+                            } else {
+                              tv.resumePlayback();
+                              ChannelMiniPlayerManager.I
+                                  .update(isPlaying: true);
+                            }
                           } else {
-                            TvController.instance.resumePlayback();
-                            ChannelMiniPlayerManager.I.update(isPlaying: true);
+                            now.onTogglePlayPause?.call();
                           }
+                          _scheduleHideControls();
                         },
                         child: Padding(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(6),
                           child: Icon(
-                            livePlaying
+                            isPlayingEffective
                                 ? Icons.pause_circle_filled
                                 : Icons.play_circle_filled,
                             color: Colors.white,
-                            size: 26,
+                            size: 22,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              Positioned(
-                left: 6,
-                top: 6,
-                child: _miniControlButton(
-                  icon: Icons.open_in_full,
-                  onTap: () {
-                    ChannelMiniPlayerManager.I.setMinimized(false);
-                    // Prefer context-specific navigation when available
-                    // (e.g., series/show pages).
-                    final cb = now.onExpand;
-                    if (cb != null) {
-                      cb();
-                      return;
-                    }
-                    // Fallback: open the playlist page if this is playlist-backed.
-                    if (now.playlistId != null && now.playlistId!.isNotEmpty) {
-                      final nav = Navigator.of(context, rootNavigator: true);
-                      final target = '/playlist/${now.playlistId!}';
-                      if (appRouteStackObserver.containsName(target)) {
-                        nav.popUntil((route) => route.settings.name == target);
-                      } else {
-                        nav.push(
-                          MaterialPageRoute(
-                            settings: RouteSettings(name: target),
-                            builder: (_) => PlaylistDetailPage(
-                              playlistId: now.playlistId!,
-                              title: now.playlistTitle ?? now.title,
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
+              if (showLiveLoadingSpinner)
+                const Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
                 ),
-              ),
-              Positioned(
-                right: 6,
-                top: 6,
-                child: _miniControlButton(
-                  icon: Icons.close,
-                  onTap: () {
-                    final isLive = now.videoId.startsWith('live:');
-                    ChannelMiniPlayerManager.I.clear();
-                    if (isLive) {
-                      TvController.instance.setUseUnifiedMiniPlayer(false);
-                      TvController.instance.stop();
-                    }
-                  },
+              if (_showControls)
+                Positioned(
+                  left: 6,
+                  right: 6,
+                  top: 6,
+                  child: Row(
+                    children: [
+                      _miniControlButton(
+                        icon: Icons.open_in_full,
+                        onTap: () {
+                          ChannelMiniPlayerManager.I.setMinimized(false);
+                          final cb = now.onExpand;
+                          if (cb != null) {
+                            cb();
+                            return;
+                          }
+                          if (now.playlistId != null &&
+                              now.playlistId!.isNotEmpty) {
+                            final nav =
+                                Navigator.of(context, rootNavigator: true);
+                            final target = '/playlist/${now.playlistId!}';
+                            if (appRouteStackObserver.containsName(target)) {
+                              nav.popUntil(
+                                  (route) => route.settings.name == target);
+                            } else {
+                              nav.push(
+                                MaterialPageRoute(
+                                  settings: RouteSettings(name: target),
+                                  builder: (_) => PlaylistDetailPage(
+                                    playlistId: now.playlistId!,
+                                    title: now.playlistTitle ?? now.title,
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      const Spacer(),
+                      _miniControlButton(
+                        icon: Icons.close,
+                        onTap: () {
+                          final isLive = now.videoId.startsWith('live:');
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ChannelMiniPlayerManager.I.clear();
+                            if (isLive) {
+                              TvController.instance
+                                  .setUseUnifiedMiniPlayer(false);
+                              TvController.instance.stop();
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),

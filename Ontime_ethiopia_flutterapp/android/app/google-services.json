@@ -12,7 +12,28 @@
           "package_name": "com.muler.on_time"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "695500579619-7nj9jaj8dh7jf0n44hkkpop88tmdmdb2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.muler.on_time",
+            "certificate_hash": "edca754cd80de6942c3deaf83c274da7f0d1c5b6"
+          }
+        },
+        {
+          "client_id": "695500579619-82ggmdaenlo1p5r87r6rbpvpcf5ft6ij.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.muler.on_time",
+            "certificate_hash": "dead92c462f0a75092b07188d152a80a3599890a"
+          }
+        },
+        {
+          "client_id": "695500579619-bo5s9ud7o0lmpbr8v98paqnjjr225ai0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCV22WZyzvpgIfvmrcEPY1lZabtfG6R590"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "695500579619-bo5s9ud7o0lmpbr8v98paqnjjr225ai0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -31,7 +57,12 @@
           "package_name": "et.ontime.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "695500579619-bo5s9ud7o0lmpbr8v98paqnjjr225ai0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCV22WZyzvpgIfvmrcEPY1lZabtfG6R590"
@@ -39,7 +70,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "695500579619-bo5s9ud7o0lmpbr8v98paqnjjr225ai0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

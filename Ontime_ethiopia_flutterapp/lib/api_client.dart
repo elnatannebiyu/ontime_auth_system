@@ -95,6 +95,8 @@ class ApiClient {
   String? _accessToken; // in-memory; persisted securely for restore
   String? _tenantSlug; // e.g., "default", sent via X-Tenant-Id
   CancelToken _globalCancelToken = CancelToken();
+  bool _updateRequiredLock = false;
+  bool _updateRequiredNotified = false;
   void Function()? _onForceLogout; // optional app-level handler
   void Function(String message)?
       _onNotify; // optional UI notifier (e.g., snackbar)
@@ -164,6 +166,18 @@ class ApiClient {
     // Attach Authorization, tenant, device headers, and CSRF token
     dio.interceptors.add(InterceptorsWrapper(onRequest:
         (RequestOptions options, RequestInterceptorHandler handler) async {
+      // If backend enforced a forced update, block further API traffic to avoid loops.
+      // Allow a caller to override this with Options(extra: {'allowDuringUpdate': true}).
+      if (_updateRequiredLock == true &&
+          options.extra['allowDuringUpdate'] != true) {
+        return handler.reject(
+          DioException(
+            requestOptions: options,
+            type: DioExceptionType.cancel,
+            message: 'App update required',
+          ),
+        );
+      }
       final ignoreGlobalCancel = options.extra['ignoreGlobalCancel'] == true;
       if (!ignoreGlobalCancel && options.cancelToken == null) {
         options.cancelToken = _globalCancelToken;
@@ -303,13 +317,20 @@ class ApiClient {
             final msg = (data is Map && data['message'] is String)
                 ? data['message'] as String
                 : 'Please update the app to continue.';
-            // Clear any existing credentials to prevent further use
-            _forceLogout();
             final storeUrl = (data is Map && data['store_url'] is String)
                 ? data['store_url'] as String
                 : null;
+            // Lock the client to prevent repeated calls and navigation loops.
+            _updateRequiredLock = true;
+            try {
+              _globalCancelToken.cancel('update_required');
+            } catch (_) {}
+            // Notify UI once.
             final cb = _onUpdateRequired;
-            if (cb != null) cb(msg, storeUrl);
+            if (cb != null && !_updateRequiredNotified) {
+              _updateRequiredNotified = true;
+              cb(msg, storeUrl);
+            }
           } catch (_) {}
         } else if (data is Map && data['code'] == 'APP_UPDATE_REQUIRED') {
           // Some endpoints may return APP_UPDATE_REQUIRED with non-426 status codes.
@@ -320,8 +341,15 @@ class ApiClient {
             final storeUrl = (data['store_url'] is String)
                 ? data['store_url'] as String
                 : null;
+            _updateRequiredLock = true;
+            try {
+              _globalCancelToken.cancel('update_required');
+            } catch (_) {}
             final cb = _onUpdateRequired;
-            if (cb != null) cb(msg, storeUrl);
+            if (cb != null && !_updateRequiredNotified) {
+              _updateRequiredNotified = true;
+              cb(msg, storeUrl);
+            }
           } catch (_) {}
         }
         return handler.next(err);

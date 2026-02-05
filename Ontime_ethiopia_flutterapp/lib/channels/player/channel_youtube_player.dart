@@ -57,6 +57,30 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   Timer? _restoreAllAfterPortraitTimer;
   bool _preferPortraitOnNextExit = false;
 
+  String? _controllerVideoId(YoutubePlayerController? c) {
+    if (c == null) return null;
+    try {
+      final id = c.value.metaData.videoId;
+      if (id.isNotEmpty) return id;
+    } catch (_) {}
+    try {
+      // ignore: invalid_use_of_protected_member
+      final id = c.initialVideoId;
+      if (id.isNotEmpty) return id;
+    } catch (_) {}
+    return null;
+  }
+
+  bool _shouldKeepControllerForMiniPlayer() {
+    final vid = _videoId;
+    if (vid == null || vid.isEmpty) return false;
+    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
+    if (!minimized) return false;
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    if (now == null) return false;
+    return now.videoId == vid;
+  }
+
   void _restoreAllOrientations() {
     try {
       SystemChrome.setPreferredOrientations(const [
@@ -100,17 +124,26 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   void _initController() {
     _videoId = _extractVideoId(widget.video);
     if (_videoId == null || _videoId!.isEmpty) return;
-    _controller = YoutubePlayerController(
-      initialVideoId: _videoId!,
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        controlsVisibleAtStart: false,
-        hideControls: false,
-        disableDragSeek: true,
-        enableCaption: true,
-      ),
-    );
-    ChannelMiniPlayerManager.I.ytController.value = _controller;
+
+    // If we are expanding from the floating mini-player, reuse the same
+    // controller instance so playback doesn't restart or duplicate.
+    final existing = ChannelMiniPlayerManager.I.ytController.value;
+    final existingVid = _controllerVideoId(existing);
+    if (existing != null && existingVid == _videoId) {
+      _controller = existing;
+    } else {
+      _controller = YoutubePlayerController(
+        initialVideoId: _videoId!,
+        flags: const YoutubePlayerFlags(
+          autoPlay: false,
+          controlsVisibleAtStart: false,
+          hideControls: false,
+          disableDragSeek: true,
+          enableCaption: true,
+        ),
+      );
+      ChannelMiniPlayerManager.I.ytController.value = _controller;
+    }
     _controller?.addListener(_handlePlayback);
     _controller?.addListener(_handleFullscreenState);
     ChannelMiniPlayerManager.I.setPauseCallback(() {
@@ -154,7 +187,18 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
       _restoreAllAfterPortraitTimer?.cancel();
     } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
-    _disposeController();
+
+    // If the unified floating mini-player is active for this same video,
+    // keep the controller alive so playback continues across navigation.
+    // Detach listeners so this disposed widget state won't receive callbacks.
+    if (_shouldKeepControllerForMiniPlayer()) {
+      try {
+        _controller?.removeListener(_handlePlayback);
+        _controller?.removeListener(_handleFullscreenState);
+      } catch (_) {}
+    } else {
+      _disposeController();
+    }
     super.dispose();
   }
 
@@ -252,12 +296,15 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   }
 
   void _disposeController() {
+    final current = _controller;
     _controller?.removeListener(_handlePlayback);
     _controller?.removeListener(_handleFullscreenState);
     _controller?.dispose();
     _controller = null;
-    ChannelMiniPlayerManager.I.ytController.value = null;
-    ChannelMiniPlayerManager.I.setPauseCallback(null);
+    if (ChannelMiniPlayerManager.I.ytController.value == current) {
+      ChannelMiniPlayerManager.I.ytController.value = null;
+      ChannelMiniPlayerManager.I.setPauseCallback(null);
+    }
   }
 
   void _handlePlayback() {

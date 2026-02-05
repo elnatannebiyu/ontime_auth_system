@@ -32,6 +32,7 @@ import 'settings/notification_inbox_page.dart';
 import 'channels/player/channel_mini_player.dart';
 import 'channels/player/channel_mini_player_manager.dart';
 import 'core/navigation/route_stack_observer.dart';
+import 'features/series/mini_player/series_mini_player.dart';
 
 // Global route observer to allow RouteAware widgets to pause/resume media
 final RouteObserver<ModalRoute<void>> appRouteObserver =
@@ -331,6 +332,21 @@ class _MyAppState extends State<MyApp> {
                     builder: (context, hide, __) {
                       if (hide) return const SizedBox.shrink();
                       return const ChannelMiniPlayer();
+                    },
+                  ),
+                ),
+                OverlayEntry(
+                  builder: (ctx) => ValueListenableBuilder<bool>(
+                    valueListenable:
+                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                    builder: (context, hide, __) {
+                      if (hide) return const SizedBox.shrink();
+                      return Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: MediaQuery.of(ctx).padding.bottom,
+                        child: const SeriesMiniPlayer(),
+                      );
                     },
                   ),
                 ),

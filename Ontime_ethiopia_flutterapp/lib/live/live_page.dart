@@ -10,8 +10,12 @@ import '../api_client.dart';
 import 'audio_controller.dart';
 import 'tv_controller.dart';
 import 'live_player_overlay_page.dart';
+import 'live_floating_mini_player.dart';
 import '../core/widgets/offline_banner.dart';
 import '../core/localization/l10n.dart';
+import '../channels/player/channel_mini_player_manager.dart';
+import '../channels/player/channel_now_playing.dart';
+import '../features/series/mini_player/mini_player_manager.dart';
 
 class LivePage extends StatefulWidget {
   final LocalizationController? localizationController;
@@ -586,8 +590,157 @@ class _TvTabState extends State<_TvTab>
                     try {
                       await AudioController.instance.stop();
                     } catch (_) {}
+                    final nav = Navigator.of(context);
+                    final tv = TvController.instance;
+                    final mini = ChannelMiniPlayerManager.I;
+                    final now = mini.nowPlaying.value;
+                    final minimized = mini.isMinimized.value;
+                    final isLiveMini =
+                        minimized && now?.videoId.startsWith('live:') == true;
+
+                    final hasAnyMiniActive = mini.nowPlaying.value != null ||
+                        MiniPlayerManager.I.nowPlaying.value != null;
+
                     final target = '/live/overlay/$slug';
-                    Navigator.of(context).push(PageRouteBuilder(
+
+                    // Option B:
+                    // - If mini player is active and live, tapping a different channel switches
+                    //   playback in the background and keeps the mini player visible.
+                    // - Tapping the same channel always expands.
+                    if (isLiveMini) {
+                      final currentSlug =
+                          now!.videoId.substring('live:'.length);
+                      if (currentSlug == slug) {
+                        mini.setMinimized(false);
+                        nav.push(PageRouteBuilder(
+                          settings: RouteSettings(name: target),
+                          pageBuilder: (_, __, ___) =>
+                              LivePlayerOverlayPage(slug: slug),
+                          transitionDuration: const Duration(milliseconds: 280),
+                          reverseTransitionDuration:
+                              const Duration(milliseconds: 220),
+                          transitionsBuilder: (_, animation, __, child) {
+                            const begin = Offset(0.0, 1.0);
+                            const end = Offset.zero;
+                            final tween = Tween(begin: begin, end: end)
+                                .chain(CurveTween(curve: Curves.easeOutCubic));
+                            return SlideTransition(
+                                position: animation.drive(tween), child: child);
+                          },
+                        ));
+                        return;
+                      }
+
+                      // Switch stream in background and keep minimized.
+                      mini.setPauseCallback(() {
+                        tv.pausePlayback();
+                      });
+                      mini.floatingPlayer.value =
+                          const LiveFloatingMiniPlayer();
+                      mini.setNowPlaying(
+                        ChannelNowPlaying(
+                          videoId: 'live:$slug',
+                          title: title.isNotEmpty ? title : 'Live TV',
+                          isPlaying: false,
+                          thumbnailUrl: null,
+                          onTogglePlayPause: null,
+                          onExpand: () {
+                            final n =
+                                Navigator.of(context, rootNavigator: true);
+                            mini.setMinimized(false);
+                            n.push(PageRouteBuilder(
+                              settings: RouteSettings(name: target),
+                              pageBuilder: (_, __, ___) =>
+                                  LivePlayerOverlayPage(slug: slug),
+                              transitionDuration:
+                                  const Duration(milliseconds: 280),
+                              reverseTransitionDuration:
+                                  const Duration(milliseconds: 220),
+                              transitionsBuilder: (_, animation, __, child) {
+                                const begin = Offset(0.0, 1.0);
+                                const end = Offset.zero;
+                                final tween = Tween(begin: begin, end: end)
+                                    .chain(
+                                        CurveTween(curve: Curves.easeOutCubic));
+                                return SlideTransition(
+                                    position: animation.drive(tween),
+                                    child: child);
+                              },
+                            ));
+                          },
+                        ),
+                      );
+                      mini.setMinimized(true);
+
+                      // Trigger loading state (tv.isIniting) then playback.
+                      tv.setCurrent(slug: slug, title: title, sessionId: null);
+                      unawaited(tv.startPlaybackBySlug(slug).catchError((e) {
+                        // Keep mini-player visible; TvController will carry the error state.
+                        try {
+                          mini.update(isPlaying: false);
+                        } catch (_) {}
+                      }));
+                      return;
+                    }
+
+                    // If *any* mini-player is active (series or channel), prefer switching
+                    // live playback inside the floating mini-player instead of opening the
+                    // full overlay page.
+                    if (hasAnyMiniActive) {
+                      // Switch stream in background and keep minimized.
+                      mini.setPauseCallback(() {
+                        tv.pausePlayback();
+                      });
+                      mini.floatingPlayer.value =
+                          const LiveFloatingMiniPlayer();
+                      mini.setNowPlaying(
+                        ChannelNowPlaying(
+                          videoId: 'live:$slug',
+                          title: title.isNotEmpty ? title : 'Live TV',
+                          isPlaying: false,
+                          thumbnailUrl: null,
+                          onTogglePlayPause: null,
+                          onExpand: () {
+                            final n =
+                                Navigator.of(context, rootNavigator: true);
+                            mini.setMinimized(false);
+                            n.push(PageRouteBuilder(
+                              settings: RouteSettings(name: target),
+                              pageBuilder: (_, __, ___) =>
+                                  LivePlayerOverlayPage(slug: slug),
+                              transitionDuration:
+                                  const Duration(milliseconds: 280),
+                              reverseTransitionDuration:
+                                  const Duration(milliseconds: 220),
+                              transitionsBuilder: (_, animation, __, child) {
+                                const begin = Offset(0.0, 1.0);
+                                const end = Offset.zero;
+                                final tween = Tween(begin: begin, end: end)
+                                    .chain(
+                                        CurveTween(curve: Curves.easeOutCubic));
+                                return SlideTransition(
+                                    position: animation.drive(tween),
+                                    child: child);
+                              },
+                            ));
+                          },
+                        ),
+                      );
+                      mini.setMinimized(true);
+
+                      // Trigger loading state (tv.isIniting) then playback.
+                      tv.setCurrent(slug: slug, title: title, sessionId: null);
+                      unawaited(tv.startPlaybackBySlug(slug).catchError((e) {
+                        // Keep mini-player visible; TvController will carry the error state.
+                        try {
+                          mini.update(isPlaying: false);
+                        } catch (_) {}
+                      }));
+                      return;
+                    }
+
+                    // Default behavior: open the overlay player.
+                    nav.push(PageRouteBuilder(
                       settings: RouteSettings(name: target),
                       pageBuilder: (_, __, ___) =>
                           LivePlayerOverlayPage(slug: slug),

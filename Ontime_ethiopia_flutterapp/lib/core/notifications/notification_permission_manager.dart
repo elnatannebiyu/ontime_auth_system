@@ -35,10 +35,12 @@ class NotificationPermissionManager {
       return st.isGranted;
     }
 
-    _askedThisSession = true;
-
     final shouldAsk = await _showPrePrompt(context);
     if (!shouldAsk) return false;
+
+    // Only mark as asked once the user opted-in to seeing the system prompt.
+    // If they hit "Not now", we allow asking again on the next explicit reminder tap.
+    _askedThisSession = true;
 
     // Request system permission
     final status = await Permission.notification.request();

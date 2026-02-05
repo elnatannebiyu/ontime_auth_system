@@ -80,6 +80,47 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     }
   }
 
+  Map<String, dynamic>? _findVideoByNowPlaying(ChannelNowPlaying now) {
+    final vid = now.videoId;
+    if (vid.isEmpty) return null;
+    for (final v in _videos) {
+      final direct = [
+        v['youtube_id'],
+        v['youtube_video_id'],
+        v['yt_video_id'],
+        v['video_id'],
+      ].whereType<String>().firstWhere((id) => id.isNotEmpty, orElse: () => '');
+      if (direct.isNotEmpty && direct == vid) return v;
+    }
+    return null;
+  }
+
+  void _syncFromFloatingMiniPlayer() {
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    if (now == null) return;
+    if ((now.playlistId ?? '') != widget.playlistId) return;
+    if (now.videoId.isEmpty) return;
+
+    final match = _findVideoByNowPlaying(now);
+    final next = match ??
+        <String, dynamic>{
+          'youtube_id': now.videoId,
+          'title': now.title,
+          if ((now.thumbnailUrl ?? '').isNotEmpty)
+            'thumbnail_url': now.thumbnailUrl,
+        };
+
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _currentVideo = next;
+        _playOnInit = false;
+        _currentVideoVersion += 1;
+      });
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +129,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     _loadPrefs();
     _loadPage(1);
     _loadDetail();
+    _syncFromFloatingMiniPlayer();
     ChannelMiniPlayerManager.I.nowPlaying.addListener(_onMiniStateChanged);
     ChannelMiniPlayerManager.I.isMinimized.addListener(_onMiniStateChanged);
     _scroll.addListener(_onScroll);
@@ -300,6 +342,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         _loading = false;
         _loadingMore = false;
       });
+      _syncFromFloatingMiniPlayer();
       _scheduleFillViewport();
     } catch (_) {
       setState(() {

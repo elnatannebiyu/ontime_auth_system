@@ -3,6 +3,14 @@ import '../api_client.dart';
 import 'package:video_player/video_player.dart';
 import 'live_player_overlay_page.dart';
 import '../core/navigation/route_stack_observer.dart';
+import 'package:flutter/foundation.dart';
+
+class _LiveMetaCacheEntry {
+  final Map<String, dynamic> data;
+  final DateTime expiresAt;
+
+  _LiveMetaCacheEntry({required this.data, required this.expiresAt});
+}
 
 class TvController extends ChangeNotifier {
   TvController._internal();
@@ -21,6 +29,11 @@ class TvController extends ChangeNotifier {
   bool _initInFlight = false;
   Future<void>? _initFuture;
   String? _playbackError;
+  final Map<String, _LiveMetaCacheEntry> _liveMetaCache =
+      <String, _LiveMetaCacheEntry>{};
+
+  int _switchSeq = 0;
+  int _latestSwitchSeq = 0;
 
   String? get slug => _currentSlug;
   String? get title => _currentTitle;
@@ -41,6 +54,57 @@ class TvController extends ChangeNotifier {
     if (_useUnifiedMiniPlayer != v) {
       _useUnifiedMiniPlayer = v;
       notifyListeners();
+    }
+  }
+
+  Future<void> startPlaybackBySlug(String slug) async {
+    if (slug.trim().isEmpty) return;
+    final seq = ++_switchSeq;
+    _latestSwitchSeq = seq;
+    if (kDebugMode) {
+      debugPrint('[TvController] startPlaybackBySlug slug=$slug');
+    }
+    try {
+      final now = DateTime.now();
+      final cached = _liveMetaCache[slug];
+      Map<String, dynamic> m;
+      if (cached != null && cached.expiresAt.isAfter(now)) {
+        m = cached.data;
+      } else {
+        final res = await ApiClient().get('/live/by-channel/$slug/');
+        if (seq != _latestSwitchSeq) return;
+        m = Map<String, dynamic>.from(res.data as Map);
+        _liveMetaCache[slug] = _LiveMetaCacheEntry(
+          data: m,
+          expiresAt: now.add(const Duration(seconds: 20)),
+        );
+      }
+      if (seq != _latestSwitchSeq) return;
+      final url = (m['playback_url'] ?? m['playbackUrl'] ?? '').toString();
+      final title = (m['title'] ?? m['channel_name'] ?? 'Live TV').toString();
+      final sessionId = (m['session_id'] ?? '').toString();
+      if (url.isEmpty) {
+        throw Exception('Missing playback_url');
+      }
+      if (kDebugMode) {
+        debugPrint(
+            '[TvController] startPlaybackBySlug resolved url=${url.isNotEmpty} title=$title');
+      }
+      await startPlayback(
+        slug: slug,
+        title: title,
+        url: url,
+        sessionId: sessionId.isNotEmpty ? sessionId : null,
+        switchSeq: seq,
+      );
+    } catch (e) {
+      if (seq != _latestSwitchSeq) return;
+      _playbackError = e.toString();
+      if (kDebugMode) {
+        debugPrint('[TvController] startPlaybackBySlug FAILED: $e');
+      }
+      notifyListeners();
+      rethrow;
     }
   }
 
@@ -75,12 +139,14 @@ class TvController extends ChangeNotifier {
       {required String slug,
       required String title,
       required String url,
-      String? sessionId}) async {
+      String? sessionId,
+      int? switchSeq}) async {
+    if (switchSeq != null && switchSeq != _latestSwitchSeq) return;
     // Replace radio if playing
     // Caller can pause/stop radio before invoking this if needed.
     _currentSlug = slug;
     _currentTitle = title.isNotEmpty ? title : 'Live TV';
-    _playbackUrl = url;
+    final prevUrl = _playbackUrl;
     _viewSessionId = sessionId;
     // Serialize initialization to avoid concurrent controllers
     if (_initInFlight && _initFuture != null) {
@@ -88,13 +154,20 @@ class TvController extends ChangeNotifier {
         await _initFuture;
       } catch (_) {}
     }
+    if (switchSeq != null && switchSeq != _latestSwitchSeq) return;
     _initInFlight = true;
     _playbackError = null;
+    if (kDebugMode) {
+      debugPrint('[TvController] startPlayback BEGIN slug=$slug');
+    }
     notifyListeners();
-    final init = _startOrReuse(url);
+    final init = _startOrReuse(url, prevUrl: prevUrl);
     _initFuture = init;
     try {
       await init;
+      if (switchSeq != null && switchSeq != _latestSwitchSeq) return;
+      // Only mark the current playback URL after we have created/reused a controller.
+      _playbackUrl = url;
       if (_controller != null && (_controller!.value.isInitialized)) {
         await _controller!.setLooping(true);
         try {
@@ -105,17 +178,25 @@ class TvController extends ChangeNotifier {
         _playing = false;
       }
     } catch (e) {
+      if (switchSeq != null && switchSeq != _latestSwitchSeq) return;
       _playbackError = e.toString();
       _playing = false;
     } finally {
-      _initInFlight = false;
-      notifyListeners();
+      if (switchSeq == null || switchSeq == _latestSwitchSeq) {
+        _initInFlight = false;
+        if (kDebugMode) {
+          debugPrint(
+              '[TvController] startPlayback END slug=$slug initialized=${_controller?.value.isInitialized} buffering=${_controller?.value.isBuffering} playing=${_controller?.value.isPlaying} err=${_playbackError != null}');
+        }
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> _startOrReuse(String url) async {
+  Future<void> _startOrReuse(String url, {String? prevUrl}) async {
+    final last = prevUrl ?? _playbackUrl;
     if (_controller == null ||
-        _playbackUrl != url ||
+        last != url ||
         !(_controller!.value.isInitialized)) {
       final old = _controller;
       _controller = null;
