@@ -1,9 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../auth/tenant_auth_client.dart';
 
 class SeriesService {
   final AuthApi api;
   final String tenantId;
+
+  static final Map<String, Future<Map<String, dynamic>>> _inFlightReminder =
+      <String, Future<Map<String, dynamic>>>{};
+  static final Map<String, Map<String, dynamic>> _reminderCache =
+      <String, Map<String, dynamic>>{};
+  static final Map<String, DateTime> _reminderCacheAt = <String, DateTime>{};
+  static const Duration _reminderCacheTtl = Duration(seconds: 30);
 
   SeriesService({required this.api, required this.tenantId});
 
@@ -118,13 +128,44 @@ class SeriesService {
   // --- Reminders ---
   Future<Map<String, dynamic>> getReminderStatus(String showSlug) async {
     api.setTenant(tenantId);
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) {
+      return <String, dynamic>{
+        'has_reminder': false,
+        'is_active': false,
+        'id': null,
+      };
+    }
+
+    final cachedAt = _reminderCacheAt[showSlug];
+    final cached = _reminderCache[showSlug];
+    if (cachedAt != null && cached != null) {
+      if (DateTime.now().difference(cachedAt) <= _reminderCacheTtl) {
+        return Map<String, dynamic>.from(cached);
+      }
+    }
+
+    final existing = _inFlightReminder[showSlug];
+    if (existing != null) return existing;
+
     try {
-      return await api.seriesReminderStatus(showSlug);
+      final fut = api.seriesReminderStatus(showSlug);
+      _inFlightReminder[showSlug] = fut;
+      final res = await fut;
+      _reminderCache[showSlug] = Map<String, dynamic>.from(res);
+      _reminderCacheAt[showSlug] = DateTime.now();
+      return Map<String, dynamic>.from(res);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[SeriesService] getReminderStatus error: $e');
       }
-      rethrow;
+      return <String, dynamic>{
+        'has_reminder': false,
+        'is_active': false,
+        'id': null,
+      };
+    } finally {
+      _inFlightReminder.remove(showSlug);
     }
   }
 

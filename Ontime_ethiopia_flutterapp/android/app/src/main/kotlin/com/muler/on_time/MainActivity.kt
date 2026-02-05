@@ -1,11 +1,11 @@
 package com.muler.on_time
 
 import android.provider.Settings
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val channelName = "ontime/device"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

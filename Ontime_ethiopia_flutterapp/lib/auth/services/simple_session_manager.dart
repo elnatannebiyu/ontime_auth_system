@@ -20,6 +20,12 @@ class SimpleSessionManager {
   factory SimpleSessionManager() => _instance;
   SimpleSessionManager._internal();
 
+  AudioController? _audioController;
+
+  void registerAudioController(AudioController controller) {
+    _audioController = controller;
+  }
+
   final ApiClient _apiClient = ApiClient();
   final AuthApi _authApi = AuthApi();
   final SecureTokenStore _tokenStore = SecureTokenStore();
@@ -174,7 +180,7 @@ class SimpleSessionManager {
         await TvController.instance.stop();
       } catch (_) {}
       try {
-        await AudioController.instance.stop();
+        await _audioController?.stop();
       } catch (_) {}
     }
   }

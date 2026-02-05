@@ -22,7 +22,7 @@ import 'settings/session_security_page.dart';
 import 'auth/services/simple_session_manager.dart';
 import 'features/forms/pages/dynamic_form_page.dart';
 import 'live/live_page.dart';
-import 'live/global_mini_bar.dart';
+import 'audio/mini_audio_bar.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/version/version_gate.dart';
@@ -33,6 +33,9 @@ import 'channels/player/channel_mini_player.dart';
 import 'channels/player/channel_mini_player_manager.dart';
 import 'core/navigation/route_stack_observer.dart';
 import 'features/series/mini_player/series_mini_player.dart';
+import 'package:provider/provider.dart';
+import 'live/audio_controller.dart';
+import 'audio/app_lifecycle_signal.dart';
 
 // Global route observer to allow RouteAware widgets to pause/resume media
 final RouteObserver<ModalRoute<void>> appRouteObserver =
@@ -50,6 +53,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppLifecycleSignal.I.start();
   // NOTE: Firebase was temporarily disabled for local iOS testing.
   // Now that the iOS Firebase project (GoogleService-Info.plist) is configured,
   // we initialize Firebase and register the background message handler.
@@ -125,6 +129,7 @@ class _MyAppState extends State<MyApp> {
   late final String tenantId;
   late final ThemeController themeController;
   late final LocalizationController localizationController;
+  late final AudioController _audioController;
   static final GlobalKey<ScaffoldMessengerState> _smKey =
       GlobalKey<ScaffoldMessengerState>();
   bool _updateDialogShown = false;
@@ -192,6 +197,10 @@ class _MyAppState extends State<MyApp> {
     themeController = widget.themeController ?? ThemeController();
     localizationController =
         widget.localizationController ?? LocalizationController();
+    _audioController = AudioController();
+    try {
+      SimpleSessionManager().registerAudioController(_audioController);
+    } catch (_) {}
     // Start async loads if we created them here
     themeController.load();
     localizationController.load();
@@ -310,115 +319,136 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([themeController, localizationController]),
-      builder: (context, _) {
-        return MaterialApp(
-          title: 'Ontime Ethiopia - JWT Auth',
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
-          themeMode: themeController.themeMode,
-          navigatorKey: appNavigatorKey,
-          scaffoldMessengerKey: _smKey,
-          navigatorObservers: [appRouteObserver, appRouteStackObserver],
-          builder: (context, child) {
-            return Overlay(
-              initialEntries: [
-                OverlayEntry(builder: (_) => child ?? const SizedBox.shrink()),
-                OverlayEntry(
-                  builder: (_) => ValueListenableBuilder<bool>(
-                    valueListenable:
-                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
-                    builder: (context, hide, __) {
-                      if (hide) return const SizedBox.shrink();
-                      return const ChannelMiniPlayer();
-                    },
+    return ChangeNotifierProvider<AudioController>.value(
+      value: _audioController,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([themeController, localizationController]),
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'Ontime Ethiopia - JWT Auth',
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: themeController.themeMode,
+            navigatorKey: appNavigatorKey,
+            scaffoldMessengerKey: _smKey,
+            navigatorObservers: [appRouteObserver, appRouteStackObserver],
+            builder: (context, child) {
+              return Overlay(
+                initialEntries: [
+                  OverlayEntry(
+                      builder: (_) => child ?? const SizedBox.shrink()),
+                  OverlayEntry(
+                    builder: (_) => ValueListenableBuilder<bool>(
+                      valueListenable:
+                          ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                      builder: (context, hide, __) {
+                        if (hide) return const SizedBox.shrink();
+                        return const ChannelMiniPlayer();
+                      },
+                    ),
                   ),
-                ),
-                OverlayEntry(
-                  builder: (ctx) => ValueListenableBuilder<bool>(
-                    valueListenable:
-                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
-                    builder: (context, hide, __) {
-                      if (hide) return const SizedBox.shrink();
-                      return Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: MediaQuery.of(ctx).padding.bottom,
-                        child: const SeriesMiniPlayer(),
-                      );
-                    },
+                  OverlayEntry(
+                    builder: (ctx) => ValueListenableBuilder<bool>(
+                      valueListenable:
+                          ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                      builder: (context, hide, __) {
+                        if (hide) return const SizedBox.shrink();
+                        return Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: MediaQuery.of(ctx).padding.bottom,
+                          child: const SeriesMiniPlayer(),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                OverlayEntry(
-                  builder: (ctx) => ValueListenableBuilder<bool>(
-                    valueListenable:
-                        ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
-                    builder: (context, hide, __) {
-                      if (hide) return const SizedBox.shrink();
-                      return Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: MediaQuery.of(ctx).padding.bottom,
-                        child: const GlobalMiniBar(),
-                      );
-                    },
+                  OverlayEntry(
+                    builder: (ctx) => ValueListenableBuilder<bool>(
+                      valueListenable:
+                          ChannelMiniPlayerManager.I.hideGlobalBottomOverlays,
+                      builder: (context, hide, __) {
+                        return Consumer<AudioController>(
+                          builder: (context, audio, _) {
+                            // If audio is active, always show the radio mini-bar.
+                            // Fullscreen overlays may hide global bottom overlays,
+                            // but radio playback needs a visible controller.
+                            if (hide && !audio.isActive) {
+                              return const SizedBox.shrink();
+                            }
+                            return Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: MediaQuery.of(ctx).padding.bottom,
+                              child: const MiniAudioBar(),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-          // Splash gate decides destination based on stored token
-          initialRoute: '/',
-          routes: {
-            '/': (_) => SplashGate(
-                api: api, tokenStore: tokenStore, tenantId: tenantId),
-            '/login': (_) => LoginPage(
-                  api: api,
-                  tokenStore: tokenStore,
-                  tenantId: tenantId,
-                  themeController: themeController,
-                  localizationController: localizationController,
-                ),
-            '/forgot-password': (_) => ForgotPasswordPage(
-                  localizationController: localizationController,
-                ),
-            '/register': (_) => RegisterPage(
-                  api: api,
-                  tokenStore: tokenStore,
-                  tenantId: tenantId,
-                  themeController: themeController,
-                ),
-            // New enterprise home screen
-            '/home': (_) => HomePage(
-                  api: api,
-                  tokenStore: tokenStore,
-                  tenantId: tenantId,
-                  localizationController: localizationController,
-                ),
-            // Optional: expose the demo directly if needed
-            '/demo': (_) => const AuthScreen(),
-            // Settings route
-            '/settings': (_) => SettingsPage(
-                  themeController: themeController,
-                  localizationController: localizationController,
-                ),
-            '/inbox': (_) => const NotificationInboxPage(),
-            '/session-management': (_) => const SessionManagementPage(),
-            '/session-security': (_) => const SessionSecurityPage(),
-            '/about': (_) => const AboutPage(),
-            '/profile': (_) => ProfilePage(
-                  localizationController: localizationController,
-                ),
-            '/live': (_) => const LivePage(),
-            // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
-            '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
-            '/dev/forms/register': (_) =>
-                const DynamicFormPage(action: 'register'),
-          },
-        );
-      },
+                ],
+              );
+            },
+            // Splash gate decides destination based on stored token
+            initialRoute: '/',
+            routes: {
+              '/': (_) => SplashGate(
+                  api: api, tokenStore: tokenStore, tenantId: tenantId),
+              '/login': (_) => LoginPage(
+                    api: api,
+                    tokenStore: tokenStore,
+                    tenantId: tenantId,
+                    themeController: themeController,
+                    localizationController: localizationController,
+                  ),
+              '/forgot-password': (_) => ForgotPasswordPage(
+                    localizationController: localizationController,
+                  ),
+              '/register': (_) => RegisterPage(
+                    api: api,
+                    tokenStore: tokenStore,
+                    tenantId: tenantId,
+                    themeController: themeController,
+                  ),
+              // New enterprise home screen
+              '/home': (_) => HomePage(
+                    api: api,
+                    tokenStore: tokenStore,
+                    tenantId: tenantId,
+                    localizationController: localizationController,
+                  ),
+              // Optional: expose the demo directly if needed
+              '/demo': (_) => const AuthScreen(),
+              // Settings route
+              '/settings': (_) => SettingsPage(
+                    themeController: themeController,
+                    localizationController: localizationController,
+                  ),
+              '/inbox': (_) => const NotificationInboxPage(),
+              '/session-management': (_) => const SessionManagementPage(),
+              '/session-security': (_) => const SessionSecurityPage(),
+              '/about': (_) => const AboutPage(),
+              '/profile': (_) => ProfilePage(
+                    localizationController: localizationController,
+                  ),
+              '/live': (_) => const LivePage(),
+              // Dev routes for Dynamic Forms (Part 10/10b). Not linked in UI.
+              '/dev/forms/login': (_) => const DynamicFormPage(action: 'login'),
+              '/dev/forms/register': (_) =>
+                  const DynamicFormPage(action: 'register'),
+            },
+          );
+        },
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    try {
+      _audioController.dispose();
+    } catch (_) {}
+    super.dispose();
   }
 }
 

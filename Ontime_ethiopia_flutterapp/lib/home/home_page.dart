@@ -7,6 +7,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:provider/provider.dart';
 import '../live/audio_controller.dart';
 import '../live/tv_controller.dart';
 import '../auth/tenant_auth_client.dart';
@@ -554,7 +555,7 @@ class _HomePageState extends State<HomePage> {
                             ChannelMiniPlayerManager.I.setSuppressed(true);
                             ChannelMiniPlayerManager.I.pause();
                             ChannelMiniPlayerManager.I.update(isPlaying: false);
-                            AudioController.instance.stop();
+                            context.read<AudioController>().stop();
                             try {
                               TvController.instance.pausePlayback();
                             } catch (_) {}

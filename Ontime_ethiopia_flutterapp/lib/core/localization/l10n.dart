@@ -3,8 +3,50 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppLanguage { en, am, om }
 
+String radioHttpBlockedMultilangMessage() {
+  const en =
+      'This station uses an insecure (HTTP) stream and cannot be played on Android.\n'
+      'Please try another station or update the stream link.';
+  const am = 'ይህ ሬዲዮ የHTTP (ያልተጠበቀ) ስትሪም ስለሚጠቀም በAndroid ላይ መጫወት አይቻልም።\n'
+      'እባክዎ ሌላ ጣቢያ ይሞክሩ ወይም ሊንኩን ያዘምኑ።';
+  const om =
+      'Buufatni kun stream HTTP (kan hin eegamne) fayyadama; Android irratti taphachuun hin danda’amu.\n'
+      'Maaloo buufata biraa yaali ykn linkii sirreessi.';
+
+  switch (LocalizationController.currentLanguage) {
+    case AppLanguage.am:
+      return am;
+    case AppLanguage.om:
+      return om;
+    case AppLanguage.en:
+      return en;
+  }
+}
+
+String radioHttpProxyUnavailableMultilangMessage() {
+  const en =
+      'This station uses an insecure (HTTP) stream. The secure proxy is currently unavailable, so playback failed.\n'
+      'Please try another station or try again later.';
+  const am =
+      'ይህ ሬዲዮ የHTTP (ያልተጠበቀ) ስትሪም ይጠቀማል። ደህንነታማ ፕሮክሲ አሁን አይገኝም ስለዚህ መጫወት አልተሳካም።\n'
+      'እባክዎ ሌላ ጣቢያ ይሞክሩ ወይም በኋላ ደግመው ይሞክሩ።';
+  const om =
+      'Buufatni kun stream HTTP fayyadama. Proxy nageenya qabu yeroo ammaa hin jiru; taphachuun hin milkoofne.\n'
+      'Maaloo buufata biraa yaali ykn yeroo biraa deebi’ee yaali.';
+
+  switch (LocalizationController.currentLanguage) {
+    case AppLanguage.am:
+      return am;
+    case AppLanguage.om:
+      return om;
+    case AppLanguage.en:
+      return en;
+  }
+}
+
 class LocalizationController extends ChangeNotifier {
   static const _keyLang = 'app_language';
+  static AppLanguage currentLanguage = AppLanguage.en;
   AppLanguage _lang = AppLanguage.en;
 
   AppLanguage get language => _lang;
@@ -19,12 +61,14 @@ class LocalizationController extends ChangeNotifier {
     } else if (code == 'en') {
       _lang = AppLanguage.en;
     }
+    currentLanguage = _lang;
     notifyListeners();
   }
 
   Future<void> setLanguage(AppLanguage lang) async {
     if (_lang == lang) return;
     _lang = lang;
+    currentLanguage = _lang;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(

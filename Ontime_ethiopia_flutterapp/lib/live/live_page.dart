@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:provider/provider.dart';
 
 import '../api_client.dart';
 import 'audio_controller.dart';
@@ -119,44 +120,72 @@ class _LivePageState extends State<LivePage>
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          elevation: 0,
-          title: const SizedBox.shrink(),
           toolbarHeight: 0,
           automaticallyImplyLeading: false,
-        ),
-        body: Column(
-          children: [
-            if (_offline || _error != null)
-              OfflineBanner(
-                title: _t('you_are_offline'),
-                subtitle: _t('some_actions_offline'),
-                onRetry: _fetchRadios,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(44),
+            child: SizedBox(
+              height: 44,
+              child: TabBar(
+                tabs: const [
+                  Tab(text: 'TV'),
+                  Tab(text: 'Radio'),
+                ],
               ),
-            TabBar(
-              labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-              tabs: [
-                Tab(text: _t('tv')),
-                Tab(text: _t('radio')),
+            ),
+          ),
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                if (_offline)
+                  OfflineBanner(
+                    title: 'Offline',
+                    subtitle: 'You are offline',
+                    onRetry: _fetchRadios,
+                  )
+                else if (_error != null)
+                  OfflineBanner(
+                    title: 'Error',
+                    subtitle: _error!,
+                    onRetry: _fetchRadios,
+                  ),
+                Expanded(
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? _buildError()
+                          : TabBarView(
+                              children: [
+                                _TvTab(),
+                                RefreshIndicator(
+                                  onRefresh: _fetchRadios,
+                                  child: _RadioTab(),
+                                ),
+                              ],
+                            ),
+                ),
               ],
             ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? _buildError()
-                      : TabBarView(
-                          children: [
-                            _TvTab(),
-                            RefreshIndicator(
-                              onRefresh: _fetchRadios,
-                              child: _RadioTab(),
-                            ),
-                          ],
-                        ),
+            Consumer<AudioController>(
+              builder: (context, ctrl, _) {
+                final show = ctrl.status == AudioStatus.resolving ||
+                    ctrl.status == AudioStatus.loading ||
+                    ctrl.status == AudioStatus.buffering;
+                if (!show) return const SizedBox.shrink();
+                return const Positioned.fill(
+                  child: Stack(
+                    children: [
+                      ModalBarrier(dismissible: false, color: Colors.black26),
+                      Center(child: CircularProgressIndicator()),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ),
-        bottomNavigationBar: null,
       ),
     );
   }
@@ -190,11 +219,24 @@ class _RadioTab extends StatefulWidget {
   State<_RadioTab> createState() => _RadioTabState();
 }
 
-class _RadioTabState extends State<_RadioTab> {
+class _RadioTabState extends State<_RadioTab>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _search = TextEditingController();
+
+  late final AnimationController _spinCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
 
   @override
   void dispose() {
+    _spinCtrl.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -212,102 +254,168 @@ class _RadioTabState extends State<_RadioTab> {
     }).toList();
 
     return ListView.builder(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      itemCount: filtered.length + 1,
-      itemBuilder: (context, i) {
-        if (i == 0) return _toolbar();
-        final m = filtered[i - 1];
-        final name = (m['name'] ?? '').toString();
-        final slug = (m['slug'] ?? '').toString();
-        final country = (m['country'] ?? '').toString();
-        final language = (m['language'] ?? '').toString();
-        final bitrate = (m['bitrate']?.toString() ?? '');
-        final format = (m['format'] ?? '').toString();
-        final subtitle = [
-          if (country.isNotEmpty) country,
-          if (language.isNotEmpty) language,
-          if (bitrate.isNotEmpty || format.isNotEmpty)
-            '${bitrate.isNotEmpty ? '${bitrate}kbps' : ''}${bitrate.isNotEmpty && format.isNotEmpty ? ' · ' : ''}${format}',
-        ].join(' · ');
-        return Card(
-          elevation: 1.5,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          clipBehavior: Clip.antiAlias,
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            leading: _RadioLogo(url: (m['logo'] ?? '').toString(), name: name),
-            title: Text(
-                name.isEmpty ? (inherited?._t('radio') ?? 'Radio') : name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (subtitle.isNotEmpty)
-                  Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  if (m['is_active'] == true)
-                    const _BadgePill(text: 'ACTIVE', color: Colors.green),
-                  if (m['is_verified'] == true)
-                    const _BadgePill(text: 'VERIFIED', color: Colors.indigo),
-                  if (m['listener_count'] != null)
-                    _ChipOutlined(
-                        icon: Icons.headphones,
-                        label: '${m['listener_count']}'),
-                ]),
-              ],
-            ),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (bitrate.isNotEmpty)
-                _ChipOutlined(label: '${bitrate}kbps', icon: Icons.speed),
-              const Icon(Icons.play_arrow),
-            ]),
-            onTap: () async {
-              if (slug.isEmpty) return;
-              try {
-                final nav = Navigator.of(context, rootNavigator: true);
-                bool dialogShown = false;
-                if (context.mounted) {
-                  dialogShown = true;
-                  showDialog(
-                      context: context,
-                      useRootNavigator: true,
-                      barrierDismissible: false,
-                      builder: (_) =>
-                          const Center(child: CircularProgressIndicator()));
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        itemCount: filtered.length + 1,
+        itemBuilder: (context, i) {
+          if (i == 0) return _toolbar();
+          final m = filtered[i - 1];
+          final name = (m['name'] ?? '').toString();
+          final slug = (m['slug'] ?? '').toString();
+          final rawLogo = (m['logo'] ?? '').toString();
+          final logoUrl = (rawLogo.isEmpty || rawLogo.toLowerCase() == 'null')
+              ? ''
+              : rawLogo;
+          final stream = (m['stream_url'] ?? '').toString();
+          final backup = (m['backup_stream_url'] ?? '').toString();
+          final isHttpStream = stream.toLowerCase().startsWith('http://') ||
+              backup.toLowerCase().startsWith('http://');
+          final hasToken =
+              (ApiClient().getAccessToken() ?? '').toString().trim().isNotEmpty;
+          final isBlockedByHttp = isHttpStream && !hasToken;
+          final lastCheckOk = m['last_check_ok'] == true;
+          final lastError = (m['last_error'] ?? '').toString().trim();
+          final isBackendMarkedBad = !lastCheckOk || lastError.isNotEmpty;
+          final isDisabled = isBlockedByHttp || isBackendMarkedBad;
+          final country = (m['country'] ?? '').toString();
+          final language = (m['language'] ?? '').toString();
+          final bitrate = (m['bitrate']?.toString() ?? '');
+          final format = (m['format'] ?? '').toString();
+          final subtitle = [
+            if (country.isNotEmpty) country,
+            if (language.isNotEmpty) language,
+            if (bitrate.isNotEmpty || format.isNotEmpty)
+              '${bitrate.isNotEmpty ? '${bitrate}kbps' : ''}${bitrate.isNotEmpty && format.isNotEmpty ? ' · ' : ''}${format}',
+          ].join(' · ');
+          return Consumer<AudioController>(
+            builder: (context, ctrl, _) {
+              final isThisLoading = ctrl.slug == slug &&
+                  (ctrl.status == AudioStatus.resolving ||
+                      ctrl.status == AudioStatus.loading ||
+                      ctrl.status == AudioStatus.buffering);
+              final isThisPlaying =
+                  ctrl.slug == slug && ctrl.status == AudioStatus.playing;
+              // Guard against re-taps while the CURRENT station is starting,
+              // but still allow the user to switch to a DIFFERENT station.
+              final startingLockedForThisTile = ctrl.slug == slug &&
+                  (ctrl.status == AudioStatus.resolving ||
+                      ctrl.status == AudioStatus.loading);
+
+              Future<void> onTap() async {
+                if (slug.isEmpty) return;
+                // Option 1: If this tile is already the current station and audio is
+                // active, ignore the tap (don't restart and don't show loader).
+                if (ctrl.slug == slug && (ctrl.isActive || ctrl.hasSource)) {
+                  return;
                 }
-                final ctrl = AudioController.instance;
-                // Replacement policy: opening Radio stops TV
-                try {
-                  await TvController.instance.stop();
-                } catch (_) {}
-                final stateFuture = ctrl.player.playerStateStream
-                    .firstWhere((s) => s.playing)
-                    .timeout(const Duration(seconds: 12),
-                        onTimeout: () => ctrl.player.playerState);
-                final playFuture =
-                    AudioController.instance.playRadioBySlug(slug);
-                await Future.any([playFuture, stateFuture]);
-                if (context.mounted) {
-                  if (dialogShown && nav.canPop()) nav.pop();
-                }
-              } catch (_) {
-                final nav = Navigator.of(context, rootNavigator: true);
-                if (context.mounted && nav.canPop()) nav.pop();
-                if (context.mounted) {
+                if (startingLockedForThisTile) return;
+                if (isDisabled) {
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Failed to start radio')));
+                    SnackBar(
+                      content: Text(
+                        isBlockedByHttp
+                            ? radioHttpBlockedMultilangMessage()
+                            : 'Stream unavailable',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                if (ctrl.status == AudioStatus.loading) return;
+
+                try {
+                  // Replacement policy: opening Radio stops TV
+                  try {
+                    await TvController.instance.stop();
+                  } catch (_) {}
+                  await ctrl.playRadioBySlug(slug);
+
+                  if (context.mounted && ctrl.status == AudioStatus.error) {
+                    final msg = (ctrl.errorMessage ?? '').trim();
+                    if (msg.isNotEmpty) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text(msg)));
+                    }
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to start radio')));
+                  }
                 }
               }
+
+              final baseTrailing =
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                if (bitrate.isNotEmpty)
+                  _ChipOutlined(label: '${bitrate}kbps', icon: Icons.speed),
+              ]);
+
+              return Opacity(
+                opacity: isDisabled ? 0.45 : 1.0,
+                child: Card(
+                  elevation: 1.5,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    enabled: !isDisabled,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    leading: RotationTransition(
+                      turns: (isThisLoading || isThisPlaying)
+                          ? _spinCtrl
+                          : const AlwaysStoppedAnimation(0),
+                      child: _RadioLogo(url: logoUrl, name: name),
+                    ),
+                    title: Text(
+                        name.isEmpty
+                            ? (inherited?._t('radio') ?? 'Radio')
+                            : name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (subtitle.isNotEmpty)
+                          Text(subtitle,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Wrap(spacing: 6, runSpacing: 6, children: [
+                          if (isThisPlaying)
+                            _BadgePill(
+                                text: (inherited?._t('now_playing') ??
+                                        'Now Playing')
+                                    .toUpperCase(),
+                                color: Colors.deepPurple),
+                          if (m['is_active'] == true)
+                            const _BadgePill(
+                                text: 'ACTIVE', color: Colors.green),
+                          if (m['is_verified'] == true)
+                            const _BadgePill(
+                                text: 'VERIFIED', color: Colors.indigo),
+                          if (isBlockedByHttp)
+                            const _BadgePill(
+                                text: 'HTTP', color: Colors.orange),
+                          if (isBackendMarkedBad)
+                            const _BadgePill(
+                                text: 'UNAVAILABLE', color: Colors.redAccent),
+                          if (m['listener_count'] != null)
+                            _ChipOutlined(
+                                icon: Icons.headphones,
+                                label: '${m['listener_count']}'),
+                        ]),
+                      ],
+                    ),
+                    trailing: baseTrailing,
+                    onTap: onTap,
+                  ),
+                ),
+              );
             },
-          ),
-        );
-      },
-    );
+          );
+        });
   }
 
   Widget _toolbar() {
@@ -588,7 +696,7 @@ class _TvTabState extends State<_TvTab>
                   onTap: () async {
                     if (slug.isEmpty) return;
                     try {
-                      await AudioController.instance.stop();
+                      await context.read<AudioController>().stop();
                     } catch (_) {}
                     final nav = Navigator.of(context);
                     final tv = TvController.instance;
