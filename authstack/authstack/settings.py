@@ -394,6 +394,8 @@ GOOGLE_WEB_CLIENT_IDS = {
     "59310140647-ks91sebo8ccbd9f6m8q065p7vp4uogvm.apps.googleusercontent.com",
     # iOS client ID so tokens issued on iOS are accepted by the backend verifier
     "59310140647-m77nbro0rb4i146mtcq5blpb0n1mn233.apps.googleusercontent.com",
+    # Android web client ID (Play signing project)
+    "695500579619-qve5grj7enro7j1pn8hma04mjpe3oo8t.apps.googleusercontent.com",
 } | _extra_google_web_ids
 
 # Production security settings (tuned via environment; safe defaults under HTTPS)

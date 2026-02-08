@@ -1,18 +1,22 @@
 import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'radio_audio_service.dart';
 
 class AudioPlayerService {
-  final AudioPlayer _player = RadioAudioService.player;
+  final AudioPlayer _player = AudioPlayer();
   AudioSession? _session;
   bool _sessionReady = false;
   bool _hasSource = false;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _becomingNoisySub;
+  StreamSubscription<PlayerState>? _playerStateSub;
   bool _resumeAfterInterruption = false;
+  bool _userPaused = false;
+  bool _lastPlaying = false;
   final StreamController<bool> _interruptedCtrl =
       StreamController<bool>.broadcast();
   bool _isInterrupted = false;
@@ -29,17 +33,36 @@ class AudioPlayerService {
 
       _interruptionSub = session.interruptionEventStream.listen((event) async {
         if (event.begin) {
+          if (kDebugMode) {
+            debugPrint(
+                '[AudioPlayerService] interruption begin type=${event.type} playing=${_player.playing} lastPlaying=$_lastPlaying userPaused=$_userPaused');
+          }
           _isInterrupted = true;
           _interruptedCtrl.add(true);
-          _resumeAfterInterruption = _player.playing || _hasSource;
+          _resumeAfterInterruption = _lastPlaying &&
+              !_userPaused &&
+              event.type == AudioInterruptionType.pause;
+          if (kDebugMode) {
+            debugPrint(
+                '[AudioPlayerService] resumeAfterInterruption=$_resumeAfterInterruption');
+          }
           try {
             await pause();
           } catch (_) {}
         } else {
+          if (kDebugMode) {
+            debugPrint(
+                '[AudioPlayerService] interruption end type=${event.type} resumeAfter=$_resumeAfterInterruption hasSource=$_hasSource playing=${_player.playing}');
+          }
           _isInterrupted = false;
           _interruptedCtrl.add(false);
-          if (_resumeAfterInterruption && _hasSource) {
+          if (_resumeAfterInterruption &&
+              _hasSource &&
+              event.type == AudioInterruptionType.pause) {
             _resumeAfterInterruption = false;
+            if (kDebugMode) {
+              debugPrint('[AudioPlayerService] auto-resume play()');
+            }
             try {
               await play();
             } catch (_) {}
@@ -51,6 +74,10 @@ class AudioPlayerService {
         try {
           await _player.pause();
         } catch (_) {}
+      });
+
+      _playerStateSub = _player.playerStateStream.listen((state) {
+        _lastPlaying = state.playing;
       });
 
       _sessionReady = true;
@@ -81,6 +108,7 @@ class AudioPlayerService {
   }
 
   Future<void> stop() async {
+    _userPaused = false;
     if (RadioAudioService.isInitialized) {
       try {
         await RadioAudioService.stopService();
@@ -100,19 +128,29 @@ class AudioPlayerService {
 
   bool get hasSource => _hasSource;
 
+  void setUserPaused(bool value) {
+    _userPaused = value;
+  }
+
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
+
+  AudioPlayer get player => _player;
 
   Stream<double> get volumeStream => _player.volumeStream;
   double get volume => _player.volume;
   Future<void> setVolume(double v) => _player.setVolume(v);
 
   Future<void> dispose() async {
-    // Intentionally no-op: the underlying player is owned by RadioAudioService.
+    // Intentionally no-op: the player is owned by AudioPlayerService and is
+    // expected to live for the app lifetime.
     try {
       await _interruptionSub?.cancel();
     } catch (_) {}
     try {
       await _becomingNoisySub?.cancel();
+    } catch (_) {}
+    try {
+      await _playerStateSub?.cancel();
     } catch (_) {}
     try {
       await _interruptedCtrl.close();

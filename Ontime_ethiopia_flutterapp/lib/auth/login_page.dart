@@ -1,9 +1,11 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'dart:io' show Platform;
+import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:ontime_ethiopia_flutterapp/auth/simple_password_reset_page.dart';
 import 'tenant_auth_client.dart';
@@ -41,6 +43,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const MethodChannel _logChannel = MethodChannel('ontime/log');
   // Feature flag to show/hide legacy email/password login UX without deleting code
   static const bool _kEnablePasswordLogin = true;
   final _formKey = GlobalKey<FormState>();
@@ -57,6 +60,17 @@ class _LoginPageState extends State<LoginPage> {
     // Allow Google Sign-In on all platforms; FCM/notifications remain
     // disabled on iOS via separate Platform checks.
     return true;
+  }
+
+  Future<void> _logAuth(String message, {String level = 'i'}) async {
+    try {
+      await _logChannel.invokeMethod('log', {
+        'message': message,
+        'level': level,
+      });
+    } catch (_) {
+      // Ignore logging failures.
+    }
   }
 
   @override
@@ -336,6 +350,12 @@ class _LoginPageState extends State<LoginPage> {
                                     : () async {
                                         final service = SocialAuthService(
                                             serverClientId: kGoogleWebClientId);
+                                        dev.log(
+                                          'google-signin start: tenant=${widget.tenantId}',
+                                          name: 'auth.google',
+                                        );
+                                        await _logAuth(
+                                            'google-signin start: tenant=${widget.tenantId}');
                                         try {
                                           setState(() {
                                             _socialLoading = true;
@@ -345,6 +365,13 @@ class _LoginPageState extends State<LoginPage> {
                                           final result =
                                               await service.signInWithGoogle(
                                                   signOutFirst: true);
+                                          dev.log(
+                                            'google-signin success: email=${result.email}, hasIdToken=${result.idToken != null}',
+                                            name: 'auth.google',
+                                          );
+                                          await _logAuth(
+                                            'google-signin success: email=${result.email}, hasIdToken=${result.idToken != null}',
+                                          );
                                           // Step 1: attempt login without creating a new account
                                           Tokens tokens;
                                           try {
@@ -429,6 +456,15 @@ class _LoginPageState extends State<LoginPage> {
                                               .pushNamedAndRemoveUntil(
                                                   '/home', (_) => false);
                                         } on DioException catch (e) {
+                                          dev.log(
+                                            'google-signin backend error: ${e.response?.statusCode} ${e.response?.data}',
+                                            name: 'auth.google',
+                                            error: e,
+                                          );
+                                          await _logAuth(
+                                            'google-signin backend error: ${e.response?.statusCode} ${e.response?.data}',
+                                            level: 'e',
+                                          );
                                           // If server enforced update (426) or explicit APP_UPDATE_REQUIRED
                                           // code, let the global update handler show the dialog and do not
                                           // surface a red error banner here.
@@ -454,6 +490,15 @@ class _LoginPageState extends State<LoginPage> {
                                             });
                                           }
                                         } catch (e) {
+                                          dev.log(
+                                            'google-signin error: $e',
+                                            name: 'auth.google',
+                                            error: e,
+                                          );
+                                          await _logAuth(
+                                            'google-signin error: $e',
+                                            level: 'e',
+                                          );
                                           // If a 426 slipped through as a generic error, do not show snackbar
                                           final msg = '$e';
                                           if (msg.contains('426') ||

@@ -34,7 +34,11 @@ class AudioController extends ChangeNotifier {
         return;
       }
       if (s == AppLifecycleState.paused || s == AppLifecycleState.inactive) {
-        if (hasSource || _playerService.isPlaying) {
+        if (_playerService.isPlaying) return;
+        if (_playerService.isInterrupted || status == AudioStatus.paused) {
+          return;
+        }
+        if (hasSource) {
           try {
             await stop();
           } catch (_) {}
@@ -51,6 +55,22 @@ class AudioController extends ChangeNotifier {
         }
       }
     });
+    _interruptionSub = _playerService.interruptionStream.listen((interrupted) {
+      if (interrupted) {
+        _resumeAfterInterruption = _playerService.isPlaying;
+        return;
+      }
+      if (_resumeAfterInterruption && hasSource && !_playerService.isPlaying) {
+        _resumeAfterInterruption = false;
+        unawaited(() async {
+          try {
+            await _playerService.play();
+            _pausedBySystem = false;
+            notifyListeners();
+          } catch (_) {}
+        }());
+      }
+    });
   }
 
   final AudioPlayerService _playerService = AudioPlayerService();
@@ -65,7 +85,9 @@ class AudioController extends ChangeNotifier {
   Timer? _bufferingTimeout;
   static const Duration _bufferingTimeoutDuration = Duration(seconds: 15);
   StreamSubscription<AppLifecycleState>? _lifecycleSub;
+  StreamSubscription<bool>? _interruptionSub;
   bool _pausedBySystem = false;
+  bool _resumeAfterInterruption = false;
 
   Stream<PlayerState> get playerStateStream => _playerService.playerStateStream;
   bool get isPlaying => _playerService.isPlaying;
@@ -183,7 +205,7 @@ class AudioController extends ChangeNotifier {
     _cancelBufferingTimeout();
     _attachStatusListener();
 
-    await RadioAudioService.ensureInitialized();
+    await RadioAudioService.ensureInitialized(_playerService.player);
     if (isStale()) return;
     final prevSlug = _currentSlug;
     final switching = prevSlug != null && prevSlug != slug;
@@ -335,6 +357,7 @@ class AudioController extends ChangeNotifier {
   }
 
   Future<void> pause() async {
+    _playerService.setUserPaused(true);
     await _playerService.pause();
     log('[AudioController] pause()');
     _pausedBySystem = false;
@@ -347,6 +370,7 @@ class AudioController extends ChangeNotifier {
   }
 
   Future<void> play() async {
+    _playerService.setUserPaused(false);
     await _playerService.play();
     log('[AudioController] resume play()');
     _pausedBySystem = false;
@@ -389,6 +413,9 @@ class AudioController extends ChangeNotifier {
     } catch (_) {}
     try {
       _lifecycleSub?.cancel();
+    } catch (_) {}
+    try {
+      _interruptionSub?.cancel();
     } catch (_) {}
     _cancelBufferingTimeout();
     _listenTracker.dispose();

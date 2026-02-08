@@ -6,7 +6,7 @@ List<String> resolveRadioStreamUrls({
   required String tenant,
   required bool hasToken,
 }) {
-  bool _isHttpsUrl(String u) {
+  bool isHttpsUrl(String u) {
     final uri = Uri.tryParse(u);
     return uri != null && uri.scheme.toLowerCase() == 'https';
   }
@@ -24,8 +24,8 @@ List<String> resolveRadioStreamUrls({
   if (isHttps && !isLocalHost && hasToken) {
     cands.add('$baseApi/api/live/radio/$slug/stream/?tenant=$tenant');
   }
-  if (primary.isNotEmpty && _isHttpsUrl(primary)) cands.add(norm(primary));
-  if (backup.isNotEmpty && backup != primary && _isHttpsUrl(backup)) {
+  if (primary.isNotEmpty && isHttpsUrl(primary)) cands.add(norm(primary));
+  if (backup.isNotEmpty && backup != primary && isHttpsUrl(backup)) {
     cands.add(norm(backup));
   }
   // For roots or missing mountpoints, try common aliases (avoid exploding attempts for token hosts)
@@ -34,7 +34,7 @@ List<String> resolveRadioStreamUrls({
   if (!tokenHost) {
     for (final base in [primary, backup]) {
       if (base.isEmpty) continue;
-      if (!_isHttpsUrl(base)) continue;
+      if (!isHttpsUrl(base)) continue;
       final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
       cands.add('$b/live');
       cands.add('$b/live.mp3');
@@ -48,7 +48,7 @@ List<String> resolveRadioStreamUrls({
     // Tokenized streams usually only work with exact URL; try minimal safe suffixes
     for (final base in [primary, backup]) {
       if (base.isEmpty) continue;
-      if (!_isHttpsUrl(base)) continue;
+      if (!isHttpsUrl(base)) continue;
       final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
       cands.add('$b/live');
       cands.add('$b/live.mp3');
