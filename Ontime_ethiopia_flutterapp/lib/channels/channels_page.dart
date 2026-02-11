@@ -10,6 +10,7 @@ import '../core/cache/logo_probe_cache.dart';
 import '../core/widgets/offline_banner.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'playlist_grid_sheet.dart';
+import 'player/channel_mini_player_manager.dart';
 import 'channel_ui_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -309,144 +310,169 @@ class _ChannelsPageState extends State<ChannelsPage> {
         appBar: AppBar(
           title: BrandTitle(section: _t('channels')),
         ),
-        body: Stack(
-          children: [
-            _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: Text(_error!,
-                            style: const TextStyle(color: Colors.red)))
-                    : RefreshIndicator(
-                        onRefresh: () => _loadChannels(clearCaches: true),
-                        child: Builder(builder: (context) {
-                          final List<Map<String, dynamic>> visible =
-                              _channels.cast<Map<String, dynamic>>();
-                          return ListView(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            children: [
-                              if (_offline) _buildOfflineCard(),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                                child: GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 12,
-                                    childAspectRatio: 0.82,
-                                  ),
-                                  itemCount: visible.length,
-                                  itemBuilder: (context, i) {
-                                    final ch = visible[i];
-                                    final slug =
-                                        (ch['id_slug'] ?? '').toString();
-                                    final title = _channelDisplayName(ch);
-                                    String? thumbUrlPrimary = thumbFromMap(ch);
-                                    String? thumbUrl = thumbUrlPrimary;
-                                    if (thumbUrl == null || thumbUrl.isEmpty) {
-                                      final avail = _logoAvailable[slug];
-                                      if (avail != false) {
-                                        thumbUrl =
-                                            '$kApiBase/api/channels/$slug/logo/';
-                                      }
-                                    }
-                                    final lang =
-                                        (ch['language'] ?? '').toString();
-                                    return InkWell(
-                                      onTap: () {
-                                        if (_openingPlaylistSheet) return;
-                                        setState(() {
-                                          _openingPlaylistSheet = true;
-                                        });
-                                        showModalBottomSheet(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          showDragHandle: true,
-                                          builder: (_) => PlaylistGridSheet(
-                                            channelSlug: slug,
-                                            channel: ch,
-                                          ),
-                                        ).whenComplete(() {
-                                          if (!mounted) {
-                                            _openingPlaylistSheet = false;
-                                            return;
-                                          }
-                                          setState(() {
-                                            _openingPlaylistSheet = false;
-                                          });
-                                        });
-                                      },
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                              color: Theme.of(context)
-                                                  .dividerColor),
-                                          borderRadius: BorderRadius.zero,
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: Stack(
+            children: [
+              _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Text(_error!,
+                              style: const TextStyle(color: Colors.red)))
+                      : RefreshIndicator(
+                          onRefresh: () => _loadChannels(clearCaches: true),
+                          child: Builder(builder: (context) {
+                            final List<Map<String, dynamic>> visible =
+                                _channels.cast<Map<String, dynamic>>();
+                            return ValueListenableBuilder<double>(
+                              valueListenable:
+                                  ChannelMiniPlayerManager.I.miniPlayerHeight,
+                              builder: (context, miniHeight, _) {
+                                final mediaPadding =
+                                    MediaQuery.of(context).padding;
+                                final bottomPad =
+                                    miniHeight + mediaPadding.bottom;
+                                return ListView(
+                                  padding:
+                                      EdgeInsets.fromLTRB(0, 12, 0, bottomPad),
+                                  children: [
+                                    if (_offline) _buildOfflineCard(),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          12, 8, 12, 12),
+                                      child: GridView.builder(
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        gridDelegate:
+                                            const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 3,
+                                          crossAxisSpacing: 12,
+                                          mainAxisSpacing: 12,
+                                          childAspectRatio: 0.82,
                                         ),
-                                        child: Stack(
-                                          children: [
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Expanded(
-                                                  child: _buildThumb(thumbUrl,
-                                                      size: double.infinity,
-                                                      radius:
-                                                          BorderRadius.zero),
+                                        itemCount: visible.length,
+                                        itemBuilder: (context, i) {
+                                          final ch = visible[i];
+                                          final slug =
+                                              (ch['id_slug'] ?? '').toString();
+                                          final title = _channelDisplayName(ch);
+                                          String? thumbUrlPrimary =
+                                              thumbFromMap(ch);
+                                          String? thumbUrl = thumbUrlPrimary;
+                                          if (thumbUrl == null ||
+                                              thumbUrl.isEmpty) {
+                                            final avail = _logoAvailable[slug];
+                                            if (avail != false) {
+                                              thumbUrl =
+                                                  '$kApiBase/api/channels/$slug/logo/';
+                                            }
+                                          }
+                                          final lang =
+                                              (ch['language'] ?? '').toString();
+                                          return InkWell(
+                                            onTap: () {
+                                              if (_openingPlaylistSheet) return;
+                                              setState(() {
+                                                _openingPlaylistSheet = true;
+                                              });
+                                              showModalBottomSheet(
+                                                context: context,
+                                                isScrollControlled: true,
+                                                showDragHandle: true,
+                                                builder: (_) =>
+                                                    PlaylistGridSheet(
+                                                  channelSlug: slug,
+                                                  channel: ch,
                                                 ),
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.all(8.0),
-                                                  child: Column(
+                                              ).whenComplete(() {
+                                                if (!mounted) {
+                                                  _openingPlaylistSheet = false;
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  _openingPlaylistSheet = false;
+                                                });
+                                              });
+                                            },
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                border: Border.all(
+                                                    color: Theme.of(context)
+                                                        .dividerColor),
+                                                borderRadius: BorderRadius.zero,
+                                              ),
+                                              child: Stack(
+                                                children: [
+                                                  Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
-                                                            .start,
+                                                            .stretch,
                                                     children: [
-                                                      Text(title,
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: const TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600)),
-                                                      if (lang.isNotEmpty)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .only(top: 4),
-                                                          child: Text(
-                                                              lang
-                                                                  .toUpperCase(),
-                                                              style: Theme.of(
-                                                                      context)
-                                                                  .textTheme
-                                                                  .labelSmall),
+                                                      Expanded(
+                                                        child: _buildThumb(
+                                                            thumbUrl,
+                                                            size:
+                                                                double.infinity,
+                                                            radius: BorderRadius
+                                                                .zero),
+                                                      ),
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(8.0),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(title,
+                                                                maxLines: 2,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600)),
+                                                            if (lang.isNotEmpty)
+                                                              Padding(
+                                                                padding:
+                                                                    const EdgeInsets
+                                                                        .only(
+                                                                        top: 4),
+                                                                child: Text(
+                                                                    lang
+                                                                        .toUpperCase(),
+                                                                    style: Theme.of(
+                                                                            context)
+                                                                        .textTheme
+                                                                        .labelSmall),
+                                                              ),
+                                                          ],
                                                         ),
+                                                      ),
                                                     ],
                                                   ),
-                                                ),
-                                              ],
+                                                  // (removed playlist count badge in simplified page)
+                                                ],
+                                              ),
                                             ),
-                                            // (removed playlist count badge in simplified page)
-                                          ],
-                                        ),
+                                          );
+                                        },
                                       ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
-                      ),
-            // Series mini player overlay
-          ],
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          }),
+                        ),
+              // Series mini player overlay
+            ],
+          ),
         ),
       ),
     );

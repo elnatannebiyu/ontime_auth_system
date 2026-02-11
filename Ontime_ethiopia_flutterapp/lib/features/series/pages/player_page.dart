@@ -10,6 +10,7 @@ import '../../../auth/tenant_auth_client.dart';
 import '../../../channels/player/channel_mini_player_manager.dart';
 import '../../../main.dart';
 import '../../../core/navigation/route_stack_observer.dart';
+import '../../../core/services/pip_service.dart';
 
 class PlayerPage extends StatefulWidget {
   final AuthApi api;
@@ -80,6 +81,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    PipService.setActive(true);
     WidgetsBinding.instance.addObserver(this);
     ChannelMiniPlayerManager.I.setSuppressed(true);
     ChannelMiniPlayerManager.I.pause();
@@ -88,6 +90,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    PipService.setActive(false);
     try {
       if (_ytListener != null && _yt != null) _yt!.removeListener(_ytListener!);
       _yt?.pause();

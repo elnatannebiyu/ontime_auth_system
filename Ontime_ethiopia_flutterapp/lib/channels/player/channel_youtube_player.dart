@@ -14,6 +14,7 @@ class ChannelYoutubePlayer extends StatefulWidget {
   final Widget? fallback;
   final ValueChanged<bool>? onPlayingChanged;
   final VoidCallback? onExpand;
+  final VoidCallback? onClose;
   final bool playOnInit;
   final VoidCallback? onAutoPlayNext;
   final String? autoRotateFullscreenHint;
@@ -27,6 +28,7 @@ class ChannelYoutubePlayer extends StatefulWidget {
     this.fallback,
     this.onPlayingChanged,
     this.onExpand,
+    this.onClose,
     this.playOnInit = false,
     this.onAutoPlayNext,
     this.autoRotateFullscreenHint,
@@ -51,11 +53,12 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   Timer? _rotateOverlayTimer;
   Timer? _autoRotateHintTimer;
   Timer? _fullscreenEnterCheckTimer;
-  DateTime? _lastFullscreenButtonTap;
   bool _fullscreenToggleInFlight = false;
   Timer? _restoreOrientationsTimer;
   Timer? _restoreAllAfterPortraitTimer;
   bool _preferPortraitOnNextExit = false;
+  bool _showControls = true;
+  Timer? _hideControlsTimer;
 
   String? _controllerVideoId(YoutubePlayerController? c) {
     if (c == null) return null;
@@ -74,8 +77,6 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   bool _shouldKeepControllerForMiniPlayer() {
     final vid = _videoId;
     if (vid == null || vid.isEmpty) return false;
-    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
-    if (!minimized) return false;
     final now = ChannelMiniPlayerManager.I.nowPlaying.value;
     if (now == null) return false;
     return now.videoId == vid;
@@ -160,6 +161,7 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     _playOnInit = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _controller?.seekTo(const Duration(seconds: 0));
       _controller?.play();
     });
   }
@@ -186,6 +188,9 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     try {
       _restoreAllAfterPortraitTimer?.cancel();
     } catch (_) {}
+    try {
+      _hideControlsTimer?.cancel();
+    } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
 
     // If the unified floating mini-player is active for this same video,
@@ -202,80 +207,7 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     super.dispose();
   }
 
-  Future<void> _toggleFullscreenFromButton() async {
-    final c = _controller;
-    if (!mounted || c == null) return;
-
-    final now = DateTime.now();
-    final lastTap = _lastFullscreenButtonTap;
-    if (lastTap != null &&
-        now.difference(lastTap) < const Duration(milliseconds: 650)) {
-      return;
-    }
-    _lastFullscreenButtonTap = now;
-    if (_fullscreenToggleInFlight) return;
-    _fullscreenToggleInFlight = true;
-
-    final isFs = c.value.isFullScreen;
-    if (isFs) {
-      try {
-        c.toggleFullScreenMode();
-      } catch (_) {}
-      _fullscreenToggleInFlight = false;
-      return;
-    }
-
-    try {
-      c.toggleFullScreenMode();
-    } catch (_) {}
-
-    // After fullscreen is expected to have settled, check if we actually entered.
-    // If not, stop retries and show a helpful message.
-    _fullscreenEnterCheckTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (!mounted) return;
-      final cc = _controller;
-      if (cc == null) return;
-
-      final isFsNow = cc.value.isFullScreen;
-      if (!isFsNow) {
-        _fullscreenToggleInFlight = false;
-        final messenger = ScaffoldMessenger.maybeOf(context);
-        messenger?.hideCurrentSnackBar();
-        messenger?.showSnackBar(
-          const SnackBar(
-            content: Text('Fullscreen didn\'t open. Try again.'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
-      }
-
-      _fullscreenToggleInFlight = false;
-
-      // If we're fullscreen but still portrait, show the app-provided hint (if any).
-      final isPortrait =
-          MediaQuery.of(context).orientation == Orientation.portrait;
-      final hint = widget.autoRotateFullscreenHint;
-      if (isPortrait && hint != null && hint.isNotEmpty) {
-        final messenger = ScaffoldMessenger.maybeOf(context);
-        messenger?.hideCurrentSnackBar();
-        messenger?.showSnackBar(
-          SnackBar(
-            content: Text(hint),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    });
-  }
-
   void _startRotateOverlay() {
-    if (!mounted) return;
-    try {
-      _rotateOverlayTimer?.cancel();
-    } catch (_) {}
     setState(() {
       _showRotateOverlay = true;
     });
@@ -299,12 +231,12 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     final current = _controller;
     _controller?.removeListener(_handlePlayback);
     _controller?.removeListener(_handleFullscreenState);
+    if (ChannelMiniPlayerManager.I.ytController.value == current) {
+      _controller = null;
+      return;
+    }
     _controller?.dispose();
     _controller = null;
-    if (ChannelMiniPlayerManager.I.ytController.value == current) {
-      ChannelMiniPlayerManager.I.ytController.value = null;
-      ChannelMiniPlayerManager.I.setPauseCallback(null);
-    }
   }
 
   void _handlePlayback() {
@@ -335,6 +267,11 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     }
     if (playing == _wasPlaying) return;
     _wasPlaying = playing;
+    if (playing) {
+      _scheduleHideControls();
+    } else {
+      _showControlsOverlay();
+    }
     try {
       if (playing) {
         WakelockPlus.enable();
@@ -344,6 +281,23 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     } catch (_) {}
     widget.onPlayingChanged?.call(playing);
     _pushMiniPlayerState();
+  }
+
+  void _showControlsOverlay() {
+    if (!mounted) return;
+    _hideControlsTimer?.cancel();
+    if (_showControls) return;
+    setState(() => _showControls = true);
+  }
+
+  void _scheduleHideControls() {
+    if (!mounted) return;
+    _hideControlsTimer?.cancel();
+    _showControls = true;
+    _hideControlsTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _showControls = false);
+    });
   }
 
   void _pushMiniPlayerState() {
@@ -474,8 +428,19 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   void _minimizeToMiniPlayer() {
     final shouldResume = _controller?.value.isPlaying ?? false;
     _shouldResumeAfterMinimize = shouldResume;
+    ChannelMiniPlayerManager.I.setSuppressed(false);
     ChannelMiniPlayerManager.I.setMinimized(true);
     _pushMiniPlayerState();
+    if (shouldResume) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final c = _controller;
+        if (c == null) return;
+        if (!c.value.isPlaying) {
+          c.play();
+        }
+      });
+    }
     if (_controller?.value.isFullScreen ?? false) {
       // If minimize is used to exit fullscreen, prefer portrait during the exit
       // transition to avoid Android settling into landscapeLeft.
@@ -488,12 +453,6 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
             const [DeviceOrientation.portraitUp]);
       } catch (_) {}
       _controller?.toggleFullScreenMode();
-    }
-    if (shouldResume) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _controller?.play();
-      });
     }
   }
 
@@ -567,42 +526,33 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
                       onPressed: canMinimize ? _minimizeToMiniPlayer : null,
                     ),
                     const Spacer(),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: ChannelMiniPlayerManager.I.autoPlayNext,
-                      builder: (context, enabled, _) {
-                        return IconButton(
-                          icon: Icon(
-                            enabled
-                                ? Icons.playlist_play
-                                : Icons.playlist_play_outlined,
-                            color: Colors.white,
-                          ),
-                          onPressed: () {
-                            ChannelMiniPlayerManager.I.autoPlayNext.value =
-                                !enabled;
-                          },
-                        );
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (ChannelMiniPlayerManager.I.isMinimized.value) {
+                            ChannelMiniPlayerManager.I.clear();
+                          } else {
+                            ChannelMiniPlayerManager.I
+                                .clear(disposeController: false);
+                          }
+                          widget.onClose?.call();
+                        });
                       },
                     ),
                     const SizedBox(width: 8),
                   ],
             bottomActions: minimized
                 ? const []
-                : [
-                    const CurrentPosition(),
-                    const SizedBox(width: 8),
-                    const ProgressBar(isExpanded: true),
-                    const SizedBox(width: 8),
-                    const RemainingDuration(),
-                    IconButton(
-                      icon: Icon(
-                        (c.value.isFullScreen)
-                            ? Icons.fullscreen_exit
-                            : Icons.fullscreen,
-                        color: Colors.white,
-                      ),
-                      onPressed: _toggleFullscreenFromButton,
-                    ),
+                : const [
+                    CurrentPosition(),
+                    SizedBox(width: 8),
+                    ProgressBar(isExpanded: true),
+                    SizedBox(width: 8),
+                    RemainingDuration(),
                   ],
           ),
           builder: (context, player) {
@@ -612,6 +562,68 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
                 fit: StackFit.expand,
                 children: [
                   player,
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: Colors.white,
+                                ),
+                                onPressed:
+                                    canMinimize ? _minimizeToMiniPlayer : null,
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                                onPressed: () {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    if (ChannelMiniPlayerManager
+                                        .I.isMinimized.value) {
+                                      ChannelMiniPlayerManager.I.clear();
+                                    } else {
+                                      ChannelMiniPlayerManager.I
+                                          .clear(disposeController: false);
+                                    }
+                                    widget.onClose?.call();
+                                  });
+                                },
+                              ),
+                              const Spacer(),
+                              const SizedBox(width: 8),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              const CurrentPosition(),
+                              const SizedBox(width: 8),
+                              Expanded(child: ProgressBar(isExpanded: true)),
+                              const SizedBox(width: 8),
+                              const RemainingDuration(),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   if (_showRotateOverlay)
                     Positioned.fill(
                       child: IgnorePointer(
@@ -622,11 +634,9 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
                               width: 28,
                               height: 28,
                               child: CircularProgressIndicator(
-                                strokeWidth: 3,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white)),
                             ),
                           ),
                         ),

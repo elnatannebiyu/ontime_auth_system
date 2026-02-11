@@ -17,6 +17,7 @@ import '../channels/player/channel_now_playing.dart';
 import '../core/navigation/route_stack_observer.dart';
 import '../main.dart' show appNavigatorKey;
 import 'live_floating_mini_player.dart';
+import '../core/services/pip_service.dart';
 
 class LivePlayerOverlayPage extends StatefulWidget {
   final String slug;
@@ -61,6 +62,7 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
   @override
   void initState() {
     super.initState();
+    PipService.setActive(true);
     // While the live overlay route is visible, suppress the floating mini-player.
     // The mini-player should only appear when we explicitly minimize/back.
     ChannelMiniPlayerManager.I.setSuppressed(true);
@@ -337,8 +339,9 @@ class _LivePlayerOverlayPageState extends State<LivePlayerOverlayPage> {
 
   @override
   void dispose() {
+    PipService.setActive(false);
     try {
-      _controlsTimer?.cancel();
+      WakelockPlus.disable();
     } catch (_) {}
     try {
       _qualityToastTimer?.cancel();

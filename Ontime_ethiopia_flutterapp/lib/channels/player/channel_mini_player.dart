@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'channel_mini_player_manager.dart';
 import 'channel_now_playing.dart';
-import '../playlist_detail_page.dart';
-import '../../core/navigation/route_stack_observer.dart';
 import '../../live/live_floating_mini_player.dart';
 import '../../live/tv_controller.dart';
 
@@ -22,7 +20,8 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
   bool _positionInitialized = false;
   final double _scale = 1.6;
   Size? _lastSize;
-  double? _baseWidth;
+  double? _miniWidth;
+  double? _miniHeight;
   bool? _lastMinimized;
   bool _dragging = false;
   bool _showControls = true;
@@ -68,7 +67,76 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    ChannelMiniPlayerManager.I.isMinimized.addListener(_onMinimizedChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _recalculateLayout(MediaQuery.of(context).size);
+  }
+
+  void _onMinimizedChanged() {
+    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
+    if (!minimized) return;
+    final size = _lastSize;
+    final miniWidth = _miniWidth;
+    final miniHeight = _miniHeight;
+    if (size == null || miniWidth == null || miniHeight == null) return;
+
+    if (_lastMinimized != true && minimized) {
+      final target = _anchorBottomRight(context, size, miniWidth, miniHeight);
+      final start = Offset(size.width + 12, size.height + 12);
+      _offset = start;
+      _positionInitialized = true;
+      _showControls = true;
+      _scheduleHideControls();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _safeSetState(() {
+          _offset = target;
+        });
+      });
+    }
+    _lastMinimized = minimized;
+  }
+
+  void _recalculateLayout(Size size) {
+    final shortSide = size.shortestSide;
+    final baseWidth = shortSide * 0.40;
+    final miniWidth = (baseWidth * _scale).clamp(_minWidth, shortSide * 0.7);
+    final miniHeight = miniWidth / _aspectRatio;
+    final bottom = _bottomInset(context);
+    final sizeChanged = _lastSize != size;
+
+    _miniWidth = miniWidth;
+    _miniHeight = miniHeight;
+    _lastSize = size;
+
+    if (ChannelMiniPlayerManager.I.isMinimized.value) {
+      ChannelMiniPlayerManager.I
+          .setMiniPlayerHeight(miniHeight + _bottomPadding + bottom);
+    }
+
+    if (sizeChanged && _positionInitialized) {
+      final dx = _safeClamp(
+          _offset.dx, _edgePadding, size.width - miniWidth - _edgePadding);
+      final dy = _safeClamp(
+        _offset.dy,
+        _topPadding,
+        size.height - miniHeight - (bottom + _dragBottomPadding),
+      );
+      _safeSetState(() {
+        _offset = Offset(dx, dy);
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    ChannelMiniPlayerManager.I.isMinimized.removeListener(_onMinimizedChanged);
     _controlsTimer?.cancel();
     super.dispose();
   }
@@ -99,6 +167,9 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final bottom = _bottomInset(context);
+    if (_lastSize != size) {
+      _recalculateLayout(size);
+    }
 
     return AnimatedBuilder(
       animation: Listenable.merge([
@@ -115,56 +186,16 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
         final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
         final now = ChannelMiniPlayerManager.I.nowPlaying.value;
         final floatingPlayer = ChannelMiniPlayerManager.I.floatingPlayer.value;
-        if (kDebugMode) {
-          debugPrint(
-              '[ChannelMiniPlayer] suppressed=$suppressed minimized=$minimized nowPlaying=${now != null}');
-        }
         if (suppressed || !minimized || now == null) {
           return const SizedBox.shrink();
         }
-
-        _baseWidth ??= size.width * 0.40;
-        final baseWidth = _baseWidth!;
-        final miniWidth =
-            (baseWidth * _scale).clamp(_minWidth, size.width * 0.7);
-        final miniHeight = miniWidth / _aspectRatio;
-        final prevMin = _lastMinimized;
+        if (kDebugMode) {
+          debugPrint('[MiniPlayer] render videoId=${now.videoId}');
+        }
+        final miniWidth = _miniWidth ??
+            (size.width * 0.40 * _scale).clamp(_minWidth, size.width * 0.7);
+        final miniHeight = _miniHeight ?? (miniWidth / _aspectRatio);
         _lastMinimized = minimized;
-        if (prevMin != true && minimized) {
-          // Entry animation: start slightly off-screen bottom-right, then
-          // animate into the anchored position.
-          final target =
-              _anchorBottomRight(context, size, miniWidth, miniHeight);
-          final start = Offset(size.width + 12, size.height + 12);
-          _offset = start;
-          _positionInitialized = true;
-          _lastSize = size;
-          _showControls = true;
-          _scheduleHideControls();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _safeSetState(() {
-              _offset = target;
-            });
-          });
-        }
-        if (_lastSize != size && _positionInitialized) {
-          final dx = _safeClamp(
-              _offset.dx, _edgePadding, size.width - miniWidth - _edgePadding);
-          final dy = _safeClamp(
-            _offset.dy,
-            _topPadding,
-            size.height - miniHeight - (bottom + _dragBottomPadding),
-          );
-          _offset = Offset(dx, dy);
-          if (!_positionInitialized) {
-            _offset = _anchorBottomRight(context, size, miniWidth, miniHeight);
-            _positionInitialized = true;
-          } else if (_lastSize != null && _lastSize != size) {
-            _offset = _anchorBottomRight(context, size, miniWidth, miniHeight);
-          }
-          _lastSize = size;
-        }
         return AnimatedPositioned(
           left: _offset.dx,
           top: _offset.dy,
@@ -356,31 +387,15 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                       _miniControlButton(
                         icon: Icons.open_in_full,
                         onTap: () {
-                          ChannelMiniPlayerManager.I.setMinimized(false);
+                          if (kDebugMode) {
+                            debugPrint(
+                                '[MiniPlayer] maximize tap videoId=${now.videoId} playlistId=${now.playlistId}');
+                          }
                           final cb = now.onExpand;
                           if (cb != null) {
                             cb();
-                            return;
-                          }
-                          if (now.playlistId != null &&
-                              now.playlistId!.isNotEmpty) {
-                            final nav =
-                                Navigator.of(context, rootNavigator: true);
-                            final target = '/playlist/${now.playlistId!}';
-                            if (appRouteStackObserver.containsName(target)) {
-                              nav.popUntil(
-                                  (route) => route.settings.name == target);
-                            } else {
-                              nav.push(
-                                MaterialPageRoute(
-                                  settings: RouteSettings(name: target),
-                                  builder: (_) => PlaylistDetailPage(
-                                    playlistId: now.playlistId!,
-                                    title: now.playlistTitle ?? now.title,
-                                  ),
-                                ),
-                              );
-                            }
+                          } else {
+                            ChannelMiniPlayerManager.I.requestExpand(now);
                           }
                         },
                       ),
@@ -390,7 +405,8 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                         onTap: () {
                           final isLive = now.videoId.startsWith('live:');
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            ChannelMiniPlayerManager.I.clear();
+                            ChannelMiniPlayerManager.I
+                                .clear(disposeController: false);
                             if (isLive) {
                               TvController.instance
                                   .setUseUnifiedMiniPlayer(false);

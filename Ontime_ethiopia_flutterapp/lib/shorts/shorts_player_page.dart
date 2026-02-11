@@ -11,6 +11,7 @@ import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../channels/player/channel_mini_player_manager.dart';
+import '../core/services/pip_service.dart';
 
 class ShortsPlayerPage extends StatefulWidget {
   final List<Map<String, dynamic>>
@@ -156,6 +157,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
   @override
   void initState() {
     super.initState();
+    PipService.setActive(true);
     ChannelMiniPlayerManager.I.setSuppressed(true);
     ChannelMiniPlayerManager.I.pause();
     _effectiveOffline = widget.isOffline;
@@ -270,6 +272,7 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage> {
 
   @override
   void dispose() {
+    PipService.setActive(false);
     // Restore normal system UI when leaving Shorts
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

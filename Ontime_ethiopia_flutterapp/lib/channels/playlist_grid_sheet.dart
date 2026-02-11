@@ -11,7 +11,7 @@ import '../core/localization/l10n.dart';
 import 'channel_playlist_cache.dart';
 import 'channel_service.dart';
 import 'channel_ui_utils.dart';
-import 'playlist_detail_page.dart';
+import 'playlist_detail_page_dummy.dart';
 
 class PlaylistGridSheet extends StatefulWidget {
   final String channelSlug;
@@ -389,8 +389,10 @@ class _PlaylistGridSheetState extends State<PlaylistGridSheet> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       settings: RouteSettings(name: '/playlist/$id'),
-                      builder: (_) =>
-                          PlaylistDetailPage(playlistId: id, title: title),
+                      builder: (_) => PlaylistDetailPageDummy(
+                        playlistId: id,
+                        title: title,
+                      ),
                     ),
                   );
                 },

@@ -72,7 +72,7 @@ class PlaylistDetailPageView extends StatelessWidget {
           backgroundColor: Colors.black,
           appBar: null,
           body: SafeArea(
-            top: false,
+            top: true,
             bottom: false,
             child: Center(
               child: headerPlayer ?? const SizedBox.shrink(),
@@ -82,308 +82,321 @@ class PlaylistDetailPageView extends StatelessWidget {
       );
     }
 
-    return WillPopScope(
-      onWillPop: onWillPop,
-      child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        appBar: isLandscape ? null : AppBar(title: Text(appBarTitle)),
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          left: isLandscape,
-          right: isLandscape,
-          child: Column(
-            children: [
-              if (headerPlayer != null)
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: headerPlayer!,
-                ),
-              if (!minimized && headerPlayer != null)
-                const Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: Colors.white,
-                ),
-              if (!minimized && headerVideo != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            final id =
-                                (headerVideo!['id'] ?? '').toString().trim();
-                            onToggleWatched(id);
-                          },
-                          icon: Icon(
-                            watchedVideoIds.contains(
-                                    (headerVideo!['id'] ?? '').toString())
-                                ? Icons.check_circle
-                                : Icons.check_circle_outline,
+    return ValueListenableBuilder<double>(
+      valueListenable: ChannelMiniPlayerManager.I.miniPlayerHeight,
+      builder: (context, miniHeight, _) {
+        const double bottomPad = 0.0;
+        return WillPopScope(
+          onWillPop: onWillPop,
+          child: Scaffold(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            appBar: isLandscape ? null : AppBar(title: Text(appBarTitle)),
+            body: SafeArea(
+              top: true,
+              bottom: false,
+              left: isLandscape,
+              right: isLandscape,
+              child: Column(
+                children: [
+                  if (headerPlayer != null)
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: headerPlayer!,
+                    ),
+                  if (!minimized && headerPlayer != null)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.white,
+                    ),
+                  if (!minimized && headerVideo != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final id = (headerVideo!['id'] ?? '')
+                                    .toString()
+                                    .trim();
+                                onToggleWatched(id);
+                              },
+                              icon: Icon(
+                                watchedVideoIds.contains(
+                                        (headerVideo!['id'] ?? '').toString())
+                                    ? Icons.check_circle
+                                    : Icons.check_circle_outline,
+                              ),
+                              label: Text(
+                                watchedVideoIds.contains(
+                                        (headerVideo!['id'] ?? '').toString())
+                                    ? 'Watched'
+                                    : 'Mark as watched',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                          label: Text(
-                            watchedVideoIds.contains(
-                                    (headerVideo!['id'] ?? '').toString())
-                                ? 'Watched'
-                                : 'Mark as watched',
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: (!remindAvailable || loadingReminder)
+                                  ? null
+                                  : onToggleReminder,
+                              icon: Icon(
+                                remindOn
+                                    ? Icons.notifications_active
+                                    : Icons.notifications_none_outlined,
+                              ),
+                              label: Text(
+                                remindOn
+                                    ? 'Reminding'
+                                    : (remindAvailable
+                                        ? 'Remind me'
+                                        : 'Remind me (show only)'),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: (!remindAvailable || loadingReminder)
-                              ? null
-                              : onToggleReminder,
-                          icon: Icon(
-                            remindOn
-                                ? Icons.notifications_active
-                                : Icons.notifications_none_outlined,
-                          ),
-                          label: Text(
-                            remindOn
-                                ? 'Reminding'
-                                : (remindAvailable
-                                    ? 'Remind me'
-                                    : 'Remind me (show only)'),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (!minimized) ...[
-                ValueListenableBuilder<ChannelNowPlaying?>(
-                  valueListenable: ChannelMiniPlayerManager.I.nowPlaying,
-                  builder: (context, now, _) {
-                    if (now == null) return const SizedBox.shrink();
-                    if (!now.isPlaying) return const SizedBox.shrink();
-                    final sub = (now.playlistTitle ?? '').trim().isNotEmpty
-                        ? now.playlistTitle!.trim()
-                        : '';
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                      child: Material(
-                        color: Theme.of(context).colorScheme.surface,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outlineVariant
-                                .withOpacity(0.6),
-                          ),
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: onToggleNowPlayingExpanded,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                    ),
+                  if (!minimized) ...[
+                    ValueListenableBuilder<ChannelNowPlaying?>(
+                      valueListenable: ChannelMiniPlayerManager.I.nowPlaying,
+                      builder: (context, now, _) {
+                        if (now == null) return const SizedBox.shrink();
+                        if (!now.isPlaying) return const SizedBox.shrink();
+                        final sub = (now.playlistTitle ?? '').trim().isNotEmpty
+                            ? now.playlistTitle!.trim()
+                            : '';
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                          child: Material(
+                            color: Theme.of(context).colorScheme.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant
+                                    .withOpacity(0.6),
+                              ),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: onToggleNowPlayingExpanded,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        now.title,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w700),
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            now.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.w700),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Icon(
+                                          nowPlayingExpanded
+                                              ? Icons.expand_less
+                                              : Icons.expand_more,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 10),
-                                    Icon(
-                                      nowPlayingExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      sub.isNotEmpty ? sub : now.title,
+                                      maxLines: nowPlayingExpanded ? 6 : 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  sub.isNotEmpty ? sub : now.title,
-                                  maxLines: nowPlayingExpanded ? 6 : 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-              ],
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: onRefresh,
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeBottom: true,
-                    child: (videos.length <= 5 && !hasNext && !loadingMore)
-                        ? LayoutBuilder(
-                            builder: (context, constraints) {
-                              return SingleChildScrollView(
-                                padding: EdgeInsets.only(bottom: listBottomPad),
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minHeight: constraints.maxHeight,
-                                  ),
-                                  child: IntrinsicHeight(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        ...listHeader,
-                                        for (final v in videos) ...[
-                                          Builder(
-                                            builder: (context) {
-                                              final title =
-                                                  (v['title'] ?? '').toString();
-                                              final thumb = thumbFromMap(v);
-                                              return Column(
-                                                children: [
-                                                  ListTile(
-                                                    dense: false,
-                                                    visualDensity:
-                                                        const VisualDensity(
-                                                            vertical: -1),
-                                                    contentPadding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                            horizontal: 12),
-                                                    minLeadingWidth: 0,
-                                                    horizontalTitleGap: 10,
-                                                    leading: ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                      child: SizedBox(
-                                                        width: 72,
-                                                        height: 44,
-                                                        child: thumb != null &&
-                                                                thumb.isNotEmpty
-                                                            ? CachedNetworkImage(
-                                                                imageUrl: thumb,
-                                                                fit: BoxFit
-                                                                    .cover,
-                                                                httpHeaders:
-                                                                    authHeadersFor(
-                                                                        thumb),
-                                                              )
-                                                            : Container(
-                                                                color: Colors
-                                                                    .black26),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
+                  ...listHeader,
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: onRefresh,
+                      child: MediaQuery.removePadding(
+                        context: context,
+                        removeBottom: true,
+                        child: (videos.length <= 5 && !hasNext && !loadingMore)
+                            ? LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    padding: EdgeInsets.only(bottom: bottomPad),
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minHeight: constraints.maxHeight,
+                                      ),
+                                      child: IntrinsicHeight(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            for (final v in videos) ...[
+                                              Builder(
+                                                builder: (context) {
+                                                  final title =
+                                                      (v['title'] ?? '')
+                                                          .toString();
+                                                  final thumb = thumbFromMap(v);
+                                                  return Column(
+                                                    children: [
+                                                      ListTile(
+                                                        dense: false,
+                                                        visualDensity:
+                                                            const VisualDensity(
+                                                                vertical: -1),
+                                                        contentPadding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal: 12),
+                                                        minLeadingWidth: 0,
+                                                        horizontalTitleGap: 10,
+                                                        leading: ClipRRect(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                          child: SizedBox(
+                                                            width: 72,
+                                                            height: 44,
+                                                            child: thumb !=
+                                                                        null &&
+                                                                    thumb
+                                                                        .isNotEmpty
+                                                                ? CachedNetworkImage(
+                                                                    imageUrl:
+                                                                        thumb,
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                    httpHeaders:
+                                                                        authHeadersFor(
+                                                                            thumb),
+                                                                  )
+                                                                : Container(
+                                                                    color: Colors
+                                                                        .black26),
+                                                          ),
+                                                        ),
+                                                        title: Text(
+                                                          title,
+                                                          maxLines: 3,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                        trailing: const Icon(Icons
+                                                            .play_circle_outline),
+                                                        onTap: () =>
+                                                            onTapVideo(v),
                                                       ),
-                                                    ),
-                                                    title: Text(
-                                                      title,
-                                                      maxLines: 3,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    trailing: const Icon(Icons
-                                                        .play_circle_outline),
-                                                    onTap: () => onTapVideo(v),
-                                                  ),
-                                                  const Divider(height: 1),
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                        const Spacer(),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        : ListView.builder(
-                            controller: scrollController,
-                            padding: EdgeInsets.only(bottom: listBottomPad),
-                            itemCount: headerCount +
-                                videos.length +
-                                (loadingMore ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index < headerCount) {
-                                return listHeader[index];
-                              }
-                              final int vi = index - headerCount;
-                              if (vi >= videos.length) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(12.0),
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    ),
-                                  ),
-                                );
-                              }
-                              final v = videos[vi];
-                              final title = (v['title'] ?? '').toString();
-                              final thumb = thumbFromMap(v);
-                              return Column(
-                                children: [
-                                  ListTile(
-                                    dense: false,
-                                    visualDensity:
-                                        const VisualDensity(vertical: -1),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 12),
-                                    minLeadingWidth: 0,
-                                    horizontalTitleGap: 10,
-                                    leading: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: SizedBox(
-                                        width: 72,
-                                        height: 44,
-                                        child: thumb != null && thumb.isNotEmpty
-                                            ? CachedNetworkImage(
-                                                imageUrl: thumb,
-                                                fit: BoxFit.cover,
-                                                httpHeaders:
-                                                    authHeadersFor(thumb),
-                                              )
-                                            : Container(color: Colors.black26),
+                                                      const Divider(height: 1),
+                                                    ],
+                                                  );
+                                                },
+                                              ),
+                                            ],
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    title: Text(
-                                      title,
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    trailing:
-                                        const Icon(Icons.play_circle_outline),
-                                    onTap: () => onTapVideo(v),
-                                  ),
-                                  const Divider(height: 1),
-                                ],
-                              );
-                            },
-                          ),
+                                  );
+                                },
+                              )
+                            : ListView.builder(
+                                controller: scrollController,
+                                padding: EdgeInsets.only(bottom: bottomPad),
+                                itemCount:
+                                    videos.length + (loadingMore ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (index >= videos.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(12.0),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final v = videos[index];
+                                  final title = (v['title'] ?? '').toString();
+                                  final thumb = thumbFromMap(v);
+                                  return Column(
+                                    children: [
+                                      ListTile(
+                                        dense: false,
+                                        visualDensity:
+                                            const VisualDensity(vertical: -1),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                        minLeadingWidth: 0,
+                                        horizontalTitleGap: 10,
+                                        leading: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: SizedBox(
+                                            width: 72,
+                                            height: 44,
+                                            child: thumb != null &&
+                                                    thumb.isNotEmpty
+                                                ? CachedNetworkImage(
+                                                    imageUrl: thumb,
+                                                    fit: BoxFit.cover,
+                                                    httpHeaders:
+                                                        authHeadersFor(thumb),
+                                                  )
+                                                : Container(
+                                                    color: Colors.black26),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          title,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: const Icon(
+                                            Icons.play_circle_outline),
+                                        onTap: () => onTapVideo(v),
+                                      ),
+                                      const Divider(height: 1),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

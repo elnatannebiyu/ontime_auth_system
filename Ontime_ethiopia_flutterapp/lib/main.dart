@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
@@ -31,6 +32,7 @@ import 'package:flutter/services.dart';
 import 'settings/notification_inbox_page.dart';
 import 'channels/player/channel_mini_player.dart';
 import 'channels/player/channel_mini_player_manager.dart';
+import 'channels/playlist_detail_page_dummy.dart';
 import 'core/navigation/route_stack_observer.dart';
 import 'features/series/mini_player/series_mini_player.dart';
 import 'package:provider/provider.dart';
@@ -185,11 +187,6 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-        statusBarColor: Colors.transparent,
-      ));
     } catch (_) {}
     api = widget.api ?? AuthApi();
     tokenStore = widget.tokenStore ?? SecureTokenStore();
@@ -201,6 +198,53 @@ class _MyAppState extends State<MyApp> {
     try {
       SimpleSessionManager().registerAudioController(_audioController);
     } catch (_) {}
+    ChannelMiniPlayerManager.I.setExpandHandler((now) {
+      final playlistId = (now.playlistId ?? '').isNotEmpty
+          ? now.playlistId
+          : ChannelMiniPlayerManager.I.lastPlaylistId;
+      if (playlistId == null || playlistId.isEmpty) return;
+      final nav = appNavigatorKey.currentState;
+      debugPrint(
+          '[ChannelMiniPlayer] expand requested playlistId=$playlistId navReady=${nav != null}');
+      if (nav == null) return;
+      final title = now.playlistTitle ??
+          ChannelMiniPlayerManager.I.lastPlaylistTitle ??
+          now.title;
+      final routeName = '/playlist/$playlistId';
+      if (kDebugMode) {
+        debugPrint(
+            '[MiniExpand] route=$routeName top=${appRouteStackObserver.top} inStack=${appRouteStackObserver.containsName(routeName)}');
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final currentNav = appNavigatorKey.currentState;
+        if (currentNav == null) return;
+        if (appRouteStackObserver.top == routeName) {
+          ChannelMiniPlayerManager.I.setPendingOpenFromMini(playlistId);
+          ChannelMiniPlayerManager.I.setSuppressed(true);
+          return;
+        }
+        if (appRouteStackObserver.containsName(routeName)) {
+          ChannelMiniPlayerManager.I.setPendingOpenFromMini(playlistId);
+          ChannelMiniPlayerManager.I.setSuppressed(true);
+          currentNav.popUntil((route) => route.settings.name == routeName);
+        } else {
+          currentNav
+              .push(
+            MaterialPageRoute(
+              settings: RouteSettings(name: routeName),
+              builder: (_) => PlaylistDetailPageDummy(
+                playlistId: playlistId,
+                title: title,
+                origin: PlaylistOpenOrigin.maximizeFromMini,
+              ),
+            ),
+          )
+              .then((_) {
+            ChannelMiniPlayerManager.I.setSuppressed(false);
+          });
+        }
+      });
+    });
     // Start async loads if we created them here
     themeController.load();
     localizationController.load();
@@ -333,10 +377,12 @@ class _MyAppState extends State<MyApp> {
             scaffoldMessengerKey: _smKey,
             navigatorObservers: [appRouteObserver, appRouteStackObserver],
             builder: (context, child) {
+              final safeChild = SafeArea(
+                child: child ?? const SizedBox.shrink(),
+              );
               return Overlay(
                 initialEntries: [
-                  OverlayEntry(
-                      builder: (_) => child ?? const SizedBox.shrink()),
+                  OverlayEntry(builder: (_) => safeChild),
                   OverlayEntry(
                     builder: (_) => ValueListenableBuilder<bool>(
                       valueListenable:
