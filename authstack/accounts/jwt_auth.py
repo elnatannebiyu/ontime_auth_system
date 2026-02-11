@@ -216,7 +216,7 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             # This API is used by the admin frontend; users with Viewer-only role
             # must not receive auth tokens here.
             if not _is_admin_frontend_user(self.user, membership):
-                raise AuthenticationFailed('admin_frontend_role_required')
+                raise AuthenticationFailed('Invalid User Name and Password')
 
             # Determine roles server-side after login; do not rely on client headers
             

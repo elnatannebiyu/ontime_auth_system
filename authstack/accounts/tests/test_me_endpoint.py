@@ -13,7 +13,7 @@ class MeEndpointTests(TestCase):
         self.url_token = "/api/token/"
         self.url_me = "/api/me/"
 
-    def create_user(self, email="user@example.com", password="p@ssw0rd!123"):
+    def create_user(self, email="wendesenmekonen803", password="Root@1324"):
         return User.objects.create_user(username=email, email=email, password=password)
 
     def create_membership(self, user, roles=None):
