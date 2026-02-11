@@ -53,6 +53,10 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
         if (mounted) {
           setAllowed(ok);
           setLoading(false);
+          if (!ok && !redirecting) {
+            redirecting = true;
+            setShouldRedirect(true);
+          }
         }
       } catch (e: any) {
         // On 401, try a single refresh, then retry /me
@@ -71,6 +75,10 @@ const RequireAdmin: React.FC<{ children: React.ReactElement }>
             if (mounted) {
               setAllowed(ok);
               setLoading(false);
+              if (!ok && !redirecting) {
+                redirecting = true;
+                setShouldRedirect(true);
+              }
             }
             return;
           } catch (_) {

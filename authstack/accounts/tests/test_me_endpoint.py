@@ -1,6 +1,5 @@
 from django.test import TestCase
-from django.urls import reverse
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from rest_framework.test import APIClient
 from tenants.models import Tenant
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,6 +15,14 @@ class MeEndpointTests(TestCase):
 
     def create_user(self, email="user@example.com", password="p@ssw0rd!123"):
         return User.objects.create_user(username=email, email=email, password=password)
+
+    def create_membership(self, user, roles=None):
+        from accounts.models import Membership
+        membership = Membership.objects.create(user=user, tenant=self.tenant)
+        for role_name in (roles or []):
+            role, _ = Group.objects.get_or_create(name=role_name)
+            membership.roles.add(role)
+        return membership
 
     def obtain_token(self, email, password, with_tenant_header=True):
         headers = {}
@@ -68,22 +75,25 @@ class MeEndpointTests(TestCase):
         self.assertEqual(resp.status_code, 403)
         self.assertIn("Token missing tenant context", resp.json().get("detail", ""))
 
-    def test_403_when_not_a_member_of_tenant(self):
-        # Arrange: token WITH tenant_id claim but user has NO membership
+    def test_401_when_not_a_member_of_tenant_on_login(self):
+        # Arrange: user has no tenant membership
         user = self.create_user("nomember@example.com")
-        token = self.obtain_token(user.username, "p@ssw0rd!123", with_tenant_header=True)
         # Act
-        resp = self.client.get(self.url_me, HTTP_AUTHORIZATION=f"Bearer {token}", HTTP_X_TENANT_ID=self.tenant.slug)
+        resp = self.client.post(
+            self.url_token,
+            {"username": user.username, "password": "p@ssw0rd!123"},
+            format="json",
+            HTTP_X_TENANT_ID=self.tenant.slug,
+        )
         # Assert
-        self.assertEqual(resp.status_code, 403)
-        self.assertIn("Not a member of this tenant", resp.data.get("detail", ""))
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(str(resp.data.get("detail")), "not_member_of_tenant")
 
     def test_200_success_when_member_and_matching_tenant(self):
         # Arrange: create user + membership and obtain tenant-aware token
         user = self.create_user("member@example.com")
-        # Create membership
-        from accounts.models import Membership
-        Membership.objects.create(user=user, tenant=self.tenant)
+        # Create membership with AdminFrontend role (required by token endpoint)
+        self.create_membership(user, roles=['AdminFrontend'])
         token = self.obtain_token(user.username, "p@ssw0rd!123", with_tenant_header=True)
         # Act
         resp = self.client.get(self.url_me, HTTP_AUTHORIZATION=f"Bearer {token}", HTTP_X_TENANT_ID=self.tenant.slug)
@@ -91,3 +101,38 @@ class MeEndpointTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data.get("username"), user.username)
         self.assertIn("tenant_roles", resp.data)
+
+    def test_401_when_user_has_only_viewer_role(self):
+        # Arrange: tenant member with Viewer role only
+        user = self.create_user("viewer@example.com")
+        self.create_membership(user, roles=['Viewer'])
+
+        # Act
+        resp = self.client.post(
+            self.url_token,
+            {"username": user.username, "password": "p@ssw0rd!123"},
+            format="json",
+            HTTP_X_TENANT_ID=self.tenant.slug,
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(str(resp.data.get("detail")), "admin_frontend_role_required")
+
+    def test_200_when_user_has_adminfrontend_tenant_role(self):
+        # Arrange: tenant member with AdminFrontend role
+        user = self.create_user("admin-role@example.com")
+        self.create_membership(user, roles=['AdminFrontend'])
+
+        # Act
+        resp = self.client.post(
+            self.url_token,
+            {"username": user.username, "password": "p@ssw0rd!123"},
+            format="json",
+            HTTP_X_TENANT_ID=self.tenant.slug,
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("access", resp.data)
+

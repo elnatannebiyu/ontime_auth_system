@@ -128,6 +128,24 @@ def _normalize_device_type(request, ua: str) -> str:
     return 'web'
 
 
+def _is_admin_frontend_user(user, membership: Membership) -> bool:
+    """Return True when user can access admin frontend login.
+
+    Accept either global AdminFrontend group (or superuser) OR tenant-scoped
+    AdminFrontend role on the resolved membership.
+    """
+    try:
+        if bool(getattr(user, 'is_superuser', False)):
+            return True
+        if user.groups.filter(name='AdminFrontend').exists():
+            return True
+        if membership.roles.filter(name='AdminFrontend').exists():
+            return True
+    except Exception:
+        return False
+    return False
+
+
 class TokenVersionMixin:
     """Mixin to add token version validation"""
     
@@ -189,9 +207,16 @@ class CustomTokenObtainPairSerializer(TokenVersionMixin, TokenObtainPairSerializ
             except Tenant.DoesNotExist:
                 raise AuthenticationFailed('unknown_tenant')
 
-            if not Membership.objects.filter(user=self.user, tenant=tenant).exists():
+            membership = Membership.objects.filter(user=self.user, tenant=tenant).first()
+            if membership is None:
                 # Deny login if user is not a member of this tenant
                 raise AuthenticationFailed('not_member_of_tenant')
+
+            # Enforce admin-frontend login policy at authentication boundary.
+            # This API is used by the admin frontend; users with Viewer-only role
+            # must not receive auth tokens here.
+            if not _is_admin_frontend_user(self.user, membership):
+                raise AuthenticationFailed('admin_frontend_role_required')
 
             # Determine roles server-side after login; do not rely on client headers
             
