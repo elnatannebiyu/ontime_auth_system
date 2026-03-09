@@ -35,24 +35,108 @@ class PlaylistDetailPageDummy extends StatefulWidget {
 
 class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
   final ChannelsService _service = ChannelsService();
-  final GlobalKey _playerKey = GlobalKey();
+  final GlobalKey _playerSurfaceKey = GlobalKey();
   final List<Map<String, dynamic>> _videos = [];
   final ScrollController _scroll = ScrollController();
   Map<String, dynamic>? _currentVideo;
-  bool _playOnInit = false;
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasNext = true;
   int _page = 1;
   String? _heroThumb;
-  bool _skipDetailUpdates = false;
   bool _hideMainPlayer = false;
   bool _allowNowPlayingSync = true;
   bool _didSuppressMini = false;
   bool _handledPendingOpen = false;
   bool _didShowNullVideoToast = false;
-  bool _didForceUnminimize = false;
-  bool _didSyncNowPlayingFallback = false;
+  String? _lastFloatingVideoId;
+
+  void _openCurrentPlaylistRoute() {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+    final target = '/playlist/${widget.playlistId}';
+    if (appRouteStackObserver.containsName(target)) {
+      nav.popUntil((route) => route.settings.name == target);
+      return;
+    }
+    nav.push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: target),
+        builder: (_) => PlaylistDetailPageDummy(
+          playlistId: widget.playlistId,
+          title: widget.title,
+        ),
+      ),
+    );
+  }
+
+  void _setMainPlayerVisible() {
+    _allowNowPlayingSync = true;
+    _hideMainPlayer = false;
+    _didSuppressMini = true;
+  }
+
+  Map<String, dynamic>? _fallbackVideoFromSession() {
+    final nowPlaying = ChannelMiniPlayerManager.I.nowPlaying.value;
+    final nowVideo = _videoFromNowPlaying(nowPlaying);
+    if (nowVideo != null) return nowVideo;
+    final controllerVideoId = ChannelMiniPlayerManager.I.currentVideoId ?? '';
+    if (controllerVideoId.isEmpty) return null;
+    return <String, dynamic>{
+      'youtube_id': controllerVideoId,
+      'title': _currentVideo?['title'] ?? widget.title,
+      if (((_currentVideo?['thumbnail_url'] ?? '').toString().isNotEmpty))
+        'thumbnail_url': _currentVideo?['thumbnail_url'],
+    };
+  }
+
+  Map<String, dynamic>? _videoFromNowPlaying(ChannelNowPlaying? nowPlaying) {
+    if (nowPlaying == null) return null;
+    return <String, dynamic>{
+      'youtube_id': nowPlaying.videoId,
+      'title': nowPlaying.title,
+      if ((nowPlaying.thumbnailUrl ?? '').isNotEmpty)
+        'thumbnail_url': nowPlaying.thumbnailUrl,
+    };
+  }
+
+  ChannelYoutubePlayer _buildChannelPlayer({
+    required Map<String, dynamic>? video,
+  }) {
+    final existing = ChannelMiniPlayerManager.I.floatingPlayer.value;
+    final videoMap = video;
+    final targetId = videoMap == null ? '' : _videoIdFromMap(videoMap);
+    final currentSessionId = ChannelMiniPlayerManager.I.currentVideoId ?? '';
+    if (existing is ChannelYoutubePlayer &&
+        targetId.isNotEmpty &&
+        currentSessionId == targetId) {
+      return existing;
+    }
+    final player = ChannelYoutubePlayer(
+      key: _playerSurfaceKey,
+      video: video,
+      playlistId: widget.playlistId,
+      playlistTitle: widget.title,
+      onExpand: _openCurrentPlaylistRoute,
+      onClose: () {
+        if (!mounted) return;
+        setState(() {
+          _currentVideo = null;
+        });
+      },
+      onPlayingChanged: (playing) {
+        if (!mounted || !playing) return;
+        setState(() {});
+      },
+      onAutoPlayNext: () {},
+      fallback: _heroPlaceholder(),
+    );
+    if (targetId.isNotEmpty) {
+      _lastFloatingVideoId = targetId;
+    }
+    ChannelMiniPlayerManager.I.setFloatingPlayer(player);
+    return player;
+  }
 
   @override
   void initState() {
@@ -69,7 +153,6 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
     final isMiniActive =
         now != null && ChannelMiniPlayerManager.I.isMinimized.value;
     final isMiniDifferent = isMiniActive && !samePlaylist;
-    _skipDetailUpdates = fromMini;
     _allowNowPlayingSync = (!fromMini || samePlaylist) && !isMiniDifferent;
     _hideMainPlayer = (fromMini && !samePlaylist) || isMiniDifferent;
     _didSuppressMini = !isMiniDifferent && (!fromMini || samePlaylist);
@@ -79,23 +162,10 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
         ChannelMiniPlayerManager.I.setSuppressed(true);
       });
     }
-    _loadPage();
-    _loadDetail();
-    _scroll.addListener(_onScroll);
-    ChannelMiniPlayerManager.I.nowPlaying.addListener(_syncFromNowPlaying);
-    _syncFromNowPlaying();
-    if (fromMini && samePlaylist) {
-      final nowPlaying = ChannelMiniPlayerManager.I.nowPlaying.value;
-      final fallbackVideo = nowPlaying == null
-          ? null
-          : <String, dynamic>{
-              'youtube_id': nowPlaying.videoId,
-              'title': nowPlaying.title,
-              if ((nowPlaying.thumbnailUrl ?? '').isNotEmpty)
-                'thumbnail_url': nowPlaying.thumbnailUrl,
-            };
-      _currentVideo ??= fallbackVideo;
-      _playOnInit = true;
+    // If this playlist is opened while the unified mini-player is active for the
+    // same playlist, restore the in-page player by default. (User can still
+    // manually minimize again.)
+    if (samePlaylist && isMiniActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (ChannelMiniPlayerManager.I.isMinimized.value) {
@@ -103,6 +173,27 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
         }
       });
     }
+    _loadPage();
+    _loadDetail();
+    _scroll.addListener(_onScroll);
+    ChannelMiniPlayerManager.I.nowPlaying.addListener(_syncFromNowPlaying);
+    ChannelMiniPlayerManager.I.isMinimized.addListener(_onMinimizedChanged);
+    _syncFromNowPlaying();
+    if (fromMini && samePlaylist) {
+      final fallbackVideo =
+          _videoFromNowPlaying(ChannelMiniPlayerManager.I.nowPlaying.value);
+      _currentVideo ??= fallbackVideo;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (ChannelMiniPlayerManager.I.isMinimized.value) {
+          ChannelMiniPlayerManager.I.setMinimized(false);
+        }
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateFloatingPlayer();
+    });
   }
 
   Widget _buildNowPlayingSummary() {
@@ -162,36 +253,68 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
     );
   }
 
-  void _setNowPlayingFromVideo(Map<String, dynamic> video) {
-    final id = [
+  String _videoIdFromMap(Map<String, dynamic> video) {
+    return [
       video['youtube_id'],
       video['youtube_video_id'],
       video['yt_video_id'],
       video['video_id'],
     ].whereType<String>().firstWhere((v) => v.isNotEmpty, orElse: () => '');
+  }
+
+  void _setNowPlayingFromVideo(Map<String, dynamic> video,
+      {bool openIfSame = false}) {
+    final id = _videoIdFromMap(video);
     final title = (video['title'] ?? '').toString();
     if (id.isEmpty || title.isEmpty) return;
-    ChannelMiniPlayerManager.I.setNowPlaying(
-      ChannelNowPlaying(
-        videoId: id,
-        title: title,
-        playlistId: widget.playlistId,
-        playlistTitle: widget.title,
-        thumbnailUrl: thumbFromMap(video),
-        isPlaying: true,
-      ),
+    ChannelMiniPlayerManager.I.setVideo(
+      videoId: id,
+      title: title,
+      playlistId: widget.playlistId,
+      playlistTitle: widget.title,
+      thumbnailUrl: thumbFromMap(video),
+      openIfSame: openIfSame,
     );
   }
 
   @override
   void dispose() {
     ChannelMiniPlayerManager.I.nowPlaying.removeListener(_syncFromNowPlaying);
+    ChannelMiniPlayerManager.I.isMinimized.removeListener(_onMinimizedChanged);
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
     if (_didSuppressMini) {
       ChannelMiniPlayerManager.I.setSuppressed(false);
     }
     super.dispose();
+  }
+
+  void _onMinimizedChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateFloatingPlayer();
+    });
+  }
+
+  void _updateFloatingPlayer() {
+    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    final effectiveVideo = _currentVideo ?? _videoFromNowPlaying(now);
+    if (effectiveVideo == null) {
+      _lastFloatingVideoId = null;
+      ChannelMiniPlayerManager.I.setFloatingPlayer(null);
+      return;
+    }
+    if (!minimized && ChannelMiniPlayerManager.I.floatingPlayer.value != null) {
+      return;
+    }
+    final floatingVideoId = _videoIdFromMap(effectiveVideo);
+    if (!minimized &&
+        floatingVideoId.isNotEmpty &&
+        floatingVideoId == _lastFloatingVideoId) {
+      return;
+    }
+    _buildChannelPlayer(video: effectiveVideo);
   }
 
   void _syncFromNowPlaying() {
@@ -203,6 +326,10 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
         (now.playlistId ?? ChannelMiniPlayerManager.I.lastPlaylistId ?? '')
             .trim();
     if (effectivePlaylistId != widget.playlistId) return;
+    final currentVideo = _currentVideo;
+    if (currentVideo != null && _videoIdFromMap(currentVideo) == now.videoId) {
+      return;
+    }
     final match = _videos.isEmpty
         ? <String, dynamic>{
             'youtube_id': now.videoId,
@@ -230,18 +357,14 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
             },
           );
     if (match.isEmpty) return;
-    if (_currentVideo == null && !_didSyncNowPlayingFallback) {
-      _didSyncNowPlayingFallback = true;
-    }
     final phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks) {
+    if (phase != SchedulerPhase.idle) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
           _currentVideo = match;
-          _playOnInit = _playOnInit || _didSyncNowPlayingFallback;
         });
+        _updateFloatingPlayer();
       });
       return;
     }
@@ -249,49 +372,31 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
       if (!mounted) return;
       setState(() {
         _currentVideo = match;
-        _playOnInit = _playOnInit || _didSyncNowPlayingFallback;
       });
+      _updateFloatingPlayer();
     });
   }
 
   Future<bool> _handleBackPress() async {
     final now = ChannelMiniPlayerManager.I.nowPlaying.value;
-    final isPlaying = now?.isPlaying == true;
-    if (isPlaying) {
+    if (now != null || _currentVideo != null) {
+      if (now == null && _currentVideo != null) {
+        _setNowPlayingFromVideo(_currentVideo!);
+      }
+      ChannelMiniPlayerManager.I.setSuppressed(false);
+      _didSuppressMini = false;
+      ChannelMiniPlayerManager.I.setMinimized(true);
+      _updateFloatingPlayer();
       final nav = Navigator.of(context, rootNavigator: true);
       if (nav.canPop()) {
         nav.pop();
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ChannelMiniPlayerManager.I.setSuppressed(false);
-        _didSuppressMini = false;
-        ChannelMiniPlayerManager.I.setMinimized(true);
-      });
       return false;
     }
     return true;
   }
 
-  Future<void> _handleHeaderBack() async {
-    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
-    final isPlaying = now?.isPlaying == true;
-    if (isPlaying) {
-      final nav = Navigator.of(context, rootNavigator: true);
-      if (nav.canPop()) {
-        nav.pop();
-      }
-      await Future.delayed(const Duration(milliseconds: 80));
-      ChannelMiniPlayerManager.I.setSuppressed(false);
-      _didSuppressMini = false;
-      ChannelMiniPlayerManager.I.setMinimized(true);
-    }
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).maybePop();
-  }
-
   Future<void> _loadDetail() async {
-    if (_skipDetailUpdates) return;
     try {
       final detail = await _service.getPlaylistDetail(widget.playlistId);
       final Map<String, dynamic> map =
@@ -339,7 +444,6 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
         } else {
           _videos.addAll(results);
         }
-        _currentVideo = _currentVideo;
         _page = page;
         _hasNext = res['next'] != null;
         _loading = false;
@@ -480,18 +584,22 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
                   ),
                   trailing: const Icon(Icons.play_circle_outline),
                   onTap: () {
-                    ChannelMiniPlayerManager.I.clear(disposeController: false);
-                    ChannelMiniPlayerManager.I.setSuppressed(true);
-                    ChannelMiniPlayerManager.I.setMinimized(false);
+                    final id = _videoIdFromMap(video);
+                    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+                    final isSame = now != null && now.videoId == id;
+                    if (isSame) {
+                      ChannelMiniPlayerManager.I.setSuppressed(true);
+                      ChannelMiniPlayerManager.I.setMinimized(false);
+                    }
                     setState(() {
-                      _skipDetailUpdates = false;
-                      _allowNowPlayingSync = true;
-                      _hideMainPlayer = false;
-                      _didSuppressMini = true;
+                      _setMainPlayerVisible();
                       _currentVideo = video;
-                      _playOnInit = true;
                     });
-                    _setNowPlayingFromVideo(video);
+                    _setNowPlayingFromVideo(video, openIfSame: isSame);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _updateFloatingPlayer();
+                    });
                   },
                 );
               },
@@ -501,15 +609,7 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
 
   Widget _buildHeaderPlayer() {
     final now = ChannelMiniPlayerManager.I.nowPlaying.value;
-    final effectiveVideo = _currentVideo ??
-        (now == null
-            ? null
-            : <String, dynamic>{
-                'youtube_id': now.videoId,
-                'title': now.title,
-                if ((now.thumbnailUrl ?? '').isNotEmpty)
-                  'thumbnail_url': now.thumbnailUrl,
-              });
+    final effectiveVideo = _currentVideo ?? _videoFromNowPlaying(now);
     if (effectiveVideo == null && !_didShowNullVideoToast) {
       _didShowNullVideoToast = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -519,49 +619,9 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
         );
       });
     }
-    final player = ChannelYoutubePlayer(
-      key: _playerKey,
+    final player = _buildChannelPlayer(
       video: effectiveVideo,
-      playlistId: widget.playlistId,
-      playlistTitle: widget.title,
-      playOnInit: _playOnInit,
-      onExpand: () {
-        final nav = appNavigatorKey.currentState;
-        if (nav == null) return;
-        final target = '/playlist/${widget.playlistId}';
-        if (appRouteStackObserver.containsName(target)) {
-          nav.popUntil((route) => route.settings.name == target);
-          return;
-        }
-        nav.push(
-          MaterialPageRoute(
-            settings: RouteSettings(name: target),
-            builder: (_) => PlaylistDetailPageDummy(
-              playlistId: widget.playlistId,
-              title: widget.title,
-            ),
-          ),
-        );
-      },
-      onClose: () {
-        if (!mounted) return;
-        setState(() {
-          _currentVideo = null;
-          _playOnInit = false;
-        });
-      },
-      onPlayingChanged: (playing) {
-        if (!mounted) return;
-        setState(() {
-          if (playing) {
-            _playOnInit = false;
-          }
-        });
-      },
-      onAutoPlayNext: () {},
-      fallback: _heroPlaceholder(),
     );
-    ChannelMiniPlayerManager.I.setFloatingPlayer(player);
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: effectiveVideo == null
@@ -646,27 +706,14 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
       final effectivePlaylistId =
           (now?.playlistId ?? ChannelMiniPlayerManager.I.lastPlaylistId ?? '')
               .trim();
-      final samePlaylist =
-          now != null && effectivePlaylistId == widget.playlistId;
+      final samePlaylist = effectivePlaylistId == widget.playlistId;
       if (samePlaylist) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          final nowPlaying = ChannelMiniPlayerManager.I.nowPlaying.value;
-          final fallbackVideo = nowPlaying == null
-              ? null
-              : <String, dynamic>{
-                  'youtube_id': nowPlaying.videoId,
-                  'title': nowPlaying.title,
-                  if ((nowPlaying.thumbnailUrl ?? '').isNotEmpty)
-                    'thumbnail_url': nowPlaying.thumbnailUrl,
-                };
+          final fallbackVideo = _fallbackVideoFromSession();
           setState(() {
-            _skipDetailUpdates = true;
-            _allowNowPlayingSync = true;
-            _hideMainPlayer = false;
-            _didSuppressMini = true;
+            _setMainPlayerVisible();
             _currentVideo ??= fallbackVideo;
-            _playOnInit = true;
           });
           ChannelMiniPlayerManager.I.setSuppressed(true);
           ChannelMiniPlayerManager.I.setMinimized(false);
@@ -678,18 +725,6 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
       builder: (context, minimized, _) {
         final bool isLandscape =
             MediaQuery.of(context).orientation == Orientation.landscape;
-        if (!_didForceUnminimize &&
-            minimized &&
-            !_hideMainPlayer &&
-            ChannelMiniPlayerManager.I.nowPlaying.value != null) {
-          _didForceUnminimize = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            if (ChannelMiniPlayerManager.I.isMinimized.value) {
-              ChannelMiniPlayerManager.I.setMinimized(false);
-            }
-          });
-        }
         if (kDebugMode) {
           final now = ChannelMiniPlayerManager.I.nowPlaying.value;
           debugPrint(
@@ -699,49 +734,9 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
             isLandscape &&
             _currentVideo != null &&
             !_hideMainPlayer) {
-          final player = ChannelYoutubePlayer(
-            key: _playerKey,
+          final player = _buildChannelPlayer(
             video: _currentVideo,
-            playlistId: widget.playlistId,
-            playlistTitle: widget.title,
-            playOnInit: _playOnInit,
-            onExpand: () {
-              final nav = appNavigatorKey.currentState;
-              if (nav == null) return;
-              final target = '/playlist/${widget.playlistId}';
-              if (appRouteStackObserver.containsName(target)) {
-                nav.popUntil((route) => route.settings.name == target);
-                return;
-              }
-              nav.push(
-                MaterialPageRoute(
-                  settings: RouteSettings(name: target),
-                  builder: (_) => PlaylistDetailPageDummy(
-                    playlistId: widget.playlistId,
-                    title: widget.title,
-                  ),
-                ),
-              );
-            },
-            onClose: () {
-              if (!mounted) return;
-              setState(() {
-                _currentVideo = null;
-                _playOnInit = false;
-              });
-            },
-            onPlayingChanged: (playing) {
-              if (!mounted) return;
-              setState(() {
-                if (playing) {
-                  _playOnInit = false;
-                }
-              });
-            },
-            onAutoPlayNext: () {},
-            fallback: _heroPlaceholder(),
           );
-          ChannelMiniPlayerManager.I.setFloatingPlayer(player);
           return Scaffold(
             backgroundColor: Colors.black,
             appBar: null,
@@ -769,7 +764,7 @@ class _PlaylistDetailPageDummyState extends State<PlaylistDetailPageDummy> {
                   final allow = await _handleBackPress();
                   if (!mounted) return;
                   if (allow) {
-                    await _handleHeaderBack();
+                    Navigator.of(context, rootNavigator: true).maybePop();
                   }
                 },
               ),

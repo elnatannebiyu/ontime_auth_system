@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dart:async';
 import 'channel_mini_player_manager.dart';
-import 'channel_now_playing.dart';
 
 class ChannelYoutubePlayer extends StatefulWidget {
   final Map<String, dynamic>? video;
@@ -41,14 +41,10 @@ class ChannelYoutubePlayer extends StatefulWidget {
 class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     with WidgetsBindingObserver {
   YoutubePlayerController? _controller;
-  String? _videoId;
   bool _isFullscreen = false;
   bool _wasPlaying = false;
   bool _wasFullscreen = false;
   bool _lastLandscape = false;
-  bool _shouldResumeAfterMinimize = false;
-  bool _playOnInit = false;
-  String? _lastEndedVideoId;
   bool _showRotateOverlay = false;
   Timer? _rotateOverlayTimer;
   Timer? _autoRotateHintTimer;
@@ -56,31 +52,14 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   bool _fullscreenToggleInFlight = false;
   Timer? _restoreOrientationsTimer;
   Timer? _restoreAllAfterPortraitTimer;
+  Timer? _restorePlaybackTimer;
+  int _restorePlaybackAttempts = 0;
+  int? _lastRestoredControllerHash;
+  static const Duration _minReliablePlaybackPosition =
+      Duration(milliseconds: 400);
   bool _preferPortraitOnNextExit = false;
   bool _showControls = true;
   Timer? _hideControlsTimer;
-
-  String? _controllerVideoId(YoutubePlayerController? c) {
-    if (c == null) return null;
-    try {
-      final id = c.value.metaData.videoId;
-      if (id.isNotEmpty) return id;
-    } catch (_) {}
-    try {
-      // ignore: invalid_use_of_protected_member
-      final id = c.initialVideoId;
-      if (id.isNotEmpty) return id;
-    } catch (_) {}
-    return null;
-  }
-
-  bool _shouldKeepControllerForMiniPlayer() {
-    final vid = _videoId;
-    if (vid == null || vid.isEmpty) return false;
-    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
-    if (now == null) return false;
-    return now.videoId == vid;
-  }
 
   void _restoreAllOrientations() {
     try {
@@ -97,73 +76,44 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _playOnInit = widget.playOnInit;
-    _initController();
+    _controller = ChannelMiniPlayerManager.I.ytController.value;
+    ChannelMiniPlayerManager.I.ytController.addListener(_onGlobalController);
+    _attachController(_controller);
   }
 
   @override
   void didUpdateWidget(covariant ChannelYoutubePlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final nextId = _extractVideoId(widget.video);
-    if (nextId != _videoId) {
-      _videoId = nextId;
-      _lastEndedVideoId = null;
-      if (_controller != null && nextId != null && nextId.isNotEmpty) {
-        _playOnInit = widget.playOnInit;
-        _controller!.load(nextId);
-        _pushMiniPlayerState();
-        _playIfReady();
-      } else {
-        _playOnInit = widget.playOnInit;
-        _disposeController();
-        _initController();
-        setState(() {});
-      }
+    if (oldWidget.video != widget.video) {
+      setState(() {});
     }
   }
 
-  void _initController() {
-    _videoId = _extractVideoId(widget.video);
-    if (_videoId == null || _videoId!.isEmpty) return;
+  void _onGlobalController() {
+    final next = ChannelMiniPlayerManager.I.ytController.value;
+    if (next == _controller) return;
+    _detachController(_controller);
+    _controller = next;
+    _attachController(_controller);
+    if (mounted) setState(() {});
+  }
 
-    // If we are expanding from the floating mini-player, reuse the same
-    // controller instance so playback doesn't restart or duplicate.
-    final existing = ChannelMiniPlayerManager.I.ytController.value;
-    final existingVid = _controllerVideoId(existing);
-    if (existing != null && existingVid == _videoId) {
-      _controller = existing;
-    } else {
-      _controller = YoutubePlayerController(
-        initialVideoId: _videoId!,
-        flags: const YoutubePlayerFlags(
-          autoPlay: false,
-          controlsVisibleAtStart: false,
-          hideControls: false,
-          disableDragSeek: true,
-          enableCaption: true,
-        ),
-      );
-      ChannelMiniPlayerManager.I.ytController.value = _controller;
-    }
-    _controller?.addListener(_handlePlayback);
-    _controller?.addListener(_handleFullscreenState);
+  void _attachController(YoutubePlayerController? controller) {
+    if (controller == null) return;
+    controller.addListener(_handlePlayback);
+    controller.addListener(_handleFullscreenState);
+    _restorePlaybackFromSession(controller);
     ChannelMiniPlayerManager.I.setPauseCallback(() {
-      _controller?.pause();
+      controller.pause();
     });
-    _pushMiniPlayerState();
-    _playIfReady();
   }
 
-  void _playIfReady() {
-    if (!_playOnInit) return;
-    final ready = _controller?.value.isReady ?? false;
-    if (!ready) return;
-    _playOnInit = false;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _controller?.seekTo(const Duration(seconds: 0));
-      _controller?.play();
-    });
+  void _detachController(YoutubePlayerController? controller) {
+    if (controller == null) return;
+    try {
+      controller.removeListener(_handlePlayback);
+      controller.removeListener(_handleFullscreenState);
+    } catch (_) {}
   }
 
   @override
@@ -189,22 +139,71 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
       _restoreAllAfterPortraitTimer?.cancel();
     } catch (_) {}
     try {
+      _restorePlaybackTimer?.cancel();
+    } catch (_) {}
+    try {
       _hideControlsTimer?.cancel();
     } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
-
-    // If the unified floating mini-player is active for this same video,
-    // keep the controller alive so playback continues across navigation.
-    // Detach listeners so this disposed widget state won't receive callbacks.
-    if (_shouldKeepControllerForMiniPlayer()) {
-      try {
-        _controller?.removeListener(_handlePlayback);
-        _controller?.removeListener(_handleFullscreenState);
-      } catch (_) {}
-    } else {
-      _disposeController();
-    }
+    ChannelMiniPlayerManager.I.ytController.removeListener(_onGlobalController);
+    _detachController(_controller);
     super.dispose();
+  }
+
+  void _restorePlaybackFromSession(YoutubePlayerController controller) {
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    final nowPosition = now?.playbackPosition ?? Duration.zero;
+    final sessionPosition = nowPosition > Duration.zero
+        ? nowPosition
+        : ChannelMiniPlayerManager.I.lastPlaybackPosition;
+    if (sessionPosition <= Duration.zero) return;
+    final controllerHash = controller.hashCode;
+    if (_lastRestoredControllerHash == controllerHash) return;
+    _lastRestoredControllerHash = controllerHash;
+    _restorePlaybackAttempts = 0;
+    _restorePlaybackTimer?.cancel();
+    _restorePlaybackTimer =
+        Timer.periodic(const Duration(milliseconds: 250), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _restorePlaybackAttempts += 1;
+      final ready = controller.value.isReady;
+      if (!ready) {
+        if (_restorePlaybackAttempts >= 12) {
+          timer.cancel();
+        }
+        return;
+      }
+      final currentPos = controller.value.position;
+      final delta = (currentPos - sessionPosition).inSeconds.abs();
+      // Only restore if the surface came back near the beginning.
+      // Avoid seeking backwards when playback is already continuing.
+      final shouldSeek =
+          currentPos <= const Duration(seconds: 1) &&
+              sessionPosition > _minReliablePlaybackPosition &&
+              delta > 1;
+      if (kDebugMode) {
+        debugPrint(
+            '[ChannelYoutubePlayer] restore check seek=$shouldSeek session=${sessionPosition.inMilliseconds}ms current=${currentPos.inMilliseconds}ms');
+      }
+      if (shouldSeek) {
+        try {
+          controller.seekTo(sessionPosition);
+        } catch (_) {}
+      }
+      if (now?.isPlaying == true) {
+        try {
+          controller.play();
+        } catch (_) {}
+      } else if (now?.isPlaying == false) {
+        try {
+          controller.pause();
+        } catch (_) {}
+      }
+      timer.cancel();
+    });
   }
 
   void _startRotateOverlay() {
@@ -227,44 +226,15 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     if (mounted) setState(() {});
   }
 
-  void _disposeController() {
-    final current = _controller;
-    _controller?.removeListener(_handlePlayback);
-    _controller?.removeListener(_handleFullscreenState);
-    if (ChannelMiniPlayerManager.I.ytController.value == current) {
-      _controller = null;
-      return;
-    }
-    _controller?.dispose();
-    _controller = null;
-  }
-
   void _handlePlayback() {
-    _playIfReady();
     final playerState = _controller?.value.playerState;
     if (playerState == PlayerState.ended) {
-      final vid = _videoId;
-      if (vid != null && vid.isNotEmpty && _lastEndedVideoId != vid) {
-        _lastEndedVideoId = vid;
-        _pushMiniPlayerState();
-        if (ChannelMiniPlayerManager.I.autoPlayNext.value) {
-          widget.onAutoPlayNext?.call();
-        }
+      if (ChannelMiniPlayerManager.I.autoPlayNext.value) {
+        widget.onAutoPlayNext?.call();
       }
       return;
     }
-    if (playerState == PlayerState.playing) {
-      _lastEndedVideoId = null;
-    }
     final playing = _controller?.value.isPlaying ?? false;
-    if (_shouldResumeAfterMinimize && !playing) {
-      final ready = _controller?.value.isReady ?? false;
-      if (ready) {
-        _controller?.play();
-        _shouldResumeAfterMinimize = false;
-        return;
-      }
-    }
     if (playing == _wasPlaying) return;
     _wasPlaying = playing;
     if (playing) {
@@ -280,7 +250,6 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
       }
     } catch (_) {}
     widget.onPlayingChanged?.call(playing);
-    _pushMiniPlayerState();
   }
 
   void _showControlsOverlay() {
@@ -298,43 +267,6 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
       if (!mounted) return;
       setState(() => _showControls = false);
     });
-  }
-
-  void _pushMiniPlayerState() {
-    final current = widget.video;
-    if (current == null) return;
-    final title = (current['title'] ?? '').toString();
-    final thumb = [
-      current['thumbnail_url'],
-      current['thumbnail'],
-      current['thumb'],
-      current['image'],
-      current['poster'],
-    ].whereType<String>().firstWhere((t) => t.isNotEmpty, orElse: () => '');
-    final id = _videoId ?? '';
-    if (id.isEmpty || title.isEmpty) return;
-    ChannelMiniPlayerManager.I.setNowPlaying(
-      ChannelNowPlaying(
-        videoId: id,
-        title: title,
-        playlistId: widget.playlistId,
-        playlistTitle: widget.playlistTitle,
-        thumbnailUrl: thumb.isNotEmpty ? thumb : null,
-        isPlaying: _wasPlaying,
-        onTogglePlayPause: () {
-          if (_controller == null) return;
-          if (!(_controller!.value.isReady)) return;
-          if (_controller!.value.isPlaying) {
-            ChannelMiniPlayerManager.I.update(isPlaying: false);
-            _controller!.pause();
-          } else {
-            ChannelMiniPlayerManager.I.update(isPlaying: true);
-            _controller!.play();
-          }
-        },
-        onExpand: widget.onExpand,
-      ),
-    );
   }
 
   void _handleFullscreenState() {
@@ -426,22 +358,19 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
   }
 
   void _minimizeToMiniPlayer() {
-    final shouldResume = _controller?.value.isPlaying ?? false;
-    _shouldResumeAfterMinimize = shouldResume;
+    final c = _controller;
+    if (c != null) {
+      try {
+        ChannelMiniPlayerManager.I.update(
+          playbackPosition: c.value.position,
+          duration: c.value.metaData.duration,
+          isPlaying: c.value.isPlaying,
+        );
+      } catch (_) {}
+    }
     ChannelMiniPlayerManager.I.setSuppressed(false);
     ChannelMiniPlayerManager.I.setMinimized(true);
-    _pushMiniPlayerState();
-    if (shouldResume) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final c = _controller;
-        if (c == null) return;
-        if (!c.value.isPlaying) {
-          c.play();
-        }
-      });
-    }
-    if (_controller?.value.isFullScreen ?? false) {
+    if (c?.value.isFullScreen ?? false) {
       // If minimize is used to exit fullscreen, prefer portrait during the exit
       // transition to avoid Android settling into landscapeLeft.
       _preferPortraitOnNextExit = true;
@@ -452,7 +381,7 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
         SystemChrome.setPreferredOrientations(
             const [DeviceOrientation.portraitUp]);
       } catch (_) {}
-      _controller?.toggleFullScreenMode();
+      c?.toggleFullScreenMode();
     }
   }
 
@@ -460,25 +389,6 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
     try {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
-  }
-
-  String? _extractVideoId(Map<String, dynamic>? v) {
-    if (v == null) return null;
-    final direct = [
-      v['youtube_id'],
-      v['youtube_video_id'],
-      v['yt_video_id'],
-      v['video_id'],
-    ].whereType<String>().firstWhere((id) => id.isNotEmpty, orElse: () => '');
-    if (direct.isNotEmpty) return direct;
-    final url = [
-      v['youtube_url'],
-      v['youtube_link'],
-      v['url'],
-      v['link'],
-    ].whereType<String>().firstWhere((u) => u.isNotEmpty, orElse: () => '');
-    if (url.isEmpty) return null;
-    return YoutubePlayer.convertUrlToId(url);
   }
 
   @override
@@ -533,12 +443,7 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
                       ),
                       onPressed: () {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (ChannelMiniPlayerManager.I.isMinimized.value) {
-                            ChannelMiniPlayerManager.I.clear();
-                          } else {
-                            ChannelMiniPlayerManager.I
-                                .clear(disposeController: false);
-                          }
+                          ChannelMiniPlayerManager.I.clear();
                           widget.onClose?.call();
                         });
                       },
@@ -596,13 +501,7 @@ class _ChannelYoutubePlayerState extends State<ChannelYoutubePlayer>
                                 onPressed: () {
                                   WidgetsBinding.instance
                                       .addPostFrameCallback((_) {
-                                    if (ChannelMiniPlayerManager
-                                        .I.isMinimized.value) {
-                                      ChannelMiniPlayerManager.I.clear();
-                                    } else {
-                                      ChannelMiniPlayerManager.I
-                                          .clear(disposeController: false);
-                                    }
+                                    ChannelMiniPlayerManager.I.clear();
                                     widget.onClose?.call();
                                   });
                                 },

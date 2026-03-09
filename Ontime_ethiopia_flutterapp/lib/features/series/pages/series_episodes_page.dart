@@ -74,19 +74,16 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
 
   Map<String, dynamic>? _currentVideo;
   int? _currentEpisodeId;
-  bool _playOnInit = false;
   bool _isPlaying = false;
-  bool _allowMiniPlayerOverride = false;
-  int _currentVideoVersion = 0;
-  int _lastFloatingVersion = -1;
-  bool? _lastFloatingMinimized;
   final GlobalKey _playerKey = GlobalKey();
+  final GlobalKey _floatingPlayerKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _service = SeriesService(api: widget.api, tenantId: widget.tenantId);
     WidgetsBinding.instance.addObserver(this);
+    ChannelMiniPlayerManager.I.isMinimized.addListener(_onMinimizedChanged);
     _load();
   }
 
@@ -95,6 +92,7 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
+    ChannelMiniPlayerManager.I.isMinimized.removeListener(_onMinimizedChanged);
     super.dispose();
   }
 
@@ -126,6 +124,13 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
   }
 
   void _playEpisode(int episodeId, {String? title}) async {
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    if (_currentEpisodeId == episodeId && now != null) {
+      ChannelMiniPlayerManager.I.setSuppressed(true);
+      ChannelMiniPlayerManager.I.setMinimized(false);
+      _setNowPlayingFromCurrentVideo(openIfSame: true);
+      return;
+    }
     widget.api.setTenant(widget.tenantId);
     try {
       final play = await widget.api.seriesEpisodePlay(episodeId);
@@ -144,16 +149,93 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
           'title': (title ?? widget.title).toString(),
           'thumbnail_url': cover,
         };
-        _currentVideoVersion += 1;
-        _playOnInit = true;
-        if (ChannelMiniPlayerManager.I.isMinimized.value) {
-          _allowMiniPlayerOverride = true;
-        }
       });
+      _setNowPlayingFromCurrentVideo(openIfSame: false);
 
       // Optional: persist continue watching lightweight marker
       _saveContinueWatching(episodeId: episodeId, title: title ?? widget.title);
     } catch (_) {}
+  }
+
+  void _setNowPlayingFromCurrentVideo({bool openIfSame = false}) {
+    final v = _currentVideo;
+    if (v == null) return;
+    final id = (v['youtube_id'] ?? '').toString().trim();
+    final title = (v['title'] ?? '').toString();
+    if (id.isEmpty || title.isEmpty) return;
+    ChannelMiniPlayerManager.I.setVideo(
+      videoId: id,
+      title: title,
+      playlistTitle: widget.title,
+      thumbnailUrl: (v['thumbnail_url'] ?? '').toString().isNotEmpty
+          ? (v['thumbnail_url'] as String)
+          : null,
+      openIfSame: openIfSame,
+      onExpand: _expandFromMini,
+    );
+  }
+
+  void _expandFromMini() {
+    if (!mounted) return;
+    final nav = Navigator.of(context, rootNavigator: true);
+    final target = '/series/season/${widget.seasonId}';
+    if (appRouteStackObserver.containsName(target)) {
+      nav.popUntil((route) => route.settings.name == target);
+      return;
+    }
+    nav.push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: target),
+        builder: (_) => SeriesEpisodesPage(
+          api: widget.api,
+          tenantId: widget.tenantId,
+          seasonId: widget.seasonId,
+          title: widget.title,
+          coverImage: widget.coverImage,
+        ),
+      ),
+    );
+  }
+
+  void _onMinimizedChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateFloatingPlayer();
+    });
+  }
+
+  void _updateFloatingPlayer() {
+    final minimized = ChannelMiniPlayerManager.I.isMinimized.value;
+    if (!minimized || _currentVideo == null) {
+      ChannelMiniPlayerManager.I.setFloatingPlayer(null);
+      return;
+    }
+    final player = ChannelYoutubePlayer(
+      key: _floatingPlayerKey,
+      video: _currentVideo,
+      playlistTitle: widget.title,
+      onExpand: _expandFromMini,
+      onAutoPlayNext: _playNext,
+    );
+    ChannelMiniPlayerManager.I.setFloatingPlayer(player);
+  }
+
+  Future<bool> _handleBackPress() async {
+    final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+    if (now != null || _currentVideo != null) {
+      if (now == null && _currentVideo != null) {
+        _setNowPlayingFromCurrentVideo(openIfSame: true);
+      }
+      ChannelMiniPlayerManager.I.setSuppressed(false);
+      ChannelMiniPlayerManager.I.setMinimized(true);
+      _updateFloatingPlayer();
+      final nav = Navigator.of(context, rootNavigator: true);
+      if (nav.canPop()) {
+        nav.pop();
+      }
+      return false;
+    }
+    return true;
   }
 
   int _indexOfEpisode(int id) {
@@ -218,7 +300,6 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
                 key: _playerKey,
                 video: _currentVideo,
                 playlistTitle: widget.title,
-                playOnInit: _playOnInit,
                 onExpand: () {
                   final nav = Navigator.of(context, rootNavigator: true);
                   final target = '/series/season/${widget.seasonId}';
@@ -244,23 +325,11 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
                     setState(() => _isPlaying = playing);
+                    _setNowPlayingFromCurrentVideo();
                   });
                 },
                 onAutoPlayNext: _playNext,
               );
-
-              final shouldOverride = !minimized || _allowMiniPlayerOverride;
-              if (_lastFloatingMinimized != minimized ||
-                  _lastFloatingVersion != _currentVideoVersion ||
-                  _allowMiniPlayerOverride) {
-                _lastFloatingMinimized = minimized;
-                _lastFloatingVersion = _currentVideoVersion;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || !shouldOverride) return;
-                  ChannelMiniPlayerManager.I.floatingPlayer.value = player;
-                  _allowMiniPlayerOverride = false;
-                });
-              }
 
               if (minimized) {
                 return const SizedBox.shrink();
@@ -273,93 +342,107 @@ class _SeriesEpisodesPageState extends State<SeriesEpisodesPage>
             },
           );
 
-    return Scaffold(
-      appBar: isLandscape
-          ? null
-          : AppBar(
-              title: Text(widget.title),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-            ),
-      body: SafeArea(
-        top: !isLandscape,
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
-            slivers: [
-              if (headerPlayer != null)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _PlayerHeaderDelegate(
-                    minExtentHeight: math.min(
-                        MediaQuery.of(context).size.width * 9 / 16,
-                        MediaQuery.of(context).size.height),
-                    maxExtentHeight: math.min(
-                        MediaQuery.of(context).size.width * 9 / 16,
-                        MediaQuery.of(context).size.height),
-                    builder: (_) => SafeArea(
-                      top: false,
-                      bottom: false,
-                      left: isLandscape,
-                      right: isLandscape,
-                      child: headerPlayer,
+    return WillPopScope(
+      onWillPop: _handleBackPress,
+      child: Scaffold(
+        appBar: isLandscape
+            ? null
+            : AppBar(
+                title: Text(widget.title),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () async {
+                    final allow = await _handleBackPress();
+                    if (!mounted) return;
+                    if (allow) {
+                      Navigator.of(context, rootNavigator: true).maybePop();
+                    }
+                  },
+                ),
+              ),
+        body: SafeArea(
+          top: !isLandscape,
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              slivers: [
+                if (headerPlayer != null)
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _PlayerHeaderDelegate(
+                      minExtentHeight: math.min(
+                          MediaQuery.of(context).size.width * 9 / 16,
+                          MediaQuery.of(context).size.height),
+                      maxExtentHeight: math.min(
+                          MediaQuery.of(context).size.width * 9 / 16,
+                          MediaQuery.of(context).size.height),
+                      builder: (_) => SafeArea(
+                        top: false,
+                        bottom: false,
+                        left: isLandscape,
+                        right: isLandscape,
+                        child: headerPlayer,
+                      ),
+                    ),
+                  ),
+                SliverSafeArea(
+                  top: false,
+                  bottom: true,
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final e = _episodes[i];
+                        final id = e['id'] as int;
+                        final title =
+                            (e['display_title'] ?? e['title'] ?? '').toString();
+                        final desc =
+                            (e['description_override'] ?? e['description'] ?? '')
+                                .toString();
+                        final thumbs = e['thumbnails'] as Map<String, dynamic>?;
+                        final cover = _pickThumb(thumbs);
+                        return Padding(
+                          padding:
+                              EdgeInsets.fromLTRB(12, i == 0 ? 4 : 8, 12, 8),
+                          child: EpisodeCard(
+                            title: title,
+                            subtitle: e['episode_number'] != null
+                                ? 'Episode ${e['episode_number']}'
+                                : null,
+                            description: desc,
+                            imageUrl: cover,
+                            liked: _likedEpisodes.contains(id),
+                            onPlay: () => _playEpisode(id, title: title),
+                            onToggleLike: () async {
+                              try {
+                                if (_likedEpisodes.contains(id)) {
+                                  await widget.api.seriesEpisodeUnlike(id);
+                                  if (mounted) {
+                                    setState(() => _likedEpisodes.remove(id));
+                                  }
+                                } else {
+                                  await widget.api.seriesEpisodeLike(id);
+                                  if (mounted) {
+                                    setState(() => _likedEpisodes.add(id));
+                                  }
+                                }
+                              } catch (_) {}
+                            },
+                          ),
+                        );
+                      },
+                      childCount: _episodes.length,
                     ),
                   ),
                 ),
-              SliverSafeArea(
-                top: false,
-                bottom: true,
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) {
-                      final e = _episodes[i];
-                      final id = e['id'] as int;
-                      final title =
-                          (e['display_title'] ?? e['title'] ?? '').toString();
-                      final desc =
-                          (e['description_override'] ?? e['description'] ?? '')
-                              .toString();
-                      final thumbs = e['thumbnails'] as Map<String, dynamic>?;
-                      final cover = _pickThumb(thumbs);
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(12, i == 0 ? 4 : 8, 12, 8),
-                        child: EpisodeCard(
-                          title: title,
-                          subtitle: e['episode_number'] != null
-                              ? 'Episode ${e['episode_number']}'
-                              : null,
-                          description: desc,
-                          imageUrl: cover,
-                          liked: _likedEpisodes.contains(id),
-                          onPlay: () => _playEpisode(id, title: title),
-                          onToggleLike: () async {
-                            try {
-                              if (_likedEpisodes.contains(id)) {
-                                await widget.api.seriesEpisodeUnlike(id);
-                                if (mounted) {
-                                  setState(() => _likedEpisodes.remove(id));
-                                }
-                              } else {
-                                await widget.api.seriesEpisodeLike(id);
-                                if (mounted) {
-                                  setState(() => _likedEpisodes.add(id));
-                                }
-                              }
-                            } catch (_) {}
-                          },
-                        ),
-                      );
-                    },
-                    childCount: _episodes.length,
-                  ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                      height: 60 + MediaQuery.of(context).padding.bottom),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                    height: 60 + MediaQuery.of(context).padding.bottom),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -4,8 +4,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import '../mini_player/mini_player_manager.dart';
-import '../mini_player/series_now_playing.dart';
 import '../../../auth/tenant_auth_client.dart';
 import '../../../channels/player/channel_mini_player_manager.dart';
 import '../../../main.dart';
@@ -34,16 +32,9 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   YoutubePlayerController? _yt;
-  VoidCallback? _ytListener;
-  bool _isFull = false;
   bool _showUi = true;
   Timer? _hideTimer;
-  bool? _lastLandscape;
-  Timer? _rotateDebounce;
-  bool _autoRotate = true; // toggle: auto-enter/exit fullscreen on orientation
   bool _suppressUi = false; // hide overlays during rotation window
-  DateTime? _lastToggleAt; // min interval guard
-  String? _videoId; // for stability mode rebuilds
   final bool _useNativeControls = true;
 
   void _expandFromMini() {
@@ -84,7 +75,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     PipService.setActive(true);
     WidgetsBinding.instance.addObserver(this);
     ChannelMiniPlayerManager.I.setSuppressed(true);
-    ChannelMiniPlayerManager.I.pause();
+    ChannelMiniPlayerManager.I.setMinimized(false);
+    ChannelMiniPlayerManager.I.ytController.addListener(_syncController);
+    _syncController();
     _load();
   }
 
@@ -92,9 +85,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void dispose() {
     PipService.setActive(false);
     try {
-      if (_ytListener != null && _yt != null) _yt!.removeListener(_ytListener!);
-      _yt?.pause();
-      _yt?.dispose();
+      ChannelMiniPlayerManager.I.ytController.removeListener(_syncController);
     } catch (_) {}
     try {
       _hideTimer?.cancel();
@@ -105,9 +96,6 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
-    try {
-      _rotateDebounce?.cancel();
-    } catch (_) {}
     ChannelMiniPlayerManager.I.setSuppressed(false);
     super.dispose();
   }
@@ -115,155 +103,15 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
-    // Debounce orientation-driven fullscreen sync to avoid surface churn
-    try {
-      _rotateDebounce?.cancel();
-    } catch (_) {}
-    setState(() => _suppressUi = true);
-    _rotateDebounce = Timer(const Duration(milliseconds: 450), () async {
-      if (!mounted) return;
-      await _rebuildForOrientation(context);
-      if (mounted) setState(() => _suppressUi = false);
-    });
+    if (mounted) {
+      setState(() => _suppressUi = false);
+    }
   }
 
-  Future<void> _rebuildForOrientation(BuildContext ctx) async {
-    if (!_autoRotate) return;
-    final c = _yt;
-    if (c == null) return;
-    // Require stable orientation across two frames
-    final o1 = MediaQuery.of(ctx).orientation;
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+  void _syncController() {
     if (!mounted) return;
-    final o2 = MediaQuery.of(ctx).orientation;
-    if (o1 != o2) return; // not stable yet
-    final isLand = o2 == Orientation.landscape;
-    if (_lastLandscape == isLand && _isFull == isLand) return;
-    // Min interval guard
-    final now = DateTime.now();
-    if (_lastToggleAt != null &&
-        now.difference(_lastToggleAt!) < const Duration(milliseconds: 800)) {
-      _lastLandscape = isLand;
-      return;
-    }
-
-    // Capture state
-    Duration pos = Duration.zero;
-    bool wasPlaying = false;
-    try {
-      pos = c.value.position;
-      wasPlaying = c.value.isPlaying;
-    } catch (_) {}
-
-    try {
-      c.pause();
-    } catch (_) {}
-    try {
-      c.removeListener(_ytListener!);
-    } catch (_) {}
-    try {
-      c.dispose();
-    } catch (_) {}
     setState(() {
-      _yt = null;
-    });
-
-    // Recreate after short delay
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (!mounted || _videoId == null || _videoId!.isEmpty) return;
-
-    final nc = YoutubePlayerController(
-      initialVideoId: _videoId!,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        controlsVisibleAtStart: true,
-        hideControls: false,
-        forceHD: false,
-        enableCaption: false,
-      ),
-    );
-    _ytListener = () {
-      final fs = nc.value.isFullScreen;
-      if (fs != _isFull) {
-        setState(() => _isFull = fs);
-        try {
-          if (fs) {
-            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-          } else {
-            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-          }
-        } catch (_) {}
-      }
-      try {
-        final pos = nc.value.position;
-        final dur = nc.value.metaData.duration;
-        final playing = nc.value.isPlaying;
-        final current = MiniPlayerManager.I.nowPlaying.value;
-        if (current == null || current.episodeId != widget.episodeId) {
-          MiniPlayerManager.I.setNowPlaying(
-            SeriesNowPlaying(
-              episodeId: widget.episodeId,
-              title: widget.title,
-              thumbnailUrl: widget.thumbnailUrl,
-              position: pos,
-              duration: dur,
-              isPlaying: playing,
-              onTogglePlayPause: () {
-                try {
-                  if (nc.value.isPlaying) {
-                    nc.pause();
-                  } else {
-                    nc.play();
-                  }
-                } catch (_) {}
-              },
-              onExpand: _expandFromMini,
-            ),
-          );
-        } else {
-          MiniPlayerManager.I.update(
-            position: pos,
-            duration: dur,
-            isPlaying: playing,
-            onExpand: _expandFromMini,
-            onTogglePlayPause: () {
-              try {
-                if (nc.value.isPlaying) {
-                  nc.pause();
-                } else {
-                  nc.play();
-                }
-              } catch (_) {}
-            },
-          );
-        }
-      } catch (_) {}
-    };
-    nc.addListener(_ytListener!);
-    setState(() {
-      _yt = nc;
-      _lastLandscape = isLand;
-      _lastToggleAt = DateTime.now();
-    });
-
-    // Wait a frame, then seek and set fullscreen to match orientation
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        _yt?.seekTo(pos);
-      } catch (_) {}
-      if (wasPlaying) {
-        try {
-          _yt?.play();
-        } catch (_) {}
-      }
-      final fs = _yt?.value.isFullScreen ?? false;
-      try {
-        if (isLand && !fs) {
-          _yt?.toggleFullScreenMode();
-        } else if (!isLand && fs) {
-          _yt?.toggleFullScreenMode();
-        }
-      } catch (_) {}
+      _yt = ChannelMiniPlayerManager.I.ytController.value;
     });
   }
 
@@ -273,79 +121,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       final play = await widget.api.seriesEpisodePlay(widget.episodeId);
       final raw = (play['video_id'] ?? '').toString();
       final vid = _extractVideoId(raw);
-      final c = YoutubePlayerController(
-        initialVideoId: vid,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
-          controlsVisibleAtStart: true,
-          hideControls: false,
-          forceHD: false,
-          enableCaption: false,
-        ),
-      );
-      _videoId = vid;
-      _lastLandscape = null; // reset guard on new controller
-      _ytListener = () {
-        final fs = c.value.isFullScreen;
-        if (fs != _isFull) {
-          setState(() => _isFull = fs);
-          try {
-            if (fs) {
-              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-            } else {
-              SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-            }
-          } catch (_) {}
-        }
-        try {
-          final pos = c.value.position;
-          final dur = c.value.metaData.duration;
-          final playing = c.value.isPlaying;
-          final current = MiniPlayerManager.I.nowPlaying.value;
-          if (current == null || current.episodeId != widget.episodeId) {
-            MiniPlayerManager.I.setNowPlaying(
-              SeriesNowPlaying(
-                episodeId: widget.episodeId,
-                title: widget.title,
-                thumbnailUrl: widget.thumbnailUrl,
-                position: pos,
-                duration: dur,
-                isPlaying: playing,
-                onTogglePlayPause: () {
-                  try {
-                    if (c.value.isPlaying) {
-                      c.pause();
-                    } else {
-                      c.play();
-                    }
-                  } catch (_) {}
-                },
-                onExpand: _expandFromMini,
-              ),
-            );
-          } else {
-            MiniPlayerManager.I.update(
-              position: pos,
-              duration: dur,
-              isPlaying: playing,
-              onExpand: _expandFromMini,
-              onTogglePlayPause: () {
-                try {
-                  if (c.value.isPlaying) {
-                    c.pause();
-                  } else {
-                    c.play();
-                  }
-                } catch (_) {}
-              },
-            );
-          }
-        } catch (_) {}
-      };
-      c.addListener(_ytListener!);
-      setState(() => _yt = c);
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _rebuildForOrientation(context));
+      final now = ChannelMiniPlayerManager.I.nowPlaying.value;
+      if (now == null || now.videoId != vid) {
+        ChannelMiniPlayerManager.I.setVideo(
+          videoId: vid,
+          title: widget.title,
+          playlistTitle: widget.title,
+          thumbnailUrl: widget.thumbnailUrl,
+          openIfSame: false,
+          onExpand: _expandFromMini,
+        );
+      }
     } catch (_) {}
   }
 
@@ -403,6 +189,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           } catch (_) {}
           return false;
         }
+        ChannelMiniPlayerManager.I.setSuppressed(false);
+        ChannelMiniPlayerManager.I.setMinimized(true);
         return true;
       },
       child: Scaffold(
@@ -432,16 +220,15 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                       bottom: false,
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: Material(
-                          color: Colors.black45,
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back,
-                                color: Colors.white),
-                            onPressed: () {
-                              try {
-                                _yt?.pause();
-                              } catch (_) {}
+                          child: Material(
+                            color: Colors.black45,
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back,
+                                  color: Colors.white),
+                              onPressed: () {
+                              ChannelMiniPlayerManager.I.setSuppressed(false);
+                              ChannelMiniPlayerManager.I.setMinimized(true);
                               Navigator.of(context).maybePop();
                             },
                           ),

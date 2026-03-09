@@ -202,7 +202,15 @@ class _MyAppState extends State<MyApp> {
       final playlistId = (now.playlistId ?? '').isNotEmpty
           ? now.playlistId
           : ChannelMiniPlayerManager.I.lastPlaylistId;
-      if (playlistId == null || playlistId.isEmpty) return;
+      if (playlistId == null || playlistId.isEmpty) {
+        final fallbackExpand = now.onExpand;
+        if (fallbackExpand != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            fallbackExpand();
+          });
+        }
+        return;
+      }
       final nav = appNavigatorKey.currentState;
       debugPrint(
           '[ChannelMiniPlayer] expand requested playlistId=$playlistId navReady=${nav != null}');
@@ -219,15 +227,30 @@ class _MyAppState extends State<MyApp> {
         final currentNav = appNavigatorKey.currentState;
         if (currentNav == null) return;
         if (appRouteStackObserver.top == routeName) {
+          if (kDebugMode) {
+            debugPrint('[MiniExpand] branch=top_same_route route=$routeName');
+          }
           ChannelMiniPlayerManager.I.setPendingOpenFromMini(playlistId);
           ChannelMiniPlayerManager.I.setSuppressed(true);
+          ChannelMiniPlayerManager.I.setMinimized(false);
           return;
         }
         if (appRouteStackObserver.containsName(routeName)) {
+          if (kDebugMode) {
+            debugPrint(
+                '[MiniExpand] branch=pop_until_existing route=$routeName');
+          }
           ChannelMiniPlayerManager.I.setPendingOpenFromMini(playlistId);
           ChannelMiniPlayerManager.I.setSuppressed(true);
           currentNav.popUntil((route) => route.settings.name == routeName);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ChannelMiniPlayerManager.I.setMinimized(false);
+          });
         } else {
+          if (kDebugMode) {
+            debugPrint('[MiniExpand] branch=push_new_route route=$routeName');
+          }
+          ChannelMiniPlayerManager.I.setSuppressed(true);
           currentNav
               .push(
             MaterialPageRoute(

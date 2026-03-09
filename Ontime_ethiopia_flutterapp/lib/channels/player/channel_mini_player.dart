@@ -391,12 +391,8 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                             debugPrint(
                                 '[MiniPlayer] maximize tap videoId=${now.videoId} playlistId=${now.playlistId}');
                           }
-                          final cb = now.onExpand;
-                          if (cb != null) {
-                            cb();
-                          } else {
-                            ChannelMiniPlayerManager.I.requestExpand(now);
-                          }
+                          ChannelMiniPlayerManager.I
+                              .requestExpandWithPauseResume(now);
                         },
                       ),
                       const Spacer(),
@@ -405,8 +401,7 @@ class _ChannelMiniPlayerState extends State<ChannelMiniPlayer> {
                         onTap: () {
                           final isLive = now.videoId.startsWith('live:');
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            ChannelMiniPlayerManager.I
-                                .clear(disposeController: false);
+                            ChannelMiniPlayerManager.I.clear();
                             if (isLive) {
                               TvController.instance
                                   .setUseUnifiedMiniPlayer(false);

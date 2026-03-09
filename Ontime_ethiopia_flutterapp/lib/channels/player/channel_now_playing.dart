@@ -7,6 +7,8 @@ class ChannelNowPlaying {
   final String? playlistTitle;
   final String? thumbnailUrl;
   final bool isPlaying;
+  final Duration? playbackPosition;
+  final Duration? duration;
   final VoidCallbackFn? onTogglePlayPause;
   final VoidCallbackFn? onExpand;
 
@@ -17,6 +19,8 @@ class ChannelNowPlaying {
     this.playlistId,
     this.playlistTitle,
     this.thumbnailUrl,
+    this.playbackPosition,
+    this.duration,
     this.onTogglePlayPause,
     this.onExpand,
   });
@@ -27,6 +31,8 @@ class ChannelNowPlaying {
     String? playlistTitle,
     String? thumbnailUrl,
     bool? isPlaying,
+    Duration? playbackPosition,
+    Duration? duration,
     VoidCallbackFn? onTogglePlayPause,
     VoidCallbackFn? onExpand,
   }) {
@@ -37,6 +43,8 @@ class ChannelNowPlaying {
       playlistTitle: playlistTitle ?? this.playlistTitle,
       isPlaying: isPlaying ?? this.isPlaying,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      playbackPosition: playbackPosition ?? this.playbackPosition,
+      duration: duration ?? this.duration,
       onTogglePlayPause: onTogglePlayPause ?? this.onTogglePlayPause,
       onExpand: onExpand ?? this.onExpand,
     );
